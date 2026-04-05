@@ -934,7 +934,7 @@ const Modals = {
     const s = student || {
       firstName: '', lastName: '', email: '', phone: '',
       companyId: '', poleId: ownCos[0]?.id || '',
-      formationIds: [], status: 'active', notes: '',
+      formationIds: [], status: 'active', notes: '', entryDate: '',
       // Qualiopi — Ind. 4/8
       projetPro: '', examenCible: '', rqth: false,
       positionScore: '', positionDate: '',
@@ -1010,6 +1010,10 @@ const Modals = {
                 <option value="inactive" ${s.status === 'inactive' ? 'selected' : ''}>Inactif</option>
                 <option value="pending"  ${s.status === 'pending'  ? 'selected' : ''}>En attente</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label>Date d'entrée en formation</label>
+              <input type="date" id="stf-entrydate" class="form-input" value="${s.entryDate||''}">
             </div>
             ${formations.length > 0 ? `
             <div class="form-group form-col-2">
@@ -1171,6 +1175,7 @@ const Modals = {
       if (!firstName || !lastName) { Utils.toast('Le prénom et le nom sont obligatoires.', 'error'); return; }
       const formationIds = [...document.querySelectorAll('input[name="student-formation"]:checked')].map(i => i.value);
       Data.saveStudent({
+        ...s,
         id: s.id || Utils.uuid(),
         firstName, lastName,
         email:     document.getElementById('stf-email').value.trim(),
@@ -1179,6 +1184,7 @@ const Modals = {
         companyId: document.getElementById('stf-pole').value,
         level:     document.getElementById('stf-level').value,
         status:    document.getElementById('stf-status').value,
+        entryDate: document.getElementById('stf-entrydate').value,
         formationIds,
         notes:     document.getElementById('stf-notes').value.trim(),
         // Qualiopi

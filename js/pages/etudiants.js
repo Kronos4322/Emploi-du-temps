@@ -1,194 +1,385 @@
-// etudiants.js — Gestion des étudiants (module Artémis)
+// etudiants.js — Hub Étudiants + Suivi Qualiopi
 'use strict';
 
-const filters = { search: '', companyId: '', formationId: '', status: '' };
-let searchTimeout = null;
+// ── Constantes Qualiopi ──────────────────────────────────────────
+const QSTEPS = [
+  'Prise de contact','Positionnement / analyse','Programme transmis',
+  'Devis / contrat envoyé','Document signé reçu','Règlement intérieur transmis',
+  "Livret d'accueil transmis",'Entrée en formation','Émargement / présence',
+  'Évaluation intermédiaire','Évaluation finale','Attestation de fin',
+  'Satisfaction envoyée','Satisfaction reçue','Archivage dossier'
+];
+const QDOCS = [
+  {k:'fiche_rens',l:'Fiche de renseignement'},{k:'positionnement',l:'Fiche de positionnement'},
+  {k:'programme',l:'Programme de formation'},{k:'devis',l:'Devis'},
+  {k:'contrat',l:'Contrat / convention'},{k:'reglement',l:'Règlement intérieur'},
+  {k:'livret',l:"Livret d'accueil"},{k:'planning',l:'Planning'},
+  {k:'emargement',l:'Émargements'},{k:'evaluation',l:'Évaluations'},
+  {k:'attestation',l:'Attestation de fin'},{k:'bilan',l:'Bilan'},
+  {k:'satisfaction',l:'Questionnaire satisfaction'},{k:'justificatifs',l:'Justificatifs complémentaires'}
+];
+const SC    = {vert:'#22c55e',jaune:'#f59e0b',rouge:'#ef4444',gris:'#94a3b8'};
+const SI    = {vert:'✓',jaune:'⋯',rouge:'✗',gris:'—'};
+const SL    = {vert:'Terminé',jaune:'En cours',rouge:'Manquant',gris:'N/A'};
+const SCY   = ['rouge','jaune','vert','gris'];
+const DS    = ['non_cree','cree','envoye','recu','signe','archive'];
+const DL    = {non_cree:'Non créé',cree:'Créé',envoye:'Envoyé',recu:'Reçu',signe:'Signé',archive:'Archivé'};
+const DC    = {non_cree:'#94a3b8',cree:'#94a3b8',envoye:'#f59e0b',recu:'#f59e0b',signe:'#22c55e',archive:'#22c55e'};
+
+// ── État ────────────────────────────────────────────────────────
+let _view = 'hub';
+let _qId  = null;
+const filters = {search:'',companyId:'',formationId:'',status:''};
+let _st = null;
 
 function renderPage() { render(); }
+function qScore(s) { return (s.qSteps||[]).filter(v=>v==='vert').length; }
 
+// ── Init ────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   Data.init();
-  buildFilters();
   render();
-
-  document.getElementById('btn-new-student').addEventListener('click', () =>
-    Modals.openStudent(null));
-
-  document.getElementById('filter-search').addEventListener('input', e => {
+  const mc = document.getElementById('main-content');
+  mc.addEventListener('click',  handleClick);
+  mc.addEventListener('change', handleChange);
+  mc.addEventListener('input',  e => {
+    if (e.target.id !== 'filter-search') return;
     filters.search = e.target.value;
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(render, 200);
-  });
-  document.getElementById('filter-company').addEventListener('change',   e => { filters.companyId   = e.target.value; render(); });
-  document.getElementById('filter-formation').addEventListener('change', e => { filters.formationId  = e.target.value; render(); });
-  document.getElementById('filter-status').addEventListener('change',    e => { filters.status       = e.target.value; render(); });
-  document.getElementById('btn-reset-filters').addEventListener('click', () => {
-    filters.search = ''; filters.companyId = ''; filters.formationId = ''; filters.status = '';
-    document.getElementById('filter-search').value    = '';
-    document.getElementById('filter-company').value   = '';
-    document.getElementById('filter-formation').value = '';
-    document.getElementById('filter-status').value    = '';
-    render();
+    clearTimeout(_st); _st = setTimeout(render, 200);
   });
 });
 
-function buildFilters() {
-  const companies  = Data.getOwnCompanies().filter(c => c.hasTraining);
-  const formations = Data.getFormations();
-
-  document.getElementById('filter-company').innerHTML =
-    '<option value="">Tous les pôles</option>' +
-    companies.map(c => `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`).join('');
-
-  document.getElementById('filter-formation').innerHTML =
-    '<option value="">Toutes les formations</option>' +
-    formations.map(f => `<option value="${f.id}">${Utils.escapeHtml(f.name)}</option>`).join('');
-}
-
-function getFiltered() {
-  let students = Data.getStudents();
-  if (filters.companyId)   students = students.filter(s => s.companyId === filters.companyId);
-  if (filters.formationId) students = students.filter(s => (s.formationIds||[]).includes(filters.formationId));
-  if (filters.status)      students = students.filter(s => s.status === filters.status);
-  if (filters.search) {
-    const q = filters.search.toLowerCase();
-    students = students.filter(s =>
-      (s.firstName||'').toLowerCase().includes(q) ||
-      (s.lastName||'').toLowerCase().includes(q)  ||
-      (s.email||'').toLowerCase().includes(q)     ||
-      (s.notes||'').toLowerCase().includes(q));
+function handleClick(e) {
+  const t = e.target.closest('[data-action]'); if (!t) return;
+  const a = t.dataset.action, id = t.dataset.id;
+  if (a === 'goto-hub')      { _view='hub';             render(); }
+  if (a === 'goto-students') { _view='students';        render(); }
+  if (a === 'goto-qualiopi') { _view='qualiopi';        render(); }
+  if (a === 'q-detail')      { _qId=id; _view='qualiopi-detail'; render(); }
+  if (a === 'q-back')        { _view='qualiopi';        render(); }
+  if (a === 'new-student')   { Modals.openStudent(null); }
+  if (a === 'open-student')  { Modals.openStudent(id); }
+  if (a === 'reset-filters') {
+    filters.search=''; filters.companyId=''; filters.formationId=''; filters.status='';
+    render();
   }
-  return students;
+  if (a === 'q-step') {
+    const s = Data.getStudentById(id); if (!s) return;
+    const steps = [...(s.qSteps||Array(QSTEPS.length).fill('rouge'))];
+    const i = +t.dataset.idx;
+    steps[i] = SCY[(SCY.indexOf(steps[i]||'rouge')+1)%SCY.length];
+    Data.saveStudent({...s, qSteps:steps}); render();
+  }
+  if (a === 'q-doc') {
+    const s = Data.getStudentById(id); if (!s) return;
+    const docs = {...(s.qDocs||{})}, k = t.dataset.key;
+    docs[k] = DS[(DS.indexOf(docs[k]||'non_cree')+1)%DS.length];
+    Data.saveStudent({...s, qDocs:docs}); render();
+  }
+}
+function handleChange(e) {
+  if (e.target.id==='filter-company')   { filters.companyId   = e.target.value; render(); }
+  if (e.target.id==='filter-formation') { filters.formationId = e.target.value; render(); }
+  if (e.target.id==='filter-status')    { filters.status      = e.target.value; render(); }
 }
 
+// ── Render ──────────────────────────────────────────────────────
 function render() {
-  const filtered   = getFiltered();
-  const companies  = {}; Data.getCompanies().forEach(c => companies[c.id] = c);
-  const formations = {}; Data.getFormations().forEach(f => formations[f.id] = f);
-  const providers  = {}; Data.getProviders().forEach(p => providers[p.id] = p);
-  const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled');
+  document.getElementById('main-content').innerHTML =
+    _view==='hub'              ? hubHTML()       :
+    _view==='students'         ? studentsHTML()  :
+    _view==='qualiopi'         ? qualiopiHTML()  :
+    _view==='qualiopi-detail'  ? qDetailHTML()   : '';
+}
 
-  const active   = filtered.filter(s => s.status === 'active').length;
-  const inactive = filtered.filter(s => s.status === 'inactive').length;
-  document.getElementById('list-summary').textContent =
-    `${filtered.length} étudiant${filtered.length > 1 ? 's' : ''} · ${active} actif${active > 1 ? 's' : ''} · ${inactive} inactif${inactive > 1 ? 's' : ''}`;
-
-  const grid = document.getElementById('students-grid');
-  if (filtered.length === 0) {
-    grid.innerHTML = `<div class="empty-page">
-      <div class="empty-icon">🎓</div>
-      <h2>Aucun étudiant trouvé</h2>
-      <p>Ajoutez des étudiants pour les associer aux formations Artémis.</p>
-      <button class="btn btn-primary" onclick="Modals.openStudent()">+ Ajouter un étudiant</button>
+// ── HUB ─────────────────────────────────────────────────────────
+function hubHTML() {
+  const all = Data.getStudents();
+  const nA  = all.filter(s=>s.status==='active').length;
+  const nC  = all.filter(s=>qScore(s)===QSTEPS.length).length;
+  const card = (action,ico,title,sub,stats,hov) =>
+    `<div data-action="${action}" style="cursor:pointer;background:var(--bg-card);border:2px solid var(--border);border-radius:20px;padding:48px 40px;text-align:center;transition:all .2s"
+      onmouseover="this.style.boxShadow='0 8px 40px ${hov}';this.style.borderColor='${hov}'"
+      onmouseout="this.style.boxShadow='';this.style.borderColor='var(--border)'">
+      <div style="font-size:4rem;margin-bottom:16px">${ico}</div>
+      <div style="font-size:1.6rem;font-weight:700;margin-bottom:8px">${title}</div>
+      <div style="color:var(--text-muted);margin-bottom:28px">${sub}</div>
+      <div style="display:flex;justify-content:center;gap:32px">${stats}</div>
     </div>`;
-    return;
-  }
-
-  grid.innerHTML = filtered.map(s => studentCard(s, companies, formations, providers, allMissions)).join('');
+  const stat = (v,l,c) => `<div><div style="font-size:2.2rem;font-weight:800;color:${c}">${v}</div><div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px">${l}</div></div>`;
+  return `
+  <div class="page-header"><h1 class="page-title">Artémis — Formation</h1></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:16px">
+    ${card('goto-students','🎓','Étudiants','Gestion des dossiers & fiches',
+      stat(all.length,'total','var(--primary)')+stat(nA,'actifs','#22c55e'),'rgba(59,130,246,.25)')}
+    ${card('goto-qualiopi','📋','Qualiopi','Suivi qualité & conformité',
+      stat(nC,'complets','#22c55e')+stat(all.length-nC,'incomplets','#ef4444'),'rgba(34,197,94,.25)')}
+  </div>`;
 }
 
-window._exportStudent = function(studentId, month) {
-  const s = Data.getStudents().find(x => x.id === studentId); if (!s) return;
-  const subjects = {}; (Data.getSubjects()||[]).forEach(x => subjects[x.id] = x);
-  const providers = {}; Data.getProviders().forEach(p => providers[p.id] = p);
-  const companies = {}; Data.getCompanies().forEach(c => companies[c.id] = c);
-  const missions = Data.getMissions().filter(m =>
-    (m.studentIds||[]).includes(studentId) && m.status !== 'cancelled' &&
-    (!month || (m.date && m.date.startsWith(month)))
-  ).sort((a,b) => a.date.localeCompare(b.date));
-  const DAYS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
-  const rows = [['Date','Jour','Heure début','Heure fin','Durée (h)','Matière','Prestataire','Tarif facturation (€/h)','Total facturé (€)']];
-  missions.forEach(m => {
-    const d = new Date(m.date + 'T00:00:00');
-    const prov = providers[m.providerId];
-    const subj = m.subjectId ? (subjects[m.subjectId]?.name || m.subject || '') : (m.subject || m.title || '');
-    const dur = m.duration || 0;
-    const bRate = m.billingRate || 0;
-    rows.push([m.date, DAYS[d.getDay()], m.startTime||'', m.endTime||'', dur.toFixed(2), subj, prov ? prov.firstName+' '+prov.lastName : '', bRate.toFixed(2), (dur*bRate).toFixed(2)]);
-  });
-  const total = missions.reduce((a,m)=>a+(m.duration||0)*(m.billingRate||0),0);
-  rows.push(['','','','','','','','TOTAL',total.toFixed(2)]);
-  _downloadCSV(rows, `cours_${s.lastName}_${month||'complet'}.csv`);
+// ── ÉTUDIANTS ───────────────────────────────────────────────────
+function studentsHTML() {
+  const cos  = {}; Data.getCompanies().forEach(c=>cos[c.id]=c);
+  const fors = {}; Data.getFormations().forEach(f=>fors[f.id]=f);
+  const allM = Data.getMissions().filter(m=>m.status!=='cancelled');
+  const ownCos = Data.getOwnCompanies().filter(c=>c.hasTraining);
+  const allForms = Data.getFormations();
+  let st = Data.getStudents();
+  if (filters.companyId)   st = st.filter(s=>(s.poleId||s.companyId)===filters.companyId);
+  if (filters.formationId) st = st.filter(s=>(s.formationIds||[]).includes(filters.formationId));
+  if (filters.status)      st = st.filter(s=>s.status===filters.status);
+  if (filters.search) { const q=filters.search.toLowerCase();
+    st = st.filter(s=>(s.firstName||'').toLowerCase().includes(q)||(s.lastName||'').toLowerCase().includes(q)||(s.email||'').toLowerCase().includes(q)); }
+
+  const SBL = {active:['Actif','badge-done'],inactive:['Inactif','badge-cancelled'],pending:['En attente','badge-warning']};
+  const LBL = {college:'Collège',lycee:'Lycée',superieur:'Supérieur'};
+  const prov = {}; Data.getProviders().forEach(p=>prov[p.id]=p);
+  const RATE = {college:'rateCollege',lycee:'rateLycee',superieur:'rateSup'};
+
+  const cards = st.length===0
+    ? `<div class="empty-page"><div class="empty-icon">🎓</div><h2>Aucun étudiant</h2><button class="btn btn-primary" data-action="new-student">+ Ajouter</button></div>`
+    : st.map(s=>{
+      const co = cos[s.poleId||s.companyId];
+      const col = co?.color||'#3b82f6';
+      const ini = ((s.firstName||'')[0]||'?')+((s.lastName||'')[0]||'');
+      const [sl,sc] = SBL[s.status]||[s.status,''];
+      const ftags = (s.formationIds||[]).map(id=>fors[id]?`<span class="student-formation-tag">${Utils.escapeHtml(fors[id].name)}</span>`:'').join('');
+      const sMs   = allM.filter(m=>(m.studentIds||[]).includes(s.id));
+      const totH  = sMs.reduce((a,m)=>a+(m.duration||0),0);
+      const totR  = sMs.reduce((a,m)=>a+(m.duration||0)*(m.billingRate||0),0);
+      const score = qScore(s); const pct = Math.round(score/QSTEPS.length*100);
+      const qc    = pct===100?'#22c55e':pct>50?'#f59e0b':'#ef4444';
+      const provIds = [...new Set(sMs.map(m=>m.providerId).filter(Boolean))];
+      const provStats = provIds.map(pid=>{
+        const p=prov[pid]; if(!p) return '';
+        const pMs=sMs.filter(m=>m.providerId===pid);
+        const rk=RATE[s.level]; const rate=(rk&&p[rk])||p.defaultHourlyRate||0;
+        const cost=pMs.reduce((a,m)=>a+(m.duration||0)*rate,0);
+        const rev=pMs.reduce((a,m)=>a+(m.duration||0)*(m.billingRate||0),0);
+        return `<div style="font-size:0.78rem;margin-top:4px"><strong>${Utils.escapeHtml(p.lastName+' '+p.firstName)}</strong>
+          <span style="color:var(--danger);margin-left:6px">Coût: ${Utils.formatMoney(cost)}</span>
+          <span style="color:var(--success);margin-left:6px">Facturé: ${Utils.formatMoney(rev)}</span>
+          <span style="color:var(--text-muted);margin-left:6px">Marge: ${Utils.formatMoney(rev-cost)}</span></div>`;
+      }).join('');
+      return `<div class="student-card" data-action="open-student" data-id="${s.id}">
+        <div class="student-avatar" style="background:${col}">${ini.toUpperCase()}</div>
+        <div class="student-info">
+          <div class="student-name">${Utils.escapeHtml(s.firstName+' '+s.lastName)}</div>
+          <div class="student-meta">
+            ${co?`<span style="color:${col};font-weight:600">${Utils.escapeHtml(co.name)}</span> · `:''}
+            <span class="badge ${sc}" style="font-size:0.7rem">${sl}</span>
+            ${s.level?`<span style="margin-left:6px;font-size:0.75rem;color:var(--text-muted)">${LBL[s.level]||''}</span>`:''}
+          </div>
+          ${ftags?`<div class="student-formations">${ftags}</div>`:''}
+          ${s.email?`<div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px">✉ ${Utils.escapeHtml(s.email)}</div>`:''}
+          ${s.phone?`<div style="font-size:0.78rem;color:var(--text-muted)">☎ ${Utils.escapeHtml(s.phone)}</div>`:''}
+          ${s.entryDate?`<div style="font-size:0.78rem;color:var(--text-muted)">📅 Entrée : ${s.entryDate}</div>`:''}
+          ${s.notes?`<div style="font-size:0.78rem;font-style:italic;color:var(--text-muted);margin-top:2px">${Utils.escapeHtml(s.notes)}</div>`:''}
+          <div style="margin-top:8px;display:flex;align-items:center;gap:6px" title="Qualiopi ${pct}%">
+            <span style="font-size:0.7rem;color:var(--text-muted)">Qualiopi</span>
+            <div style="flex:1;max-width:100px;height:5px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:${qc}"></div></div>
+            <span style="font-size:0.7rem;color:${qc};font-weight:600">${pct}%</span>
+          </div>
+        </div>
+        <div style="min-width:200px;text-align:right;padding-left:16px;border-left:1px solid var(--border)">
+          <div style="font-size:0.85rem;font-weight:700">${Utils.formatDuration(totH)} total</div>
+          <div style="font-size:0.8rem;color:var(--success)">${Utils.formatMoney(totR)} facturé</div>
+          ${provStats||'<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px">Aucun prestataire</div>'}
+          <div style="position:relative;display:inline-block;margin-top:8px" onclick="event.stopPropagation()">
+            <button class="btn btn-ghost btn-sm" onclick="window._toggleMenu('smenu-${s.id}')">⋯ Exporter</button>
+            <div id="smenu-${s.id}" style="display:none;position:absolute;right:0;top:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:200px;padding:4px">
+              <div style="padding:6px 10px;font-size:0.75rem;color:var(--text-muted);border-bottom:1px solid var(--border);margin-bottom:4px">Exporter les cours</div>
+              <button class="btn btn-ghost btn-sm" style="width:100%;text-align:left;padding:6px 10px" onclick="_exportStudent('${s.id}','${Utils.currentYearMonth()}')">📥 Ce mois</button>
+              <button class="btn btn-ghost btn-sm" style="width:100%;text-align:left;padding:6px 10px" onclick="_exportStudent('${s.id}','')">📥 Tout l'historique</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+  const coOpts = '<option value="">Tous les pôles</option>'+ownCos.map(c=>`<option value="${c.id}" ${filters.companyId===c.id?'selected':''}>${Utils.escapeHtml(c.name)}</option>`).join('');
+  const fOpts  = '<option value="">Toutes les formations</option>'+allForms.map(f=>`<option value="${f.id}" ${filters.formationId===f.id?'selected':''}>${Utils.escapeHtml(f.name)}</option>`).join('');
+  const nA = st.filter(s=>s.status==='active').length, nI = st.filter(s=>s.status==='inactive').length;
+  return `
+  <div class="page-header">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn btn-ghost btn-sm" data-action="goto-hub">← Retour</button>
+      <h1 class="page-title" style="margin:0">Étudiants</h1>
+    </div>
+    <button class="btn btn-primary" data-action="new-student">+ Nouvel étudiant</button>
+  </div>
+  <div class="filters-bar">
+    <input type="text" id="filter-search" class="form-input filter-search" placeholder="🔍 Rechercher…" value="${Utils.escapeHtml(filters.search)}">
+    <select id="filter-company" class="form-input filter-select">${coOpts}</select>
+    <select id="filter-formation" class="form-input filter-select">${fOpts}</select>
+    <select id="filter-status" class="form-input filter-select">
+      <option value="" ${!filters.status?'selected':''}>Tous les statuts</option>
+      <option value="active" ${filters.status==='active'?'selected':''}>Actif</option>
+      <option value="inactive" ${filters.status==='inactive'?'selected':''}>Inactif</option>
+      <option value="pending" ${filters.status==='pending'?'selected':''}>En attente</option>
+    </select>
+    <button class="btn btn-ghost" data-action="reset-filters">Réinitialiser</button>
+  </div>
+  <div class="list-summary">${st.length} étudiant${st.length>1?'s':''} · ${nA} actif${nA>1?'s':''} · ${nI} inactif${nI>1?'s':''}</div>
+  <div class="cards-grid">${cards}</div>`;
 }
 
-const LEVEL_LABELS = { college:'Collège', lycee:'Lycée', superieur:'Supérieur' };
-const LEVEL_RATE   = { college:'rateCollege', lycee:'rateLycee', superieur:'rateSup' };
+// ── QUALIOPI DASHBOARD ──────────────────────────────────────────
+function qualiopiHTML() {
+  const all = Data.getStudents().filter(s=>s.status!=='inactive');
+  const cos = {}; Data.getCompanies().forEach(c=>cos[c.id]=c);
 
-function studentCard(s, companies, formations, providers, allMissions) {
-  const co       = companies[s.poleId || s.companyId];
-  const color    = co ? co.color : '#3b82f6';
-  const initials = ((s.firstName||'')[0]||'?') + ((s.lastName||'')[0]||'');
-  const formTags = (s.formationIds||[]).map(fid => {
-    const f = formations[fid];
-    return f ? `<span class="student-formation-tag">${Utils.escapeHtml(f.name)}</span>` : '';
-  }).filter(Boolean).join('');
-  const STATUS_LABELS = { active: ['Actif','badge-done'], inactive: ['Inactif','badge-cancelled'], pending: ['En attente','badge-warning'] };
-  const [statusLabel, statusClass] = STATUS_LABELS[s.status] || [s.status, ''];
+  const nC  = all.filter(s=>qScore(s)===QSTEPS.length).length;
+  const nMS = all.filter(s=>{const st=s.qSteps||[];return (st[4]||'rouge')!=='vert';}).length;
+  const nEV = all.filter(s=>{const st=s.qSteps||[];return (st[10]||'rouge')!=='vert';}).length;
+  const nST = all.filter(s=>{const st=s.qSteps||[];return (st[12]||'rouge')!=='vert';}).length;
 
-  // Missions liées à cet étudiant (via studentIds)
-  const sMissions = allMissions.filter(m => (m.studentIds||[]).includes(s.id));
-  const totalH    = sMissions.reduce((a,m) => a+(m.duration||0), 0);
-  const totalRev  = sMissions.reduce((a,m) => a+(m.duration||0)*(m.billingRate||0), 0);
+  const stats = [
+    {v:nC,l:'Dossiers complets',c:'#22c55e'},{v:all.length-nC,l:'Incomplets',c:'#ef4444'},
+    {v:nMS,l:'Signature manquante',c:'#f59e0b'},{v:nEV,l:'Éval. finale manquante',c:'#f59e0b'},
+    {v:nST,l:'Satisfaction manquante',c:'#f59e0b'},
+  ].map(s=>`<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center">
+    <div style="font-size:2rem;font-weight:800;color:${s.c}">${s.v}</div>
+    <div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px">${s.l}</div>
+  </div>`).join('');
 
-  // Prestataires impliqués
-  const provIds   = [...new Set(sMissions.map(m=>m.providerId).filter(Boolean))];
-  const provStats = provIds.map(pid => {
-    const p    = providers[pid]; if (!p) return '';
-    const pMs  = sMissions.filter(m => m.providerId === pid);
-    const rateKey = LEVEL_RATE[s.level];
-    const rate  = (rateKey && p[rateKey]) || p.defaultHourlyRate || 0;
-    const cost  = pMs.reduce((a,m) => a+(m.duration||0)*rate, 0);
-    const rev   = pMs.reduce((a,m) => a+(m.duration||0)*(m.billingRate||0), 0);
-    return `<div style="font-size:0.8rem;margin-top:4px;color:var(--text)">
-      <strong>${Utils.escapeHtml(p.lastName+' '+p.firstName)}</strong>
-      <span style="color:var(--danger);margin-left:6px">Coût: ${Utils.formatMoney(cost)}</span>
-      <span style="color:var(--success);margin-left:6px">Facturé: ${Utils.formatMoney(rev)}</span>
-      <span style="color:var(--text-muted);margin-left:6px">Marge: ${Utils.formatMoney(rev-cost)}</span>
+  const rows = all.map(s=>{
+    const co   = cos[s.poleId||s.companyId];
+    const score= qScore(s);
+    const pct  = Math.round(score/QSTEPS.length*100);
+    const col  = pct===100?'#22c55e':pct>50?'#f59e0b':'#ef4444';
+    const steps= s.qSteps||[];
+    const mini = QSTEPS.map((_,i)=>`<span title="${QSTEPS[i]}" style="display:inline-block;width:13px;height:13px;border-radius:50%;background:${SC[steps[i]||'rouge']}"></span>`).join('');
+    const al   = [];
+    if((steps[4]||'rouge')!=='vert') al.push('Signature');
+    if((steps[10]||'rouge')!=='vert') al.push('Éval. finale');
+    if((steps[12]||'rouge')!=='vert') al.push('Satisfaction');
+    return `<div style="background:var(--bg-card);border:1px solid ${pct<50?'#ef444430':pct<100?'#f59e0b30':'#22c55e30'};border-radius:12px;padding:14px 20px;margin-bottom:10px;display:flex;align-items:center;gap:16px">
+      <div style="min-width:160px">
+        <div style="font-weight:600">${Utils.escapeHtml(s.firstName+' '+s.lastName)}</div>
+        <div style="font-size:0.75rem;color:var(--text-muted)">${co?Utils.escapeHtml(co.name):''}</div>
+      </div>
+      <div style="flex:1">
+        <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px">${mini}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${col};border-radius:4px"></div></div>
+          <span style="font-size:0.8rem;font-weight:700;color:${col};min-width:38px">${pct}%</span>
+        </div>
+      </div>
+      <div style="min-width:150px;display:flex;flex-wrap:wrap;gap:4px">
+        ${al.map(a=>`<span style="font-size:0.72rem;color:#f59e0b;background:#f59e0b18;padding:2px 8px;border-radius:4px">⚠ ${a}</span>`).join('')}
+      </div>
+      <button class="btn btn-ghost btn-sm" data-action="q-detail" data-id="${s.id}">Détail →</button>
     </div>`;
   }).join('');
 
-  // Indicateurs Qualiopi
-  const qItems = [
-    { label: 'Positionnement', ok: !!(s.positionScore || s.positionDate) },
-    { label: 'Contrat',        ok: !!(s.contratDate || s.objectifsPeda) },
-    { label: 'Financement',    ok: !!s.financementMode },
-    { label: 'Éval. finale',   ok: !!s.evalFinale },
-    { label: 'Satisfaction',   ok: !!(s.evalChaudDate || s.evalFroidDate) },
-  ];
-  const qDone = qItems.filter(q => q.ok).length;
-  const qBar  = qItems.map(q =>
-    `<span title="${q.label}" style="display:inline-block;width:18px;height:6px;border-radius:3px;background:${q.ok?'var(--success)':'var(--border)'};margin-right:3px"></span>`
-  ).join('');
-
-  return `<div class="student-card" onclick="Modals.openStudent('${s.id}')">
-    <div class="student-avatar" style="background:${color}">${initials.toUpperCase()}</div>
-    <div class="student-info">
-      <div class="student-name">${Utils.escapeHtml(s.firstName + ' ' + s.lastName)}</div>
-      <div class="student-meta">
-        ${co ? `<span style="color:${color};font-weight:600">${Utils.escapeHtml(co.name)}</span> · ` : ''}
-        <span class="badge ${statusClass}" style="font-size:0.7rem">${statusLabel}</span>
-        ${s.level ? `<span style="margin-left:6px;font-size:0.75rem;color:var(--text-muted)">${LEVEL_LABELS[s.level]||''}</span>` : ''}
-      </div>
-      ${formTags ? `<div class="student-formations">${formTags}</div>` : ''}
-      ${s.notes ? `<div class="student-meta" style="margin-top:4px;font-style:italic">${Utils.escapeHtml(s.notes)}</div>` : ''}
-      <div style="margin-top:6px;display:flex;align-items:center;gap:6px" title="Qualiopi : ${qDone}/${qItems.length} indicateurs renseignés">
-        <span style="font-size:0.7rem;color:var(--text-muted)">Qualiopi</span>
-        ${qBar}
-        <span style="font-size:0.7rem;color:${qDone===qItems.length?'var(--success)':'var(--text-muted)'}">${qDone}/${qItems.length}</span>
-      </div>
+  return `
+  <div class="page-header">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn btn-ghost btn-sm" data-action="goto-hub">← Retour</button>
+      <h1 class="page-title" style="margin:0">Suivi Qualiopi</h1>
     </div>
-    <div style="min-width:200px;text-align:right;padding-left:16px;border-left:1px solid var(--border)">
-      <div style="font-size:0.85rem;font-weight:700">${Utils.formatDuration(totalH)} total</div>
-      <div style="font-size:0.8rem;color:var(--success)">${Utils.formatMoney(totalRev)} facturé</div>
-      ${provStats || '<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px">Aucun prestataire</div>'}
-      <div style="position:relative;display:inline-block;margin-top:8px" onclick="event.stopPropagation()">
-        <button class="btn btn-ghost btn-sm" onclick="window._toggleMenu('smenu-${s.id}')">⋯ Exporter</button>
-        <div id="smenu-${s.id}" style="display:none;position:absolute;right:0;top:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:200px;padding:4px">
-          <div style="padding:6px 10px;font-size:0.75rem;color:var(--text-muted);border-bottom:1px solid var(--border);margin-bottom:4px">Exporter les cours</div>
-          <button class="btn btn-ghost btn-sm" style="width:100%;text-align:left;padding:6px 10px" onclick="_exportStudent('${s.id}','${Utils.currentYearMonth()}')">📥 Ce mois</button>
-          <button class="btn btn-ghost btn-sm" style="width:100%;text-align:left;padding:6px 10px" onclick="_exportStudent('${s.id}','')">📥 Tout l'historique</button>
-        </div>
-      </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px">${stats}</div>
+  ${all.length===0?'<div class="empty-page"><div class="empty-icon">📋</div><h2>Aucun étudiant actif</h2></div>':rows}`;
+}
+
+// ── QUALIOPI DÉTAIL ─────────────────────────────────────────────
+function qDetailHTML() {
+  const s = Data.getStudentById(_qId); if (!s) return '<p>Introuvable</p>';
+  const co   = Data.getCompanyById(s.poleId||s.companyId);
+  const fors = {}; Data.getFormations().forEach(f=>fors[f.id]=f);
+  const formNames = (s.formationIds||[]).map(id=>fors[id]?.name||'').filter(Boolean).join(', ');
+  const allM = Data.getMissions().filter(m=>(m.studentIds||[]).includes(s.id)&&m.status!=='cancelled');
+  const totH = allM.reduce((a,m)=>a+(m.duration||0),0);
+  const steps= s.qSteps||[]; const docs = s.qDocs||{};
+  const score= qScore(s); const pct = Math.round(score/QSTEPS.length*100);
+  const col  = pct===100?'#22c55e':pct>50?'#f59e0b':'#ef4444';
+
+  const stepRows = QSTEPS.map((label,i)=>{
+    const v = steps[i]||'rouge';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)">
+      <span data-action="q-step" data-id="${s.id}" data-idx="${i}" title="Cliquer pour changer"
+        style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:${SC[v]};color:#fff;font-size:0.8rem;font-weight:700;cursor:pointer;flex-shrink:0">${SI[v]}</span>
+      <span style="flex:1;font-size:0.87rem">${label}</span>
+      <span style="font-size:0.73rem;color:var(--text-muted)">${SL[v]}</span>
+    </div>`;
+  }).join('');
+
+  const docRows = QDOCS.map(d=>{
+    const v = docs[d.k]||'non_cree';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)">
+      <span data-action="q-doc" data-id="${s.id}" data-key="${d.k}" title="Cliquer pour changer"
+        style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;background:${DC[v]}20;color:${DC[v]};font-size:0.72rem;font-weight:600;cursor:pointer;min-width:76px;justify-content:center;flex-shrink:0">${DL[v]}</span>
+      <span style="flex:1;font-size:0.87rem">${d.l}</span>
+    </div>`;
+  }).join('');
+
+  const infoItems = [
+    s.email       && {k:'Email',v:s.email},
+    s.phone       && {k:'Tél.',v:s.phone},
+    co            && {k:'Structure',v:co.name},
+    formNames     && {k:'Formation',v:formNames},
+    s.entryDate   && {k:'Entrée',v:s.entryDate},
+    s.financementMode && {k:'Financement',v:s.financementMode},
+    {k:'Séances',v:`${allM.length} · ${Utils.formatDuration(totH)}`},
+  ].filter(Boolean).map(i=>`<div>
+    <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">${i.k}</div>
+    <div style="font-size:0.88rem;margin-top:2px">${Utils.escapeHtml(i.v)}</div>
+  </div>`).join('');
+
+  return `
+  <div class="page-header">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn btn-ghost btn-sm" data-action="q-back">← Qualiopi</button>
+      <h1 class="page-title" style="margin:0">${Utils.escapeHtml(s.firstName+' '+s.lastName)}</h1>
+    </div>
+    <button class="btn btn-ghost" data-action="open-student" data-id="${s.id}">✏ Modifier le profil</button>
+  </div>
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px">
+    ${infoItems}
+  </div>
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px">
+      <div style="flex:1;height:12px;background:var(--border);border-radius:6px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${col};border-radius:6px;transition:width .3s"></div></div>
+      <div style="font-size:1.1rem;font-weight:700;color:${col}">${pct}% — ${score}/${QSTEPS.length} étapes</div>
+    </div>
+    <p style="font-size:0.78rem;color:var(--text-muted);margin:0">Cliquez sur les indicateurs ou les badges pour faire avancer le statut</p>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px">
+      <h3 style="margin:0 0 4px;font-size:0.95rem">Étapes du parcours</h3>
+      <p style="font-size:0.72rem;color:var(--text-muted);margin:0 0 8px">rouge → jaune → vert → gris</p>
+      ${stepRows}
+    </div>
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px">
+      <h3 style="margin:0 0 4px;font-size:0.95rem">Documents</h3>
+      <p style="font-size:0.72rem;color:var(--text-muted);margin:0 0 8px">Cliquez pour faire avancer le statut</p>
+      ${docRows}
     </div>
   </div>`;
 }
+
+// ── Export CSV ───────────────────────────────────────────────────
+window._exportStudent = function(studentId, month) {
+  const s = Data.getStudents().find(x=>x.id===studentId); if (!s) return;
+  const subjects={};(Data.getSubjects()||[]).forEach(x=>subjects[x.id]=x);
+  const providers={}; Data.getProviders().forEach(p=>providers[p.id]=p);
+  const missions = Data.getMissions().filter(m=>
+    (m.studentIds||[]).includes(studentId)&&m.status!=='cancelled'&&
+    (!month||(m.date&&m.date.startsWith(month)))
+  ).sort((a,b)=>a.date.localeCompare(b.date));
+  const DAYS=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const rows=[['Date','Jour','Heure début','Heure fin','Durée (h)','Matière','Prestataire','Tarif (€/h)','Total (€)']];
+  missions.forEach(m=>{
+    const d=new Date(m.date+'T00:00:00'); const p=providers[m.providerId];
+    const subj=m.subjectId?(subjects[m.subjectId]?.name||m.subject||''):(m.subject||m.title||'');
+    rows.push([m.date,DAYS[d.getDay()],m.startTime||'',m.endTime||'',(m.duration||0).toFixed(2),subj,
+      p?p.firstName+' '+p.lastName:'',(m.billingRate||0).toFixed(2),((m.duration||0)*(m.billingRate||0)).toFixed(2)]);
+  });
+  rows.push(['','','','','','','','TOTAL',missions.reduce((a,m)=>a+(m.duration||0)*(m.billingRate||0),0).toFixed(2)]);
+  _downloadCSV(rows,`cours_${s.lastName}_${month||'complet'}.csv`);
+};
