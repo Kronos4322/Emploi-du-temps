@@ -119,35 +119,32 @@ window._calReset = () => { _initFilters(); buildFilters(); renderCalendar(); };
 
 function getFilteredMissions(start, end) {
   let missions = Data.getMissionsByDateRange(start, end);
-  const provActive = _filterProviders !== null;
-  const studActive = _filterStudents  !== null;
+  const allProvCt = Data.getProviders().length;
+  const allStudCt = Data.getStudents().filter(s=>s.status!=='inactive').length;
+  const allP = _filterProviders.size >= allProvCt;
+  const allS = _filterStudents.size  >= allStudCt;
 
-  if (provActive || studActive) {
-    const allP = provActive && _filterProviders.size >= Data.getProviders().length;
-    const allS = studActive && _filterStudents.size  >= Data.getStudents().filter(s=>s.status!=='inactive').length;
-    missions = missions.filter(m => {
-      const mp = provActive ? (allP || _filterProviders.has(m.providerId)) : false;
-      const ms = studActive ? (allS || (m.studentIds||[]).some(id=>_filterStudents.has(id))) : false;
+  if (!allP || !allS) {
+    // Filtre perso (prov/stud spécifiques) → override pôle/école
+    return missions.filter(m => {
+      const mp = !allP && _filterProviders.has(m.providerId);
+      const ms = !allS && (m.studentIds||[]).some(id=>_filterStudents.has(id));
       return mp || ms;
     });
-  } else {
-    // Filtre pôle + école (hiérarchique : une école passe si son pôle ET elle-même sont sélectionnés)
-    const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
-    const allPoles = Data.getOwnCompanies().length;
-    const allSchools = Data.getCompanies().filter(c=>c.role!=='own').length;
-    const polesAll = _filterPoles === null || _filterPoles.size >= allPoles;
-    const cosAll   = _filterCos   === null || _filterCos.size   >= allSchools;
-    if (!polesAll || !cosAll) {
-      missions = missions.filter(m => {
-        const co = coMap[m.companyId];
-        if (!co) return false;
-        const poleOk = _filterPoles === null || (co.poleId ? _filterPoles.has(co.poleId) : _filterPoles.has(co.id));
-        const coOk   = _filterCos   === null || co.role === 'own' || _filterCos.has(m.companyId);
-        return poleOk && coOk;
-      });
-    }
   }
-  return missions;
+
+  // Tous prov + tous étudiants → filtre pôle + école
+  const polesAll  = _filterPoles.size >= Data.getOwnCompanies().length;
+  const schoolsAll = _filterCos.size  >= Data.getCompanies().filter(c=>c.role!=='own').length;
+  if (polesAll && schoolsAll) return missions;
+
+  const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
+  return missions.filter(m => {
+    const co = coMap[m.companyId]; if (!co) return false;
+    const poleOk = polesAll  || (co.poleId ? _filterPoles.has(co.poleId) : _filterPoles.has(co.id));
+    const coOk   = schoolsAll || co.role === 'own' || _filterCos.has(m.companyId);
+    return poleOk && coOk;
+  });
 }
 
 function navPrev() {
