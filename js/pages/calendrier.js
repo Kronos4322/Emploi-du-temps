@@ -3,16 +3,21 @@
 
 let _view = 'week';
 let _date = Utils.today();
-// null = pas de filtre (tout afficher), Set = filtre actif (afficher seulement ces IDs)
-let _filterCos      = null;
+let _filterPoles    = null; // pôles (entreprises propres)
+let _filterCos      = null; // écoles clientes
 let _filterProviders = null;
 let _filterStudents  = null;
 
-document.addEventListener('DOMContentLoaded', () => {
-  Data.init();
-  // Initialiser avec tous les IDs pour que "Tous" override le filtre société dès le départ
+function _initFilters() {
+  _filterPoles     = new Set(Data.getOwnCompanies().map(c=>c.id));
+  _filterCos       = new Set(Data.getCompanies().filter(c=>c.role!=='own').map(c=>c.id));
   _filterProviders = new Set(Data.getProviders().map(p=>p.id));
   _filterStudents  = new Set(Data.getStudents().filter(s=>s.status!=='inactive').map(s=>s.id));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  Data.init();
+  _initFilters();
   buildFilters();
   renderCalendar();
 
@@ -40,34 +45,34 @@ function _mkChk(name, label, id, checked, fn) {
     ${Utils.escapeHtml(label)}</label>`;
 }
 
-// Ferme tous les menus du calendrier sauf celui demandé (fix superposition)
+const _CAL_MENUS = ['cal-pole-menu','cal-co-menu','cal-prov-menu','cal-stud-menu'];
 function _closeMenus(exceptId) {
-  ['cal-co-menu','cal-prov-menu','cal-stud-menu'].forEach(id => {
-    if (id !== exceptId) document.getElementById(id).style.display = 'none';
-  });
+  _CAL_MENUS.forEach(id => { if (id !== exceptId) document.getElementById(id).style.display = 'none'; });
 }
-// Toggle + fermeture automatique des autres menus
 window._calToggle = id => {
   _closeMenus(id);
   const el = document.getElementById(id);
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 };
-// Clic en dehors → ferme tout
 document.addEventListener('click', e => {
-  if (!e.target.closest('#btn-filter-co,#btn-filter-prov,#btn-filter-stud,#cal-co-menu,#cal-prov-menu,#cal-stud-menu')) {
-    _closeMenus(null);
-  }
+  if (!e.target.closest('#btn-filter-pole,#btn-filter-co,#btn-filter-prov,#btn-filter-stud,'+_CAL_MENUS.map(id=>'#'+id).join(','))) _closeMenus(null);
 });
 
 function buildFilters() {
-  const cos      = Data.getCompanies();
+  const poles    = Data.getOwnCompanies();
+  const schools  = Data.getCompanies().filter(c=>c.role!=='own');
   const providers = Data.getProviders();
   const students  = Data.getStudents().filter(s => s.status !== 'inactive');
 
-  // (1) Fix : "Aucun" = Set vide → cases décochées
-  document.getElementById('cal-co-list').innerHTML = cos.map(c =>
+  // Pôles
+  document.getElementById('cal-pole-list').innerHTML = poles.map(c =>
+    _mkChk('cal-pole', c.name, c.id, _filterPoles===null||_filterPoles.has(c.id), 'window._calChkPole')).join('');
+  document.getElementById('lbl-pole').textContent = _filterPoles===null||_filterPoles.size>=poles.length?'Tous':(_filterPoles.size?_filterPoles.size+' sél.':'Aucun');
+
+  // Écoles
+  document.getElementById('cal-co-list').innerHTML = schools.map(c =>
     _mkChk('cal-co', c.name, c.id, _filterCos===null||_filterCos.has(c.id), 'window._calChkCo')).join('');
-  document.getElementById('lbl-co').textContent = _filterCos===null?'Toutes':(_filterCos.size||'Aucune');
+  document.getElementById('lbl-co').textContent = _filterCos===null||_filterCos.size>=schools.length?'Toutes':(_filterCos.size?_filterCos.size+' sél.':'Aucune');
 
   const allPCt = providers.length, allSCt = students.length;
   document.getElementById('cal-prov-list').innerHTML = providers.map(p =>
@@ -79,11 +84,15 @@ function buildFilters() {
   document.getElementById('lbl-stud').textContent = _filterStudents===null||_filterStudents.size>=allSCt?'Tous':(_filterStudents.size?_filterStudents.size+' sél.':'Aucun');
 }
 
+window._calChkPole = cb => {
+  if (_filterPoles===null) _filterPoles = new Set(Data.getOwnCompanies().map(c=>c.id));
+  cb.checked ? _filterPoles.add(cb.value) : _filterPoles.delete(cb.value);
+  buildFilters(); renderCalendar();
+};
 window._calChkCo = cb => {
-  if (_filterCos===null) _filterCos = new Set(Data.getCompanies().map(c=>c.id));
+  if (_filterCos===null) _filterCos = new Set(Data.getCompanies().filter(c=>c.role!=='own').map(c=>c.id));
   cb.checked ? _filterCos.add(cb.value) : _filterCos.delete(cb.value);
-  document.getElementById('lbl-co').textContent = _filterCos.size?_filterCos.size+' sél.':'Aucune';
-  renderCalendar();
+  buildFilters(); renderCalendar();
 };
 window._calChkProv = cb => {
   if (_filterProviders===null) _filterProviders = new Set(Data.getProviders().map(p=>p.id));
@@ -98,22 +107,22 @@ window._calChkStud = cb => {
   renderCalendar();
 };
 
-window._calSelectAllCo    = () => { _filterCos=null;                                                                                            buildFilters(); renderCalendar(); };
+window._calSelectAllPole  = () => { _filterPoles=new Set(Data.getOwnCompanies().map(c=>c.id));                                                  buildFilters(); renderCalendar(); };
+window._calSelectNonePole = () => { _filterPoles=new Set();                                                                                     buildFilters(); renderCalendar(); };
+window._calSelectAllCo    = () => { _filterCos=new Set(Data.getCompanies().filter(c=>c.role!=='own').map(c=>c.id));                             buildFilters(); renderCalendar(); };
 window._calSelectNoneCo   = () => { _filterCos=new Set();                                                                                       buildFilters(); renderCalendar(); };
 window._calSelectAllProv  = () => { _filterProviders=new Set(Data.getProviders().map(p=>p.id));                                                  buildFilters(); renderCalendar(); };
 window._calSelectNoneProv = () => { _filterProviders=new Set();                                                                                  buildFilters(); renderCalendar(); };
 window._calSelectAllStud  = () => { _filterStudents=new Set(Data.getStudents().filter(s=>s.status!=='inactive').map(s=>s.id));                   buildFilters(); renderCalendar(); };
 window._calSelectNoneStud = () => { _filterStudents=new Set();                                                                                   buildFilters(); renderCalendar(); };
-window._calReset = () => { _filterCos=null; _filterProviders=new Set(Data.getProviders().map(p=>p.id)); _filterStudents=new Set(Data.getStudents().filter(s=>s.status!=='inactive').map(s=>s.id)); buildFilters(); renderCalendar(); };
+window._calReset = () => { _initFilters(); buildFilters(); renderCalendar(); };
 
 function getFilteredMissions(start, end) {
   let missions = Data.getMissionsByDateRange(start, end);
-
-  const provActive = _filterProviders !== null; // Set explicite (y compris vide)
+  const provActive = _filterProviders !== null;
   const studActive = _filterStudents  !== null;
 
   if (provActive || studActive) {
-    // Tous sélectionnés = pas de restriction sur cet axe
     const allP = provActive && _filterProviders.size >= Data.getProviders().length;
     const allS = studActive && _filterStudents.size  >= Data.getStudents().filter(s=>s.status!=='inactive').length;
     missions = missions.filter(m => {
@@ -121,8 +130,22 @@ function getFilteredMissions(start, end) {
       const ms = studActive ? (allS || (m.studentIds||[]).some(id=>_filterStudents.has(id))) : false;
       return mp || ms;
     });
-  } else if (_filterCos !== null) {
-    missions = missions.filter(m => _filterCos.has(m.companyId));
+  } else {
+    // Filtre pôle + école (hiérarchique : une école passe si son pôle ET elle-même sont sélectionnés)
+    const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
+    const allPoles = Data.getOwnCompanies().length;
+    const allSchools = Data.getCompanies().filter(c=>c.role!=='own').length;
+    const polesAll = _filterPoles === null || _filterPoles.size >= allPoles;
+    const cosAll   = _filterCos   === null || _filterCos.size   >= allSchools;
+    if (!polesAll || !cosAll) {
+      missions = missions.filter(m => {
+        const co = coMap[m.companyId];
+        if (!co) return false;
+        const poleOk = _filterPoles === null || (co.poleId ? _filterPoles.has(co.poleId) : _filterPoles.has(co.id));
+        const coOk   = _filterCos   === null || co.role === 'own' || _filterCos.has(m.companyId);
+        return poleOk && coOk;
+      });
+    }
   }
   return missions;
 }
