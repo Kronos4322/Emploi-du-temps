@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Étudiants — Emploi du temps</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <aside id="sidebar"></aside>
+
+  <div id="app-main">
+    <main id="main-content">
+
+      <div class="page-header">
+        <h1 class="page-title">Étudiants</h1>
+        <div class="page-actions">
+          <button class="btn btn-primary" id="btn-new-student">+ Nouvel étudiant</button>
+        </div>
+      </div>
+
+      <!-- Filtres -->
+      <div class="filters-bar">
+        <input type="text" id="filter-search" class="form-input filter-search" placeholder="🔍 Rechercher…">
+        <select id="filter-company"   class="form-input filter-select"></select>
+        <select id="filter-formation" class="form-input filter-select"></select>
+        <select id="filter-status"    class="form-input filter-select">
+          <option value="">Tous les statuts</option>
+          <option value="active">Actif</option>
+          <option value="inactive">Inactif</option>
+          <option value="pending">En attente</option>
+        </select>
+        <button class="btn btn-ghost" id="btn-reset-filters">Réinitialiser</button>
+      </div>
+
+      <!-- Résumé -->
+      <div class="list-summary" id="list-summary">—</div>
+
+      <!-- Grille étudiants -->
+      <div id="students-grid" class="cards-grid">
+        <p class="empty-state">Chargement…</p>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="js/utils.js?v=3"></script>
+  <script src="js/data.js?v=2"></script>
+  <script src="js/modals.js?v=6"></script>
+  <script src="js/nav.js?v=4"></script>
+  <script src="js/pages/etudiants.js?v=2"></script>
+
+</body>
+</html>

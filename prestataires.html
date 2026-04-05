@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prestataires — Emploi du temps</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <aside id="sidebar"></aside>
+
+  <div id="app-main">
+    <main id="main-content">
+
+      <div class="page-header">
+        <h1 class="page-title">Prestataires &amp; Intervenants</h1>
+        <div class="page-actions">
+          <button class="btn btn-primary" id="btn-new-provider">+ Nouveau prestataire</button>
+        </div>
+      </div>
+
+      <!-- Liste des fiches prestataires (rendu par JS) -->
+      <div id="providers-list" class="providers-list">
+        <p class="empty-state">Chargement…</p>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="js/utils.js?v=3"></script>
+  <script src="js/data.js?v=2"></script>
+  <script src="js/modals.js?v=6"></script>
+  <script src="js/nav.js?v=4"></script>
+  <script src="js/pages/prestataires.js?v=2"></script>
+
+</body>
+</html>

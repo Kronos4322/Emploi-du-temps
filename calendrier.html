@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendrier — Emploi du temps</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <aside id="sidebar"></aside>
+
+  <div id="app-main">
+    <main id="main-content">
+
+      <div class="page-header">
+        <h1 class="page-title">Calendrier</h1>
+        <div class="page-actions">
+          <button class="btn btn-primary" id="btn-new-course">+ Nouveau cours</button>
+        </div>
+      </div>
+
+      <!-- Filtres -->
+      <div class="calendar-filters">
+        <span class="filter-label">Filtrer :</span>
+        <select id="filter-company"  class="form-input"></select>
+        <select id="filter-provider" class="form-input"></select>
+      </div>
+
+      <!-- Barre de navigation du calendrier -->
+      <div class="calendar-toolbar">
+        <div class="cal-nav">
+          <button class="btn btn-ghost btn-icon" id="cal-prev" title="Précédent">‹</button>
+          <button class="btn btn-ghost btn-today" id="cal-today">Aujourd'hui</button>
+          <button class="btn btn-ghost btn-icon" id="cal-next" title="Suivant">›</button>
+        </div>
+        <div class="cal-title" id="cal-title">—</div>
+        <div class="cal-view-switcher">
+          <button class="btn btn-ghost" id="view-day"   data-view="day">Jour</button>
+          <button class="btn btn-primary" id="view-week" data-view="week">Semaine</button>
+          <button class="btn btn-ghost" id="view-month" data-view="month">Mois</button>
+        </div>
+      </div>
+
+      <!-- Corps du calendrier (rendu par JS) -->
+      <div id="calendar-body"></div>
+
+    </main>
+  </div>
+
+  <script src="js/utils.js?v=3"></script>
+  <script src="js/data.js?v=2"></script>
+  <script src="js/modals.js?v=6"></script>
+  <script src="js/nav.js?v=4"></script>
+  <script src="js/pages/calendrier.js?v=3"></script>
+
+</body>
+</html>

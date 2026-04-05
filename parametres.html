@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paramètres — Emploi du temps</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <aside id="sidebar"></aside>
+
+  <div id="app-main">
+    <main id="main-content">
+
+      <div class="page-header">
+        <h1 class="page-title">Paramètres &amp; Données</h1>
+      </div>
+
+      <div class="settings-grid">
+
+        <!-- Paramètres généraux -->
+        <div class="card">
+          <div class="card-header"><h2 class="card-title">Paramètres généraux</h2></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-group form-col-2">
+                <label for="set-rate">Tarif horaire par défaut (€/h)</label>
+                <input type="number" id="set-rate" class="form-input" min="0" step="0.5" value="35">
+              </div>
+            </div>
+            <div class="settings-actions" style="margin-top:14px">
+              <button class="btn btn-primary" id="btn-save-settings">Enregistrer</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sauvegarde & Export -->
+        <div class="card">
+          <div class="card-header"><h2 class="card-title">Sauvegarde &amp; Export</h2></div>
+          <div class="card-body">
+            <p class="settings-description">
+              Exportez vos données en JSON pour les sauvegarder sur votre Drive ou les transférer.
+              L'import JSON restaure toutes vos données (sociétés, prestataires, missions, étudiants, formations).
+            </p>
+            <div class="settings-actions">
+              <button class="btn btn-primary" id="btn-export-json">⬇ Exporter tout (JSON)</button>
+              <button class="btn btn-ghost"   id="btn-export-csv">⬇ Exporter missions (CSV)</button>
+              <label class="btn btn-ghost" style="cursor:pointer">
+                ⬆ Importer (JSON)
+                <input type="file" id="input-import" accept=".json" style="display:none">
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Informations -->
+        <div class="card">
+          <div class="card-header"><h2 class="card-title">Informations</h2></div>
+          <div class="card-body">
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">Missions</span>
+                <span class="info-value" id="info-courses">—</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Sociétés</span>
+                <span class="info-value" id="info-schools">—</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Prestataires</span>
+                <span class="info-value" id="info-providers">—</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Étudiants</span>
+                <span class="info-value" id="info-students">—</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Formations</span>
+                <span class="info-value" id="info-formations">—</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Stockage utilisé</span>
+                <span class="info-value" id="info-storage">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sauvegardes automatiques -->
+        <div class="card">
+          <div class="card-header"><h2 class="card-title">🛡 Sauvegardes automatiques</h2></div>
+          <div class="card-body">
+            <p class="settings-description">
+              L'application sauvegarde automatiquement vos données chaque jour (3 jours conservés).
+              En cas de problème, restaurez une version antérieure en un clic.
+            </p>
+            <div id="backups-list" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
+              <p style="color:var(--text-muted);font-size:0.9rem">Aucune sauvegarde disponible.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Zone de danger -->
+        <div class="card card-danger">
+          <div class="card-header"><h2 class="card-title">Zone de danger</h2></div>
+          <div class="card-body">
+            <p class="settings-description danger-text">
+              Efface toutes les données (missions, sociétés, prestataires, étudiants, formations). Irréversible.
+            </p>
+            <div class="settings-actions">
+              <button class="btn btn-danger" id="btn-reset-all">Effacer toutes les données</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+
+  <script src="js/utils.js?v=3"></script>
+  <script src="js/data.js?v=2"></script>
+  <script src="js/modals.js?v=6"></script>
+  <script src="js/nav.js?v=4"></script>
+  <script src="js/pages/parametres.js?v=2"></script>
+
+</body>
+</html>

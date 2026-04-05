@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finances — Emploi du temps</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    details.fin-section > summary { cursor:pointer; padding:10px 0; font-weight:700; font-size:1rem; list-style:none; display:flex; align-items:center; justify-content:space-between; color:var(--text); border-bottom:1px solid var(--border); margin-bottom:12px; }
+    details.fin-section > summary::after { content:'▲'; font-size:0.7rem; color:var(--text-muted); transition:transform .2s; }
+    details.fin-section:not([open]) > summary::after { content:'▼'; }
+    details.fin-section { margin-bottom:20px; }
+  </style>
+</head>
+<body>
+  <aside id="sidebar"></aside>
+  <div id="app-main">
+    <main id="main-content">
+
+      <div class="page-header">
+        <h1 class="page-title">Finances</h1>
+        <div class="page-actions">
+          <button class="btn btn-ghost" id="btn-export-csv">⬇ Export CSV</button>
+          <button class="btn btn-ghost" id="btn-print">🖨 Imprimer</button>
+        </div>
+      </div>
+
+      <!-- Filtres -->
+      <div class="filters-bar" style="flex-wrap:wrap;gap:8px">
+        <select id="filter-month"   class="form-input filter-select"></select>
+        <select id="filter-pole"    class="form-input filter-select"></select>
+        <select id="filter-company" class="form-input filter-select"></select>
+        <div id="filter-provider-checks" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);min-height:38px"></div>
+      </div>
+
+      <!-- 1. KPIs + Rapport mensuel -->
+      <details class="fin-section" open>
+        <summary><span id="report-title-summary">Rapport mensuel</span></summary>
+
+        <div class="kpi-grid kpi-finance">
+          <div class="kpi-card kpi-large">
+            <div class="kpi-icon kpi-green">💶</div>
+            <div class="kpi-content">
+              <div class="kpi-value" id="fin-revenue">—</div>
+              <div class="kpi-label">CA total (réalisé + prévu)</div>
+            </div>
+          </div>
+          <div class="kpi-card kpi-large">
+            <div class="kpi-icon kpi-red">📤</div>
+            <div class="kpi-content">
+              <div class="kpi-value" id="fin-costs">—</div>
+              <div class="kpi-label">Charges prestataires</div>
+            </div>
+          </div>
+          <div class="kpi-card kpi-large" id="fin-margin-card">
+            <div class="kpi-icon kpi-teal">📊</div>
+            <div class="kpi-content">
+              <div class="kpi-value" id="fin-margin">—</div>
+              <div class="kpi-label">Marge nette</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon kpi-blue">✓</div>
+            <div class="kpi-content">
+              <div class="kpi-value" id="fin-hours-done">—</div>
+              <div class="kpi-label">Heures réalisées</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon kpi-gray">📅</div>
+            <div class="kpi-content">
+              <div class="kpi-value" id="fin-hours-planned">—</div>
+              <div class="kpi-label">Heures prévues</div>
+            </div>
+          </div>
+          <div class="kpi-card" id="fin-unpaid-card">
+            <div class="kpi-icon kpi-orange">⚠</div>
+            <div class="kpi-content">
+              <div class="kpi-value" id="fin-unpaid">—</div>
+              <div class="kpi-label" id="fin-unpaid-label">Non payé</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="section-by-company">
+          <h3 class="section-title">Répartition par école / client</h3>
+          <div class="report-table-wrapper">
+            <table class="data-table">
+              <thead><tr>
+                <th>École / Client</th>
+                <th class="cell-center">Missions (réalisé + prévu)</th>
+                <th class="cell-center">Heures</th>
+                <th class="cell-money">Revenu</th>
+                <th>Part</th>
+              </tr></thead>
+              <tbody id="tbody-by-company"></tbody>
+              <tfoot><tr class="table-total">
+                <td><strong>Total</strong></td>
+                <td class="cell-center" id="total-count"><strong>—</strong></td>
+                <td class="cell-center" id="total-hours"><strong>—</strong></td>
+                <td class="cell-money" id="total-revenue"><strong>—</strong></td>
+                <td></td>
+              </tr></tfoot>
+            </table>
+          </div>
+        </div>
+
+        <div id="section-by-provider" style="display:none;margin-top:16px">
+          <h3 class="section-title">Charges prestataires</h3>
+          <div class="report-table-wrapper">
+            <table class="data-table">
+              <thead><tr>
+                <th>Prestataire</th><th>Spécialité</th>
+                <th class="cell-center">Missions</th><th class="cell-center">Heures</th>
+                <th class="cell-money">Tarif</th><th class="cell-money">Total dû</th>
+              </tr></thead>
+              <tbody id="tbody-by-provider"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="margin-top:16px" id="section-done-missions">
+          <h3 class="section-title" id="done-section-title">Missions réalisées</h3>
+          <div class="report-table-wrapper">
+            <table class="data-table">
+              <thead><tr>
+                <th>Date</th><th>Titre</th><th>Société</th>
+                <th>Durée</th><th class="cell-money">Tarif</th>
+                <th class="cell-money">Revenu</th><th>Paiement</th>
+              </tr></thead>
+              <tbody id="tbody-done"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="section-cancelled" style="display:none;margin-top:16px">
+          <h3 class="section-title" id="cancelled-title">Missions annulées</h3>
+          <div class="cancelled-list" id="cancelled-list"></div>
+        </div>
+      </details>
+
+      <!-- 2. Charges prestataires sélectionnés -->
+      <details class="fin-section" id="section-provider-costs" style="display:none">
+        <summary>Charges prestataires sélectionnés</summary>
+        <div class="report-table-wrapper">
+          <table class="data-table">
+            <thead><tr>
+              <th>Prestataire</th>
+              <th class="cell-center">Interv. (mois)</th><th class="cell-money">Coût (mois)</th>
+              <th class="cell-money">CA (mois)</th><th class="cell-money">Marge (mois)</th>
+              <th class="cell-center">Interv. (année scol.)</th><th class="cell-money">Coût (AS)</th>
+              <th class="cell-money">CA (AS)</th><th class="cell-money">Marge (AS)</th>
+            </tr></thead>
+            <tbody id="tbody-provider-costs"></tbody>
+            <tfoot><tr class="table-total" id="tfoot-provider-costs"></tr></tfoot>
+          </table>
+        </div>
+      </details>
+
+      <!-- 3. Graphique temporel -->
+      <details class="fin-section" open>
+        <summary>Évolution temporelle</summary>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <select id="chart-group" class="form-input filter-select" style="width:auto">
+            <option value="month">Par mois</option>
+            <option value="year">Par année scolaire</option>
+          </select>
+          <select id="chart-split" class="form-input filter-select" style="width:auto">
+            <option value="poles">Artémis + Astéria</option>
+            <option value="schools">Par école</option>
+          </select>
+          <select id="chart-type" class="form-input filter-select" style="width:auto">
+            <option value="bar">Barres</option>
+            <option value="line">Courbes</option>
+          </select>
+        </div>
+        <canvas id="fin-chart" height="100"></canvas>
+      </details>
+
+      <!-- 4. Bilan annuel (en dernier) -->
+      <details class="fin-section">
+        <summary>Bilan annuel — <span id="annual-year-label">2025-2026</span>
+          <span style="display:flex;align-items:center;gap:8px;font-weight:normal;font-size:0.85rem">
+            <select id="filter-year" class="form-input filter-select" style="width:auto" onclick="event.stopPropagation()"></select>
+            <span id="annual-poles-summary" style="color:var(--text-muted)"></span>
+          </span>
+        </summary>
+        <div class="report-table-wrapper">
+          <table class="data-table">
+            <thead><tr>
+              <th>École / Client</th><th class="cell-money">Tarif/h</th>
+              <th class="cell-center">Missions</th><th class="cell-center">Heures</th>
+              <th class="cell-money">CA total</th><th>Via</th>
+            </tr></thead>
+            <tbody id="tbody-annual"></tbody>
+            <tfoot><tr class="table-total">
+              <td colspan="2"><strong>Total</strong></td>
+              <td class="cell-center" id="annual-total-count"><strong>—</strong></td>
+              <td class="cell-center" id="annual-total-hours"><strong>—</strong></td>
+              <td class="cell-money" id="annual-total-revenue"><strong>—</strong></td>
+              <td></td>
+            </tr></tfoot>
+          </table>
+        </div>
+      </details>
+
+      <!-- Hidden report title for JS compat -->
+      <h2 id="report-title" style="display:none">—</h2>
+
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="js/utils.js?v=3"></script>
+  <script src="js/data.js?v=2"></script>
+  <script src="js/modals.js?v=6"></script>
+  <script src="js/nav.js?v=4"></script>
+  <script src="js/pages/finances.js?v=6"></script>
+</body>
+</html>

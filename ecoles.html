@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sociétés & Écoles — Emploi du temps</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <aside id="sidebar"></aside>
+
+  <div id="app-main">
+    <main id="main-content">
+
+      <div class="page-header">
+        <h1 class="page-title">Sociétés & Écoles</h1>
+        <div class="page-actions">
+          <button class="btn btn-primary" id="btn-new-school">+ Nouvelle société</button>
+        </div>
+      </div>
+
+      <!-- Grille de fiches écoles (rendu par JS) -->
+      <div id="schools-grid" class="cards-grid">
+        <p class="empty-state">Chargement…</p>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="js/utils.js?v=3"></script>
+  <script src="js/data.js?v=2"></script>
+  <script src="js/modals.js?v=6"></script>
+  <script src="js/nav.js?v=4"></script>
+  <script src="js/pages/ecoles.js?v=3"></script>
+
+</body>
+</html>
