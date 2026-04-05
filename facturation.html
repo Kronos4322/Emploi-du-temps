@@ -1,10 +1,17 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Facturation — Emploi du temps</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#3b82f6">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Planning">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
   <style>
     .tag-filter-wrap { display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);min-height:38px }
     .tag-filter-btn { padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:0.8rem;transition:.15s }
@@ -83,3 +90,4 @@
   <script src="js/pages/facturation.js?v=8"></script>
 </body>
 </html>
+
