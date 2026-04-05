@@ -39,10 +39,10 @@ const Data = {
     } else {
       this._db = this._emptyDb();
     }
-    // 2. Synchronisation Firebase (async, sans bloquer le rendu)
+    // 2. Synchronisation Firebase
     this._loadFromFirebase();
-    // 3. Écoute temps réel via SSE Firebase
-    this._startRealtimeSync();
+    // 3. Polling toutes les 3s
+    setInterval(() => { if (!_fbWriting) this._pollFallback(); }, 3000);
   },
 
   // Charge les données depuis Firebase (source de vérité absolue)
@@ -97,33 +97,6 @@ const Data = {
       console.warn('Échec push Firebase.', e);
     }
     _fbWriting = false;
-  },
-
-  // Écoute temps réel via Server-Sent Events Firebase (instantané)
-  _startRealtimeSync() {
-    const sseUrl = _FB_URL.replace('.json', '/_updatedAt.json');
-    let es;
-    const connect = () => {
-      try {
-        es = new EventSource(sseUrl);
-        es.addEventListener('put', async (e) => {
-          if (_fbWriting) return;
-          try {
-            const ts = JSON.parse(e.data)?.data;
-            if (ts && ts > _fbLastTs) await Data._loadFromFirebase();
-          } catch(_) {}
-        });
-        es.onerror = () => {
-          es.close();
-          // Reconnexion + fallback polling si SSE échoue
-          setTimeout(connect, 5000);
-          setInterval(() => { if (!_fbWriting) Data._pollFallback(); }, 5000);
-        };
-      } catch(_) {
-        setInterval(() => { if (!_fbWriting) Data._pollFallback(); }, 5000);
-      }
-    };
-    connect();
   },
 
   async _pollFallback() {

@@ -1,5 +1,5 @@
-const CACHE = 'edt-v3';
-const ASSETS = [
+const CACHE = 'edt-v4';
+const STATIC = [
   '/Emploi-du-temps/',
   '/Emploi-du-temps/index.html',
   '/Emploi-du-temps/calendrier.html',
@@ -11,15 +11,11 @@ const ASSETS = [
   '/Emploi-du-temps/formations.html',
   '/Emploi-du-temps/matieres.html',
   '/Emploi-du-temps/parametres.html',
-  '/Emploi-du-temps/css/style.css',
-  '/Emploi-du-temps/js/utils.js',
-  '/Emploi-du-temps/js/data.js',
-  '/Emploi-du-temps/js/modals.js',
-  '/Emploi-du-temps/js/nav.js'
+  '/Emploi-du-temps/css/style.css'
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -29,8 +25,10 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Firebase et APIs → toujours réseau
-  if (e.request.url.includes('firebase') || e.request.url.includes('googleapis')) return;
+  const url = e.request.url;
+  // Firebase et JS → toujours réseau (jamais de cache)
+  if (url.includes('firebase') || url.includes('googleapis') || url.includes('.js')) return;
+  // HTML et CSS → réseau d'abord, cache en fallback
   e.respondWith(
     fetch(e.request).then(r => {
       const clone = r.clone();
