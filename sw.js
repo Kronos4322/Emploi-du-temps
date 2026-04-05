@@ -1,4 +1,4 @@
-const CACHE = 'edt-v2';
+const CACHE = 'edt-v3';
 const ASSETS = [
   '/Emploi-du-temps/',
   '/Emploi-du-temps/index.html',
