@@ -3,8 +3,9 @@
 
 let _view = 'week';
 let _date = Utils.today();
-let _filterCompany  = '';
-let _filterProvider = '';
+let _filterPoles    = new Set(); // vide = tous
+let _filterProviders = new Set(); // vide = tous
+let _filterStudents  = new Set(); // vide = tous
 
 document.addEventListener('DOMContentLoaded', () => {
   Data.init();
@@ -30,28 +31,77 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function buildFilters() {
-  const companies = Data.getCompanies();
+  const ownCos    = Data.getOwnCompanies();
+  const clientCos = Data.getClientSchools();
   const providers = Data.getProviders();
+  const students  = Data.getStudents().filter(s => s.status !== 'inactive');
+  const coMap     = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
 
-  const compSel = document.getElementById('filter-company');
-  if (compSel) {
-    compSel.innerHTML = '<option value="">Toutes les sociétés</option>' +
-      companies.map(c => `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`).join('');
-    compSel.addEventListener('change', () => { _filterCompany = compSel.value; renderCalendar(); });
-  }
+  // ── Boutons pôles (Artémis / Astéria + leurs écoles) ─────
+  const polesEl = document.getElementById('filter-poles');
+  const allCos  = [{ id:'', name:'Toutes', color:'#64748b' }, ...ownCos, ...clientCos];
+  polesEl.innerHTML = allCos.map(c => {
+    const active = c.id === '' ? _filterPoles.size === 0 : _filterPoles.has(c.id);
+    return `<button class="btn btn-xs" data-cid="${c.id}"
+      style="padding:3px 10px;border-radius:12px;border:2px solid ${c.color||'#64748b'};background:${active?(c.color||'#64748b'):'transparent'};color:${active?'#fff':(c.color||'#64748b')};font-size:0.78rem;cursor:pointer"
+      onclick="window._calTogglePole('${c.id}')">${Utils.escapeHtml(c.name)}</button>`;
+  }).join('');
 
-  const provSel = document.getElementById('filter-provider');
-  if (provSel) {
-    provSel.innerHTML = '<option value="">Tous les prestataires</option>' +
-      providers.map(p => `<option value="${p.id}">${Utils.escapeHtml(p.lastName + ' ' + p.firstName)}</option>`).join('');
-    provSel.addEventListener('change', () => { _filterProvider = provSel.value; renderCalendar(); });
-  }
+  // ── Menu prestataires (checkboxes) ───────────────────────
+  const provMenu = document.getElementById('cal-prov-menu');
+  provMenu.innerHTML = providers.map(p =>
+    `<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:0.82rem;cursor:pointer;border-radius:4px">
+      <input type="checkbox" ${_filterProviders.size===0||_filterProviders.has(p.id)?'checked':''} onchange="window._calToggleProv('${p.id}',this.checked)">
+      ${Utils.escapeHtml(p.lastName+' '+p.firstName)}
+    </label>`).join('');
+  document.getElementById('btn-filter-prov').textContent =
+    _filterProviders.size === 0 ? 'Tous ▼' : `${_filterProviders.size} sélectionné(s) ▼`;
+
+  // ── Menu étudiants (checkboxes) ──────────────────────────
+  const studMenu = document.getElementById('cal-stud-menu');
+  studMenu.innerHTML = students.map(s =>
+    `<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:0.82rem;cursor:pointer;border-radius:4px">
+      <input type="checkbox" ${_filterStudents.size===0||_filterStudents.has(s.id)?'checked':''} onchange="window._calToggleStud('${s.id}',this.checked)">
+      ${Utils.escapeHtml(s.lastName+' '+s.firstName)}
+    </label>`).join('');
+  document.getElementById('btn-filter-stud').textContent =
+    _filterStudents.size === 0 ? 'Tous ▼' : `${_filterStudents.size} sélectionné(s) ▼`;
 }
 
+window._calTogglePole = id => {
+  if (id === '') { _filterPoles.clear(); }
+  else { _filterPoles.has(id) ? _filterPoles.delete(id) : _filterPoles.add(id); }
+  buildFilters(); renderCalendar();
+};
+window._calToggleProv = (id, checked) => {
+  if (checked) _filterProviders.add(id); else _filterProviders.delete(id);
+  document.getElementById('btn-filter-prov').textContent =
+    _filterProviders.size === 0 ? 'Tous ▼' : `${_filterProviders.size} sélectionné(s) ▼`;
+  renderCalendar();
+};
+window._calToggleStud = (id, checked) => {
+  if (checked) _filterStudents.add(id); else _filterStudents.delete(id);
+  document.getElementById('btn-filter-stud').textContent =
+    _filterStudents.size === 0 ? 'Tous ▼' : `${_filterStudents.size} sélectionné(s) ▼`;
+  renderCalendar();
+};
+window._calReset = () => {
+  _filterPoles.clear(); _filterProviders.clear(); _filterStudents.clear();
+  buildFilters(); renderCalendar();
+};
+
 function getFilteredMissions(start, end) {
+  const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
   let missions = Data.getMissionsByDateRange(start, end);
-  if (_filterCompany)  missions = missions.filter(m => m.companyId  === _filterCompany);
-  if (_filterProvider) missions = missions.filter(m => m.providerId === _filterProvider);
+  if (_filterPoles.size > 0) missions = missions.filter(m => {
+    const co = coMap[m.companyId];
+    if (!co) return false;
+    if (_filterPoles.has(co.id)) return true;
+    if (co.poleId && _filterPoles.has(co.poleId)) return true;
+    return false;
+  });
+  if (_filterProviders.size > 0) missions = missions.filter(m => _filterProviders.has(m.providerId));
+  if (_filterStudents.size > 0)  missions = missions.filter(m => (m.studentIds||[]).some(id => _filterStudents.has(id)));
   return missions;
 }
 
@@ -246,6 +296,21 @@ function renderMonth() {
     const more = dayM.length > MAX
       ? `<div class="month-more" title="${hiddenTitles}" onclick="event.stopPropagation();_date='${iso}';_view='day';document.querySelector('[data-view=day]').click()">+${dayM.length - MAX} voir tout →</div>`
       : '';
+    // Ronds de couleur : prestataires + étudiants impliqués ce jour
+    const provMap2 = {}; Data.getProviders().forEach(p => provMap2[p.id] = p);
+    const studMap2 = {}; Data.getStudents().forEach(s => studMap2[s.id] = s);
+    const dots = [];
+    [...new Set(dayM.map(m=>m.providerId).filter(Boolean))].slice(0,4).forEach(pid => {
+      const co = companies[dayM.find(m=>m.providerId===pid)?.companyId];
+      dots.push(`<span title="${provMap2[pid]?provMap2[pid].lastName:''}" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${co?co.color:'#94a3b8'};border:1px solid rgba(0,0,0,0.15)"></span>`);
+    });
+    const studIds = [...new Set(dayM.flatMap(m=>m.studentIds||[]))].slice(0,4);
+    studIds.forEach(sid => {
+      const s = studMap2[sid]; if (!s) return;
+      const co = companies[s.poleId||s.companyId];
+      dots.push(`<span title="${s?s.lastName:''}" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${co?Utils.lightenColor(co.color,0.4):'#c7d2fe'};border:1px solid ${co?co.color:'#818cf8'}"></span>`);
+    });
+
     cells += `<div class="month-cell${!isMonth?' other-month':''}${isToday?' today':''}"
                    onclick="_date='${iso}';_view='day';document.querySelector('[data-view=day]').click()">
       <div class="month-cell-header">
@@ -253,6 +318,7 @@ function renderMonth() {
         <span>${dayM.length > 0 ? `<span class="month-day-count">${dayM.length}</span>` : ''}${hasConf ? '<span style="color:var(--danger);font-size:0.7rem" title="Conflit de planning">⚠</span>' : ''}</span>
       </div>
       <div class="month-cell-events">${events}${more}</div>
+      ${dots.length > 0 ? `<div style="display:flex;gap:3px;flex-wrap:wrap;padding:2px 4px 4px;justify-content:flex-end">${dots.join('')}</div>` : ''}
     </div>`;
     cur.setDate(cur.getDate() + 1);
   }

@@ -28,10 +28,20 @@
       </div>
 
       <!-- Filtres -->
-      <div class="calendar-filters">
-        <span class="filter-label">Filtrer :</span>
-        <select id="filter-company"  class="form-input"></select>
-        <select id="filter-provider" class="form-input"></select>
+      <div class="calendar-filters" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;padding:10px 16px;background:var(--bg-card);border-radius:var(--radius);border:1px solid var(--border)">
+        <span class="filter-label" style="font-size:0.8rem;color:var(--text-muted)">Sociétés :</span>
+        <div id="filter-poles" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+        <span class="filter-label" style="font-size:0.8rem;color:var(--text-muted);margin-left:8px">Prestataires :</span>
+        <div id="filter-providers-wrap" style="position:relative">
+          <button id="btn-filter-prov" class="btn btn-ghost btn-sm" onclick="window._toggleMenu('cal-prov-menu')">Tous ▼</button>
+          <div id="cal-prov-menu" style="display:none;position:absolute;top:100%;left:0;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:200px;max-height:220px;overflow-y:auto;padding:6px"></div>
+        </div>
+        <span class="filter-label" style="font-size:0.8rem;color:var(--text-muted);margin-left:8px">Étudiants :</span>
+        <div id="filter-students-wrap" style="position:relative">
+          <button id="btn-filter-stud" class="btn btn-ghost btn-sm" onclick="window._toggleMenu('cal-stud-menu')">Tous ▼</button>
+          <div id="cal-stud-menu" style="display:none;position:absolute;top:100%;left:0;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:200px;max-height:220px;overflow-y:auto;padding:6px"></div>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="window._calReset()">✕ Réinitialiser</button>
       </div>
 
       <!-- Barre de navigation du calendrier -->
