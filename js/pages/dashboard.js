@@ -7,8 +7,6 @@ document.addEventListener('DOMContentLoaded', () => {
   Data.init();
   _buildPoleSwitch();
   renderDashboard();
-  document.getElementById('btn-new-course').addEventListener('click', () =>
-    Modals.openMission(null, null, () => renderDashboard()));
 });
 
 function _buildPoleSwitch() {
