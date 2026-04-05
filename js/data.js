@@ -16,7 +16,8 @@ function _reRenderPage() {
     else if (typeof renderCalendar   === 'function') renderCalendar();
     else if (typeof render           === 'function') render();
     else if (typeof renderPage       === 'function') renderPage();
-  } catch(e) { console.warn('re-render:', e); }
+    else location.reload();
+  } catch(e) { location.reload(); }
 }
 
 const Data = {
