@@ -87,6 +87,50 @@ function render() {
   list.innerHTML = summary + providers.map(p => providerCard(p, allMissions, allMissionsWithProv)).join('');
 }
 
+window._toggleMenu = id => {
+  document.querySelectorAll('[id^="pmenu-"],[id^="smenu-"]').forEach(el => { if (el.id !== id) el.style.display = 'none'; });
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+};
+document.addEventListener('click', () => document.querySelectorAll('[id^="pmenu-"],[id^="smenu-"]').forEach(el => el.style.display = 'none'));
+
+function _exportProvider(providerId, month) {
+  const provider = Data.getProviderById(providerId);
+  const subjects = {}; (Data.getSubjects()||[]).forEach(s => subjects[s.id] = s);
+  const companies = {}; Data.getCompanies().forEach(c => companies[c.id] = c);
+  const students = {}; Data.getStudents().forEach(s => students[s.id] = s);
+  const missions = Data.getMissions().filter(m =>
+    m.providerId === providerId && m.status !== 'cancelled' &&
+    (!month || (m.date && m.date.startsWith(month)))
+  ).sort((a,b) => a.date.localeCompare(b.date));
+
+  const DAYS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const rows = [['Date','Jour','Heure début','Heure fin','Durée (h)','École / Étudiant','Matière','Tarif prestataire (€/h)','Total prestataire (€)','Tarif facturation (€/h)','Total facturé (€)']];
+  missions.forEach(m => {
+    const d = new Date(m.date + 'T00:00:00');
+    const co = companies[m.companyId];
+    const studs = (m.studentIds||[]).map(id => { const s = students[id]; return s ? s.firstName+' '+s.lastName : ''; }).filter(Boolean).join(', ');
+    const who = studs || (co ? co.name : '');
+    const subj = m.subjectId ? (subjects[m.subjectId]?.name || m.subject || '') : (m.subject || m.title || '');
+    const rate = m.providerRate || 0;
+    const bRate = m.billingRate || 0;
+    const dur = m.duration || 0;
+    rows.push([m.date, DAYS[d.getDay()], m.startTime||'', m.endTime||'', dur.toFixed(2), who, subj, rate.toFixed(2), (dur*rate).toFixed(2), bRate.toFixed(2), (dur*bRate).toFixed(2)]);
+  });
+  const total = missions.reduce((s,m)=>s+(m.duration||0)*(m.providerRate||0),0);
+  rows.push(['','','','','','','','TOTAL',total.toFixed(2),'','']);
+
+  _downloadCSV(rows, `interventions_${provider.lastName}_${month||'complet'}.csv`);
+}
+
+function _downloadCSV(rows, filename) {
+  const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  a.download = filename;
+  a.click();
+}
+
 function providerCard(provider, allMissions, allMissionsWithProv) {
   const links = Data.getProviderLinksByProvider(provider.id);
   const linkedCoIds = new Set(links.map(l => l.companyId));
@@ -208,6 +252,14 @@ function providerCard(provider, allMissions, allMissionsWithProv) {
       <button class="btn btn-ghost btn-sm" onclick="Modals.openProvider('${provider.id}')">Modifier</button>
       <button class="btn btn-ghost btn-sm" onclick="Modals.openProviderLink(null,'${provider.id}')">+ Lien société</button>
       <button class="btn btn-sm ${isExcluded ? 'btn-primary' : 'btn-ghost'}" onclick="toggleProvider('${provider.id}')" title="${isExcluded ? 'Inclure dans le récap' : 'Exclure du récap'}">${isExcluded ? '+ Inclure' : '— Exclure'}</button>
+      <div style="position:relative;display:inline-block">
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();window._toggleMenu('pmenu-${provider.id}')">⋯</button>
+        <div id="pmenu-${provider.id}" style="display:none;position:absolute;right:0;top:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:200px;padding:4px">
+          <div style="padding:6px 10px;font-size:0.75rem;color:var(--text-muted);border-bottom:1px solid var(--border);margin-bottom:4px">Exporter les interventions</div>
+          <button class="btn btn-ghost btn-sm" style="width:100%;text-align:left;padding:6px 10px" onclick="event.stopPropagation();_exportProvider('${provider.id}','${Utils.currentYearMonth()}')">📥 Ce mois (${Utils.MONTHS_LONG[+Utils.currentYearMonth().split('-')[1]-1]})</button>
+          <button class="btn btn-ghost btn-sm" style="width:100%;text-align:left;padding:6px 10px" onclick="event.stopPropagation();_exportProvider('${provider.id}','')">📥 Tout l'historique</button>
+        </div>
+      </div>
     </div>
   </div>`;
 }

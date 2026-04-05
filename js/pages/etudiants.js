@@ -87,6 +87,34 @@ function render() {
   grid.innerHTML = filtered.map(s => studentCard(s, companies, formations, providers, allMissions)).join('');
 }
 
+function _exportStudent(studentId, month) {
+  const s = Data.getStudents().find(x => x.id === studentId); if (!s) return;
+  const subjects = {}; (Data.getSubjects()||[]).forEach(x => subjects[x.id] = x);
+  const providers = {}; Data.getProviders().forEach(p => providers[p.id] = p);
+  const companies = {}; Data.getCompanies().forEach(c => companies[c.id] = c);
+  const missions = Data.getMissions().filter(m =>
+    (m.studentIds||[]).includes(studentId) && m.status !== 'cancelled' &&
+    (!month || (m.date && m.date.startsWith(month)))
+  ).sort((a,b) => a.date.localeCompare(b.date));
+  const DAYS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const rows = [['Date','Jour','Heure début','Heure fin','Durée (h)','Matière','Prestataire','Tarif facturation (€/h)','Total facturé (€)']];
+  missions.forEach(m => {
+    const d = new Date(m.date + 'T00:00:00');
+    const prov = providers[m.providerId];
+    const subj = m.subjectId ? (subjects[m.subjectId]?.name || m.subject || '') : (m.subject || m.title || '');
+    const dur = m.duration || 0;
+    const bRate = m.billingRate || 0;
+    rows.push([m.date, DAYS[d.getDay()], m.startTime||'', m.endTime||'', dur.toFixed(2), subj, prov ? prov.firstName+' '+prov.lastName : '', bRate.toFixed(2), (dur*bRate).toFixed(2)]);
+  });
+  const total = missions.reduce((a,m)=>a+(m.duration||0)*(m.billingRate||0),0);
+  rows.push(['','','','','','','','TOTAL',total.toFixed(2)]);
+  const csv = '\uFEFF' + rows.map(r => r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download = `cours_${s.lastName}_${month||'complet'}.csv`;
+  a.click();
+}
+
 const LEVEL_LABELS = { college:'Collège', lycee:'Lycée', superieur:'Supérieur' };
 const LEVEL_RATE   = { college:'rateCollege', lycee:'rateLycee', superieur:'rateSup' };
 
@@ -139,6 +167,14 @@ function studentCard(s, companies, formations, providers, allMissions) {
       <div style="font-size:0.85rem;font-weight:700">${Utils.formatDuration(totalH)} total</div>
       <div style="font-size:0.8rem;color:var(--success)">${Utils.formatMoney(totalRev)} facturé</div>
       ${provStats || '<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px">Aucun prestataire</div>'}
+      <div style="position:relative;display:inline-block;margin-top:8px" onclick="event.stopPropagation()">
+        <button class="btn btn-ghost btn-sm" onclick="window._toggleMenu('smenu-${s.id}')">⋯ Exporter</button>
+        <div id="smenu-${s.id}" style="display:none;position:absolute;right:0;top:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:200px;padding:4px">
+          <div style="padding:6px 10px;font-size:0.75rem;color:var(--text-muted);border-bottom:1px solid var(--border);margin-bottom:4px">Exporter les cours</div>
+          <button class="btn btn-ghost btn-sm" style="width:100%;text-align:left;padding:6px 10px" onclick="_exportStudent('${s.id}','${Utils.currentYearMonth()}')">📥 Ce mois</button>
+          <button class="btn btn-ghost btn-sm" style="width:100%;text-align:left;padding:6px 10px" onclick="_exportStudent('${s.id}','')">📥 Tout l'historique</button>
+        </div>
+      </div>
     </div>
   </div>`;
 }
