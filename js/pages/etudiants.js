@@ -87,7 +87,7 @@ function render() {
   grid.innerHTML = filtered.map(s => studentCard(s, companies, formations, providers, allMissions)).join('');
 }
 
-function _exportStudent(studentId, month) {
+window._exportStudent = function(studentId, month) {
   const s = Data.getStudents().find(x => x.id === studentId); if (!s) return;
   const subjects = {}; (Data.getSubjects()||[]).forEach(x => subjects[x.id] = x);
   const providers = {}; Data.getProviders().forEach(p => providers[p.id] = p);
