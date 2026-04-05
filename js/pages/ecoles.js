@@ -37,50 +37,30 @@ function render() {
     const provs        = allProviders.filter(p => p.poleId === own.id);
     const studs        = allStudents.filter(s => (s.poleId || s.companyId) === own.id);
 
-    html += `<div class="section-block" style="border-left:4px solid ${color};padding-left:12px;margin-bottom:32px">
-      <div class="section-block-header">
-        <h2 class="section-block-title" style="color:${color}">🏛 ${Utils.escapeHtml(own.name)}</h2>
-        <button class="btn btn-sm btn-ghost" onclick="Modals.openCompany('${own.id}')">✎ Modifier</button>
-      </div>
+    html += `<details class="section-block" style="border-left:4px solid ${color};padding-left:12px;margin-bottom:32px" open>
+      <summary class="section-block-header" style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <h2 class="section-block-title" style="color:${color};margin:0">🏛 ${Utils.escapeHtml(own.name)}</h2>
+        <button class="btn btn-sm btn-ghost" onclick="event.preventDefault();event.stopPropagation();Modals.openCompany('${own.id}')">✎ Modifier</button>
+      </summary>
       <div class="cards-grid-inner" style="margin-bottom:12px">${companyCard(own, allMissions)}</div>`;
 
-    // Écoles
-    html += `<div class="subsection-block">
-      <div class="subsection-header">
-        <span class="subsection-title">🏫 Écoles (${schools.length})</span>
-        <button class="btn btn-xs btn-ghost" onclick="Modals.openCompany(null)">+ Ajouter</button>
-      </div>
+    html += `<details class="subsection-block" open><summary class="subsection-header" style="cursor:pointer;list-style:none">🏫 Écoles (${schools.length}) <button class="btn btn-xs btn-ghost" onclick="event.preventDefault();event.stopPropagation();Modals.openCompany(null)">+ Ajouter</button></summary>
       ${schools.length ? `<div class="cards-grid-inner">${schools.map(c => companyCard(c, allMissions)).join('')}</div>` : '<p class="empty-state-sm">Aucune école rattachée</p>'}
-    </div>`;
+    </details>`;
 
-    // Institutions
-    html += `<div class="subsection-block">
-      <div class="subsection-header">
-        <span class="subsection-title">🏛 Institutions (${institutions.length})</span>
-        <button class="btn btn-xs btn-ghost" onclick="Modals.openCompany(null)">+ Ajouter</button>
-      </div>
+    html += `<details class="subsection-block" open><summary class="subsection-header" style="cursor:pointer;list-style:none">🏛 Institutions (${institutions.length}) <button class="btn btn-xs btn-ghost" onclick="event.preventDefault();event.stopPropagation();Modals.openCompany(null)">+ Ajouter</button></summary>
       ${institutions.length ? `<div class="cards-grid-inner">${institutions.map(c => companyCard(c, allMissions)).join('')}</div>` : '<p class="empty-state-sm">Aucune institution rattachée</p>'}
-    </div>`;
+    </details>`;
 
-    // Apprenants
-    html += `<div class="subsection-block">
-      <div class="subsection-header">
-        <span class="subsection-title">🎓 Apprenants (${studs.length})</span>
-        <a href="etudiants.html" class="btn btn-xs btn-ghost">Voir tous →</a>
-      </div>
+    html += `<details class="subsection-block" open><summary class="subsection-header" style="cursor:pointer;list-style:none">🎓 Apprenants (${studs.length}) <a href="etudiants.html" class="btn btn-xs btn-ghost" onclick="event.stopPropagation()">Voir tous →</a></summary>
       ${studs.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px">${studs.map(s=>`<span class="badge badge-planned" style="cursor:pointer" onclick="Modals.openStudent('${s.id}')">${Utils.escapeHtml(s.lastName+' '+s.firstName)}</span>`).join('')}</div>` : '<p class="empty-state-sm">Aucun apprenant rattaché</p>'}
-    </div>`;
+    </details>`;
 
-    // Prestataires
-    html += `<div class="subsection-block">
-      <div class="subsection-header">
-        <span class="subsection-title">👤 Prestataires (${provs.length})</span>
-        <a href="prestataires.html" class="btn btn-xs btn-ghost">Voir tous →</a>
-      </div>
+    html += `<details class="subsection-block" open><summary class="subsection-header" style="cursor:pointer;list-style:none">👤 Prestataires (${provs.length}) <a href="prestataires.html" class="btn btn-xs btn-ghost" onclick="event.stopPropagation()">Voir tous →</a></summary>
       ${provs.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px">${provs.map(p=>`<span class="badge badge-done" style="cursor:pointer" onclick="Modals.openProvider('${p.id}')">${Utils.escapeHtml(p.lastName+' '+p.firstName)}</span>`).join('')}</div>` : '<p class="empty-state-sm">Aucun prestataire rattaché</p>'}
-    </div>`;
+    </details>`;
 
-    html += `</div>`;
+    html += `</details>`;
   });
 
   // ── Non rattachées ───────────────────────────────────────────
