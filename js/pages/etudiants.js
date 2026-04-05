@@ -108,11 +108,7 @@ function _exportStudent(studentId, month) {
   });
   const total = missions.reduce((a,m)=>a+(m.duration||0)*(m.billingRate||0),0);
   rows.push(['','','','','','','','TOTAL',total.toFixed(2)]);
-  const csv = '\uFEFF' + rows.map(r => r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
-  a.download = `cours_${s.lastName}_${month||'complet'}.csv`;
-  a.click();
+  _downloadCSV(rows, `cours_${s.lastName}_${month||'complet'}.csv`);
 }
 
 const LEVEL_LABELS = { college:'Collège', lycee:'Lycée', superieur:'Supérieur' };

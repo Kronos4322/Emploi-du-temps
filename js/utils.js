@@ -262,3 +262,23 @@ const Utils = {
   getFormationStatusClass(s) { return (this.FORMATION_STATUSES[s] || { cls: '' }).cls; },
 
 };
+
+// ── Menus déroulants & export CSV (partagés toutes pages) ─────
+window._toggleMenu = id => {
+  document.querySelectorAll('[id^="pmenu-"],[id^="smenu-"]').forEach(el => {
+    if (el.id !== id) el.style.display = 'none';
+  });
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+};
+document.addEventListener('click', () =>
+  document.querySelectorAll('[id^="pmenu-"],[id^="smenu-"]').forEach(el => el.style.display = 'none')
+);
+
+window._downloadCSV = (rows, filename) => {
+  const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  a.download = filename;
+  a.click();
+};
