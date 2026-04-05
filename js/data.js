@@ -119,6 +119,7 @@ const Data = {
       students: [],        // étudiants (spécifique Artémis mais global)
       formations: [],      // modules de formation
       subjects: [],        // matières & cours
+      subjectCategories: [], // catégories de matières
       settings: {
         defaultBillingRate: 50,
         currency: 'EUR',
@@ -151,7 +152,8 @@ const Data = {
     if (!this._db.missions)      this._db.missions = [];
     if (!this._db.students)      this._db.students = [];
     if (!this._db.formations)    this._db.formations = [];
-    if (!this._db.subjects)      this._db.subjects = [];
+    if (!this._db.subjects)           this._db.subjects = [];
+    if (!this._db.subjectCategories)  this._db.subjectCategories = [];
     if (!this._db.settings)      this._db.settings = this._emptyDb().settings;
 
     // Garantir le champ role sur chaque société
@@ -513,6 +515,22 @@ const Data = {
   deleteSubject(id) {
     if (!this._db.subjects) return;
     this._db.subjects = this._db.subjects.filter(s => s.id !== id);
+    this._save();
+  },
+
+  getSubjectCategories() {
+    if (!this._db.subjectCategories) this._db.subjectCategories = [];
+    return [...this._db.subjectCategories].sort((a,b) => a.name.localeCompare(b.name));
+  },
+  saveSubjectCategory(cat) {
+    if (!this._db.subjectCategories) this._db.subjectCategories = [];
+    const idx = this._db.subjectCategories.findIndex(c => c.id === cat.id);
+    if (idx >= 0) this._db.subjectCategories[idx] = cat; else this._db.subjectCategories.push(cat);
+    this._save();
+  },
+  deleteSubjectCategory(id) {
+    this._db.subjectCategories = (this._db.subjectCategories||[]).filter(c => c.id !== id);
+    this._db.subjects = (this._db.subjects||[]).map(s => s.categoryId===id ? {...s, categoryId:null} : s);
     this._save();
   },
 
