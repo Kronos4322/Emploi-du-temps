@@ -23,7 +23,12 @@
   function getOwnCompanies() {
     try {
       const db = JSON.parse(localStorage.getItem('emploi_du_temps_db') || '{}');
-      return (db.companies || []).filter(c => c.role === 'own');
+      const cos = (db.companies || []).filter(c => c.role === 'own');
+      // Marquer si le pôle a des étudiants rattachés
+      cos.forEach(co => {
+        co._hasStudents = (db.students || []).some(s => (s.poleId || s.companyId) === co.id);
+      });
+      return cos;
     } catch { return []; }
   }
 
@@ -39,8 +44,10 @@
   // Une section par société propre (Artémis, Astéria, etc.)
   getOwnCompanies().forEach(co => {
     navHTML += section(co.name);
-    navHTML += makeLink('etudiants.html',  '🎓', 'Étudiants');
-    navHTML += makeLink('formations.html', '📚', 'Formations');
+    if (co._hasStudents) {
+      navHTML += makeLink('etudiants.html',  '🎓', 'Étudiants');
+      navHTML += makeLink('formations.html', '📚', 'Formations');
+    }
     navHTML += makeLink(`facturation.html?pole=${co.id}`, '💶', 'Facturation');
     navHTML += makeLink(`finances.html?pole=${co.id}`,    '📊', 'Finances');
   });
