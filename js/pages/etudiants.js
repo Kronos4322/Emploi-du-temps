@@ -18,6 +18,11 @@ const QDOCS = [
   {k:'attestation',l:'Attestation de fin'},{k:'bilan',l:'Bilan'},
   {k:'satisfaction',l:'Questionnaire satisfaction'},{k:'justificatifs',l:'Justificatifs complémentaires'}
 ];
+const QPHASES = [
+  {label:"Phase 1 — Préparation de l'arrivée", icon:'📝', steps:[0,1,2,3,4,5,6]},
+  {label:'Phase 2 — Formation',                icon:'🎓', steps:[7,8,9,10,11]},
+  {label:'Phase 3 — Suivi de l\'apprenant',    icon:'📊', steps:[12,13,14]},
+];
 const SC    = {vert:'#22c55e',jaune:'#f59e0b',rouge:'#ef4444',gris:'#94a3b8'};
 const SI    = {vert:'✓',jaune:'⋯',rouge:'✗',gris:'—'};
 const SL    = {vert:'Terminé',jaune:'En cours',rouge:'Manquant',gris:'N/A'};
@@ -65,7 +70,11 @@ function handleClick(e) {
   }
   if (a === 'q-step') {
     const s = Data.getStudentById(id); if (!s) return;
+    const ph = +t.dataset.phase;
     const steps = [...(s.qSteps||Array(QSTEPS.length).fill('rouge'))];
+    const phDone = pi => QPHASES[pi].steps.every(i=>(steps[i]||'rouge')==='vert');
+    if (ph===1 && !phDone(0)) return;
+    if (ph===2 && !phDone(1)) return;
     const i = +t.dataset.idx;
     steps[i] = SCY[(SCY.indexOf(steps[i]||'rouge')+1)%SCY.length];
     Data.saveStudent({...s, qSteps:steps}); render();
@@ -298,32 +307,60 @@ function qDetailHTML() {
   const score= qScore(s); const pct = Math.round(score/QSTEPS.length*100);
   const col  = pct===100?'#22c55e':pct>50?'#f59e0b':'#ef4444';
 
-  const stepRows = QSTEPS.map((label,i)=>{
-    const v = steps[i]||'rouge';
-    return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)">
-      <span data-action="q-step" data-id="${s.id}" data-idx="${i}" title="Cliquer pour changer"
-        style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:${SC[v]};color:#fff;font-size:0.8rem;font-weight:700;cursor:pointer;flex-shrink:0">${SI[v]}</span>
-      <span style="flex:1;font-size:0.87rem">${label}</span>
-      <span style="font-size:0.73rem;color:var(--text-muted)">${SL[v]}</span>
+  const phDone = pi => QPHASES[pi].steps.every(i=>(steps[i]||'rouge')==='vert');
+  const p0=phDone(0), p1=phDone(1);
+  const phUnlocked = [true, p0, p1];
+
+  const phaseBlocks = QPHASES.map((ph,pi)=>{
+    const unlocked = phUnlocked[pi];
+    const phScore  = ph.steps.filter(i=>(steps[i]||'rouge')==='vert').length;
+    const phPct    = Math.round(phScore/ph.steps.length*100);
+    const phCol    = phPct===100?'#22c55e':phPct>0?'#f59e0b':'#ef4444';
+    const borderCol= phPct===100?'#22c55e30':phPct>0?'#f59e0b30':'var(--border)';
+
+    const rows = ph.steps.map(i=>{
+      const v = unlocked ? (steps[i]||'rouge') : 'gris';
+      return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)">
+        <span data-action="q-step" data-id="${s.id}" data-idx="${i}" data-phase="${pi}"
+          title="${unlocked?'Cliquer pour changer':'Phase précédente à compléter'}"
+          style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:${SC[v]};color:#fff;font-size:0.78rem;font-weight:700;cursor:${unlocked?'pointer':'default'};flex-shrink:0">${SI[v]}</span>
+        <span style="flex:1;font-size:0.87rem;${unlocked?'':'opacity:.45'}">${QSTEPS[i]}</span>
+        <span style="font-size:0.72rem;color:var(--text-muted)">${unlocked?SL[v]:'—'}</span>
+      </div>`;
+    }).join('');
+
+    return `<div style="background:var(--bg-card);border:1px solid ${borderCol};border-radius:14px;padding:20px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <span style="font-size:1.4rem">${ph.icon}</span>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:0.95rem">${ph.label}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+            <div style="flex:1;max-width:140px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${phPct}%;background:${phCol};border-radius:3px"></div></div>
+            <span style="font-size:0.78rem;font-weight:700;color:${phCol}">${phScore}/${ph.steps.length}</span>
+          </div>
+        </div>
+        ${unlocked
+          ? `<button class="btn btn-ghost btn-sm" onclick="window._exportPhase('${s.id}',${pi})">📥 Exporter</button>`
+          : `<span style="font-size:0.75rem;color:var(--text-muted);background:var(--border);padding:4px 10px;border-radius:6px">🔒 Phase précédente incomplète</span>`}
+      </div>
+      ${rows}
     </div>`;
   }).join('');
 
   const docRows = QDOCS.map(d=>{
     const v = docs[d.k]||'non_cree';
     return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)">
-      <span data-action="q-doc" data-id="${s.id}" data-key="${d.k}" title="Cliquer pour changer"
+      <span data-action="q-doc" data-id="${s.id}" data-key="${d.k}"
         style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;background:${DC[v]}20;color:${DC[v]};font-size:0.72rem;font-weight:600;cursor:pointer;min-width:76px;justify-content:center;flex-shrink:0">${DL[v]}</span>
       <span style="flex:1;font-size:0.87rem">${d.l}</span>
     </div>`;
   }).join('');
 
   const infoItems = [
-    s.email       && {k:'Email',v:s.email},
-    s.phone       && {k:'Tél.',v:s.phone},
-    co            && {k:'Structure',v:co.name},
-    formNames     && {k:'Formation',v:formNames},
-    s.entryDate   && {k:'Entrée',v:s.entryDate},
-    s.financementMode && {k:'Financement',v:s.financementMode},
+    s.email&&{k:'Email',v:s.email}, s.phone&&{k:'Tél.',v:s.phone},
+    co&&{k:'Structure',v:co.name}, formNames&&{k:'Formation',v:formNames},
+    s.entryDate&&{k:'Entrée',v:s.entryDate}, s.financementMode&&{k:'Financement',v:s.financementMode},
     {k:'Séances',v:`${allM.length} · ${Utils.formatDuration(totH)}`},
   ].filter(Boolean).map(i=>`<div>
     <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">${i.k}</div>
@@ -341,27 +378,49 @@ function qDetailHTML() {
   <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px">
     ${infoItems}
   </div>
-  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px">
-    <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px">
-      <div style="flex:1;height:12px;background:var(--border);border-radius:6px;overflow:hidden">
-        <div style="height:100%;width:${pct}%;background:${col};border-radius:6px;transition:width .3s"></div></div>
-      <div style="font-size:1.1rem;font-weight:700;color:${col}">${pct}% — ${score}/${QSTEPS.length} étapes</div>
-    </div>
-    <p style="font-size:0.78rem;color:var(--text-muted);margin:0">Cliquez sur les indicateurs ou les badges pour faire avancer le statut</p>
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:16px">
+    <div style="flex:1;height:10px;background:var(--border);border-radius:5px;overflow:hidden">
+      <div style="height:100%;width:${pct}%;background:${col};border-radius:5px;transition:width .3s"></div></div>
+    <div style="font-size:1rem;font-weight:700;color:${col}">${pct}% — ${score}/${QSTEPS.length} étapes</div>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px">
-      <h3 style="margin:0 0 4px;font-size:0.95rem">Étapes du parcours</h3>
-      <p style="font-size:0.72rem;color:var(--text-muted);margin:0 0 8px">rouge → jaune → vert → gris</p>
-      ${stepRows}
+  <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px">
+    <div>
+      <p style="font-size:0.75rem;color:var(--text-muted);margin:0 0 12px">Cliquez sur ● pour avancer : rouge → jaune → vert → gris. La phase suivante se déverrouille quand toutes les étapes sont vertes.</p>
+      ${phaseBlocks}
     </div>
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px">
-      <h3 style="margin:0 0 4px;font-size:0.95rem">Documents</h3>
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:20px;height:fit-content">
+      <h3 style="margin:0 0 4px;font-size:0.95rem">📄 Documents</h3>
       <p style="font-size:0.72rem;color:var(--text-muted);margin:0 0 8px">Cliquez pour faire avancer le statut</p>
       ${docRows}
     </div>
   </div>`;
 }
+
+// ── Export phase Qualiopi ────────────────────────────────────────
+window._exportPhase = function(studentId, phaseIdx) {
+  const s = Data.getStudentById(studentId); if (!s) return;
+  const co = Data.getCompanyById(s.poleId||s.companyId);
+  const ph = QPHASES[phaseIdx]; if (!ph) return;
+  const steps = s.qSteps||[];
+  const fors = {}; Data.getFormations().forEach(f=>fors[f.id]=f);
+  const formNames = (s.formationIds||[]).map(id=>fors[id]?.name||'').filter(Boolean).join(', ');
+  const today = new Date().toLocaleDateString('fr-FR');
+  const rows = [
+    [`SOMMAIRE — ${ph.label}`],
+    [`Étudiant : ${s.firstName} ${s.lastName}`],
+    [`Structure : ${co?.name||''}`],
+    [`Formation : ${formNames}`],
+    [`Date d'entrée : ${s.entryDate||'—'}`],
+    [`Exporté le : ${today}`],
+    [],
+    ['Étape','Statut','Date de réalisation (à compléter)'],
+    ...ph.steps.map(i=>[QSTEPS[i], SL[steps[i]||'rouge'], '']),
+    [],
+    ['Documents associés','Statut',''],
+    ...QDOCS.map(d=>[d.l, DL[(s.qDocs||{})[d.k]||'non_cree'], '']),
+  ];
+  _downloadCSV(rows, `qualiopi_phase${phaseIdx+1}_${s.lastName}.csv`);
+};
 
 // ── Export CSV ───────────────────────────────────────────────────
 window._exportStudent = function(studentId, month) {
