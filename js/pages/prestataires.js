@@ -33,17 +33,26 @@ function render() {
   if (!filterBar) {
     filterBar = document.createElement('div');
     filterBar.id = 'prov-filter-bar';
-    filterBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px;padding:12px 16px;background:var(--bg-card);border-radius:var(--radius);border:1px solid var(--border)';
+    filterBar.style.cssText = 'position:relative;margin-bottom:16px';
     list.parentElement.insertBefore(filterBar, list);
   }
+  const activeCount = providers.filter(p => !_excluded.has(p.id)).length;
   filterBar.innerHTML =
-    `<span style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap">Récap :</span>
-    <button class="btn btn-xs btn-ghost" onclick="window._provAll()">Tous</button>
-    <button class="btn btn-xs btn-ghost" onclick="window._provNone()">Aucun</button>
-    ${providers.map(p=>`<label style="display:flex;align-items:center;gap:4px;font-size:0.82rem;cursor:pointer;white-space:nowrap">
-      <input type="checkbox" value="${p.id}" ${!_excluded.has(p.id)?'checked':''} onchange="window._provToggle('${p.id}')">
-      ${Utils.escapeHtml(p.firstName+' '+p.lastName)}
-    </label>`).join('')}`;
+    `<button class="btn btn-ghost btn-sm" onclick="var p=document.getElementById('prov-filter-panel');p.style.display=p.style.display==='none'?'block':'none'" style="width:100%;text-align:left;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;font-size:0.85rem">
+      👥 Récap — <b>${activeCount} / ${providers.length}</b> prestataires ▼
+    </button>
+    <div id="prov-filter-panel" style="display:none;position:absolute;top:100%;left:0;z-index:40;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-md);padding:10px 14px;min-width:240px">
+      <div style="display:flex;gap:6px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+        <button class="btn btn-xs btn-ghost" onclick="window._provAll()">Tous</button>
+        <button class="btn btn-xs btn-ghost" onclick="window._provNone()">Aucun</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto">
+        ${providers.map(p=>`<label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;padding:3px 0">
+          <input type="checkbox" value="${p.id}" ${!_excluded.has(p.id)?'checked':''} onchange="window._provToggle('${p.id}')">
+          ${Utils.escapeHtml(p.lastName+' '+p.firstName)}
+        </label>`).join('')}
+      </div>
+    </div>`;
   window._provToggle = id => { _excluded.has(id) ? _excluded.delete(id) : _excluded.add(id); render(); };
   window._provAll = () => { _excluded.clear(); render(); };
   window._provNone = () => { providers.forEach(p => _excluded.add(p.id)); render(); };
