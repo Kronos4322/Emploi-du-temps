@@ -3,9 +3,10 @@
 
 let _view = 'week';
 let _date = Utils.today();
-let _filterPoles    = new Set(); // vide = tous
-let _filterProviders = new Set(); // vide = tous
-let _filterStudents  = new Set(); // vide = tous
+// null = pas de filtre (tout afficher), Set = filtre actif (afficher seulement ces IDs)
+let _filterCos      = null;
+let _filterProviders = null;
+let _filterStudents  = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   Data.init();
@@ -30,18 +31,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-function _chk(name, id, checked, onchange) {
-  return `<label style="display:flex;align-items:center;gap:6px;padding:5px 6px;font-size:0.82rem;cursor:pointer;border-radius:4px;hover:background:#f1f5f9">
-    <input type="checkbox" name="${name}" value="${id}" ${checked?'checked':''} onchange="${onchange}">
-    <span>${id}</span></label>`;
-}
-function _makeChk(name, label, id, checked, onchange) {
+function _chkItem(name, label, id, checked, fn) {
   return `<label style="display:flex;align-items:center;gap:6px;padding:5px 6px;font-size:0.82rem;cursor:pointer;border-radius:4px">
-    <input type="checkbox" name="${name}" value="${id}" ${checked?'checked':''} onchange="${onchange}">
+    <input type="checkbox" name="${name}" value="${id}" ${checked?'checked':''} onchange="${fn}(this)">
     ${Utils.escapeHtml(label)}</label>`;
-}
-function _updateLbl(elId, set, all) {
-  document.getElementById(elId).textContent = set.size === 0 ? (all?'Tous':'Toutes') : set.size+' sél.';
 }
 
 function buildFilters() {
@@ -50,68 +43,63 @@ function buildFilters() {
   const students  = Data.getStudents().filter(s => s.status !== 'inactive');
 
   document.getElementById('cal-co-list').innerHTML = cos.map(c =>
-    _makeChk('cal-co', c.name, c.id, _filterPoles.size===0||_filterPoles.has(c.id),
-      `window._calToggleCo('${c.id}',this.checked)`)).join('');
-  _updateLbl('lbl-co', _filterPoles, false);
+    _chkItem('cal-co', c.name, c.id, _filterCos===null||_filterCos.has(c.id), `window._calChkCo`)).join('');
+  document.getElementById('lbl-co').textContent = _filterCos===null ? 'Toutes' : _filterCos.size+' sél.';
 
   document.getElementById('cal-prov-list').innerHTML = providers.map(p =>
-    _makeChk('cal-prov', p.lastName+' '+p.firstName, p.id, _filterProviders.size===0||_filterProviders.has(p.id),
-      `window._calToggleProv('${p.id}',this.checked)`)).join('');
-  _updateLbl('lbl-prov', _filterProviders, true);
+    _chkItem('cal-prov', p.lastName+' '+p.firstName, p.id, _filterProviders===null||_filterProviders.has(p.id), `window._calChkProv`)).join('');
+  document.getElementById('lbl-prov').textContent = _filterProviders===null ? 'Tous' : _filterProviders.size+' sél.';
 
   document.getElementById('cal-stud-list').innerHTML = students.map(s =>
-    _makeChk('cal-stud', s.lastName+' '+s.firstName, s.id, _filterStudents.size===0||_filterStudents.has(s.id),
-      `window._calToggleStud('${s.id}',this.checked)`)).join('');
-  _updateLbl('lbl-stud', _filterStudents, true);
+    _chkItem('cal-stud', s.lastName+' '+s.firstName, s.id, _filterStudents===null||_filterStudents.has(s.id), `window._calChkStud`)).join('');
+  document.getElementById('lbl-stud').textContent = _filterStudents===null ? 'Tous' : _filterStudents.size+' sél.';
 }
 
-window._calToggleCo   = (id,on) => { on?_filterPoles.add(id):_filterPoles.delete(id); _updateLbl('lbl-co',_filterPoles,false); renderCalendar(); };
-window._calToggleProv = (id,on) => { on?_filterProviders.add(id):_filterProviders.delete(id); _updateLbl('lbl-prov',_filterProviders,true); renderCalendar(); };
-window._calToggleStud = (id,on) => { on?_filterStudents.add(id):_filterStudents.delete(id); _updateLbl('lbl-stud',_filterStudents,true); renderCalendar(); };
+window._calChkCo = cb => {
+  if (_filterCos === null) _filterCos = new Set(Data.getCompanies().map(c=>c.id));
+  cb.checked ? _filterCos.add(cb.value) : _filterCos.delete(cb.value);
+  document.getElementById('lbl-co').textContent = _filterCos.size+' sél.';
+  renderCalendar();
+};
+window._calChkProv = cb => {
+  if (_filterProviders === null) _filterProviders = new Set(Data.getProviders().map(p=>p.id));
+  cb.checked ? _filterProviders.add(cb.value) : _filterProviders.delete(cb.value);
+  document.getElementById('lbl-prov').textContent = _filterProviders.size+' sél.';
+  renderCalendar();
+};
+window._calChkStud = cb => {
+  if (_filterStudents === null) _filterStudents = new Set(Data.getStudents().filter(s=>s.status!=='inactive').map(s=>s.id));
+  cb.checked ? _filterStudents.add(cb.value) : _filterStudents.delete(cb.value);
+  document.getElementById('lbl-stud').textContent = _filterStudents.size+' sél.';
+  renderCalendar();
+};
 
-window._calSelectAllCo   = () => { _filterPoles.clear();     buildFilters(); renderCalendar(); };
-window._calSelectNoneCo  = () => { Data.getCompanies().forEach(c=>_filterPoles.add(c.id));    buildFilters(); renderCalendar(); };
-window._calSelectAllProv = () => { _filterProviders.clear(); buildFilters(); renderCalendar(); };
-window._calSelectNoneProv= () => { Data.getProviders().forEach(p=>_filterProviders.add(p.id)); buildFilters(); renderCalendar(); };
-window._calSelectAllStud = () => { _filterStudents.clear();  buildFilters(); renderCalendar(); };
-window._calSelectNoneStud= () => { Data.getStudents().filter(s=>s.status!=='inactive').forEach(s=>_filterStudents.add(s.id)); buildFilters(); renderCalendar(); };
-window._calReset = () => { _filterPoles.clear(); _filterProviders.clear(); _filterStudents.clear(); buildFilters(); renderCalendar(); };
+window._calSelectAllCo   = () => { _filterCos=null;       buildFilters(); renderCalendar(); };
+window._calSelectNoneCo  = () => { _filterCos=new Set();   buildFilters(); renderCalendar(); };
+window._calSelectAllProv = () => { _filterProviders=null;  buildFilters(); renderCalendar(); };
+window._calSelectNoneProv= () => { _filterProviders=new Set(); buildFilters(); renderCalendar(); };
+window._calSelectAllStud = () => { _filterStudents=null;   buildFilters(); renderCalendar(); };
+window._calSelectNoneStud= () => { _filterStudents=new Set(); buildFilters(); renderCalendar(); };
+window._calReset = () => { _filterCos=null; _filterProviders=null; _filterStudents=null; buildFilters(); renderCalendar(); };
 
 function getFilteredMissions(start, end) {
   const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
-  const allCos = Data.getCompanies();
-  const allCosSize = allCos.length;
-  const allProvs = Data.getProviders();
-  const allStuds = Data.getStudents().filter(s=>s.status!=='inactive');
   let missions = Data.getMissionsByDateRange(start, end);
 
-  // Filtre société : si le set contient TOUS les ids c'est "Aucun" → 0 missions
-  // Si vide → Tous → pas de filtre
-  const coActive = _filterPoles.size > 0 && _filterPoles.size < allCosSize;
-  const coNone   = _filterPoles.size >= allCosSize;
-  if (coNone) return [];
-  if (coActive) missions = missions.filter(m => {
-    const co = coMap[m.companyId];
-    if (!co) return false;
-    return _filterPoles.has(co.id) || (co.poleId && _filterPoles.has(co.poleId));
-  });
-
-  // Filtres prestataires et étudiants : OR entre eux si les deux sont actifs
-  const provNone = _filterProviders.size >= allProvs.length;
-  const studNone = _filterStudents.size >= allStuds.length;
-  if (provNone && studNone) return [];
-
-  const provActive = _filterProviders.size > 0 && !provNone;
-  const studActive = _filterStudents.size > 0 && !studNone;
-
-  if (provActive || studActive) {
-    missions = missions.filter(m => {
-      const matchProv = provActive ? _filterProviders.has(m.providerId) : false;
-      const matchStud = studActive ? (m.studentIds||[]).some(id => _filterStudents.has(id)) : false;
-      if (provActive && studActive) return matchProv || matchStud;
-      if (provActive) return matchProv;
-      return matchStud;
-    });
+  // null = tout afficher, Set vide = rien afficher, Set avec IDs = filtrer
+  if (_filterCos !== null) {
+    missions = missions.filter(m => _filterCos.has(m.companyId));
+  }
+  if (_filterProviders !== null && _filterStudents !== null) {
+    // Les deux actifs → OR
+    missions = missions.filter(m =>
+      _filterProviders.has(m.providerId) ||
+      (m.studentIds||[]).some(id => _filterStudents.has(id))
+    );
+  } else if (_filterProviders !== null) {
+    missions = missions.filter(m => _filterProviders.has(m.providerId));
+  } else if (_filterStudents !== null) {
+    missions = missions.filter(m => (m.studentIds||[]).some(id => _filterStudents.has(id)));
   }
   return missions;
 }
