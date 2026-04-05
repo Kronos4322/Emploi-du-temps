@@ -10,6 +10,9 @@ let _filterStudents  = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   Data.init();
+  // Initialiser avec tous les IDs pour que "Tous" override le filtre société dès le départ
+  _filterProviders = new Set(Data.getProviders().map(p=>p.id));
+  _filterStudents  = new Set(Data.getStudents().filter(s=>s.status!=='inactive').map(s=>s.id));
   buildFilters();
   renderCalendar();
 
@@ -101,7 +104,7 @@ window._calSelectAllProv  = () => { _filterProviders=new Set(Data.getProviders()
 window._calSelectNoneProv = () => { _filterProviders=new Set();                                                                                  buildFilters(); renderCalendar(); };
 window._calSelectAllStud  = () => { _filterStudents=new Set(Data.getStudents().filter(s=>s.status!=='inactive').map(s=>s.id));                   buildFilters(); renderCalendar(); };
 window._calSelectNoneStud = () => { _filterStudents=new Set();                                                                                   buildFilters(); renderCalendar(); };
-window._calReset = () => { _filterCos=null;_filterProviders=null;_filterStudents=null; buildFilters(); renderCalendar(); };
+window._calReset = () => { _filterCos=null; _filterProviders=new Set(Data.getProviders().map(p=>p.id)); _filterStudents=new Set(Data.getStudents().filter(s=>s.status!=='inactive').map(s=>s.id)); buildFilters(); renderCalendar(); };
 
 function getFilteredMissions(start, end) {
   let missions = Data.getMissionsByDateRange(start, end);
