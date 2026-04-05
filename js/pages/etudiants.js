@@ -19,9 +19,12 @@ const QDOCS = [
   {k:'satisfaction',l:'Questionnaire satisfaction'},{k:'justificatifs',l:'Justificatifs complémentaires'}
 ];
 const QPHASES = [
-  {label:"Phase 1 — Préparation de l'arrivée", icon:'📝', steps:[0,1,2,3,4,5,6]},
-  {label:'Phase 2 — Formation',                icon:'🎓', steps:[7,8,9,10,11]},
-  {label:'Phase 3 — Suivi de l\'apprenant',    icon:'📊', steps:[12,13,14]},
+  {label:"Phase 1 — Préparation de l'arrivée", icon:'📝', steps:[0,1,2,3,4,5,6],
+   docs:['fiche_rens','positionnement','programme','devis','contrat','reglement','livret']},
+  {label:'Phase 2 — Formation',                icon:'🎓', steps:[7,8,9,10,11],
+   docs:['planning','emargement','evaluation','attestation','bilan']},
+  {label:"Phase 3 — Suivi de l'apprenant",     icon:'📊', steps:[12,13,14],
+   docs:['satisfaction','justificatifs']},
 ];
 const SC    = {vert:'#22c55e',jaune:'#f59e0b',rouge:'#ef4444',gris:'#94a3b8'};
 const SI    = {vert:'✓',jaune:'⋯',rouge:'✗',gris:'—'};
@@ -417,7 +420,7 @@ window._exportPhase = function(studentId, phaseIdx) {
     ...ph.steps.map(i=>[QSTEPS[i], SL[steps[i]||'rouge'], '']),
     [],
     ['Documents associés','Statut',''],
-    ...QDOCS.map(d=>[d.l, DL[(s.qDocs||{})[d.k]||'non_cree'], '']),
+    ...ph.docs.map(k=>{ const d=QDOCS.find(x=>x.k===k); return d?[d.l, DL[(s.qDocs||{})[k]||'non_cree'], '']:null; }).filter(Boolean),
   ];
   _downloadCSV(rows, `qualiopi_phase${phaseIdx+1}_${s.lastName}.csv`);
 };
