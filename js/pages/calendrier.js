@@ -66,13 +66,14 @@ function buildFilters() {
     _mkChk('cal-co', c.name, c.id, _filterCos===null||_filterCos.has(c.id), 'window._calChkCo')).join('');
   document.getElementById('lbl-co').textContent = _filterCos===null?'Toutes':(_filterCos.size||'Aucune');
 
+  const allPCt = providers.length, allSCt = students.length;
   document.getElementById('cal-prov-list').innerHTML = providers.map(p =>
     _mkChk('cal-prov', p.lastName+' '+p.firstName, p.id, _filterProviders===null||_filterProviders.has(p.id), 'window._calChkProv')).join('');
-  document.getElementById('lbl-prov').textContent = _filterProviders===null?'Tous':(_filterProviders.size?_filterProviders.size+' sél.':'Aucun');
+  document.getElementById('lbl-prov').textContent = _filterProviders===null||_filterProviders.size>=allPCt?'Tous':(_filterProviders.size?_filterProviders.size+' sél.':'Aucun');
 
   document.getElementById('cal-stud-list').innerHTML = students.map(s =>
     _mkChk('cal-stud', s.lastName+' '+s.firstName, s.id, _filterStudents===null||_filterStudents.has(s.id), 'window._calChkStud')).join('');
-  document.getElementById('lbl-stud').textContent = _filterStudents===null?'Tous':(_filterStudents.size?_filterStudents.size+' sél.':'Aucun');
+  document.getElementById('lbl-stud').textContent = _filterStudents===null||_filterStudents.size>=allSCt?'Tous':(_filterStudents.size?_filterStudents.size+' sél.':'Aucun');
 }
 
 window._calChkCo = cb => {
@@ -94,30 +95,30 @@ window._calChkStud = cb => {
   renderCalendar();
 };
 
-window._calSelectAllCo    = () => { _filterCos=null;           buildFilters(); renderCalendar(); };
-window._calSelectNoneCo   = () => { _filterCos=new Set();       buildFilters(); renderCalendar(); };
-window._calSelectAllProv  = () => { _filterProviders=null;      buildFilters(); renderCalendar(); };
-window._calSelectNoneProv = () => { _filterProviders=new Set(); buildFilters(); renderCalendar(); };
-window._calSelectAllStud  = () => { _filterStudents=null;       buildFilters(); renderCalendar(); };
-window._calSelectNoneStud = () => { _filterStudents=new Set();  buildFilters(); renderCalendar(); };
+window._calSelectAllCo    = () => { _filterCos=null;                                                                                            buildFilters(); renderCalendar(); };
+window._calSelectNoneCo   = () => { _filterCos=new Set();                                                                                       buildFilters(); renderCalendar(); };
+window._calSelectAllProv  = () => { _filterProviders=new Set(Data.getProviders().map(p=>p.id));                                                  buildFilters(); renderCalendar(); };
+window._calSelectNoneProv = () => { _filterProviders=new Set();                                                                                  buildFilters(); renderCalendar(); };
+window._calSelectAllStud  = () => { _filterStudents=new Set(Data.getStudents().filter(s=>s.status!=='inactive').map(s=>s.id));                   buildFilters(); renderCalendar(); };
+window._calSelectNoneStud = () => { _filterStudents=new Set();                                                                                   buildFilters(); renderCalendar(); };
 window._calReset = () => { _filterCos=null;_filterProviders=null;_filterStudents=null; buildFilters(); renderCalendar(); };
 
 function getFilteredMissions(start, end) {
   let missions = Data.getMissionsByDateRange(start, end);
 
-  // (3) Prestataires/étudiants sont prioritaires sur sociétés si sélectionnés
-  const provActive = _filterProviders !== null;
+  const provActive = _filterProviders !== null; // Set explicite (y compris vide)
   const studActive = _filterStudents  !== null;
 
   if (provActive || studActive) {
-    // Montrer toutes les missions du prestataire/étudiant, peu importe la société
+    // Tous sélectionnés = pas de restriction sur cet axe
+    const allP = provActive && _filterProviders.size >= Data.getProviders().length;
+    const allS = studActive && _filterStudents.size  >= Data.getStudents().filter(s=>s.status!=='inactive').length;
     missions = missions.filter(m => {
-      const mp = provActive ? _filterProviders.has(m.providerId) : false;
-      const ms = studActive ? (m.studentIds||[]).some(id=>_filterStudents.has(id)) : false;
+      const mp = provActive ? (allP || _filterProviders.has(m.providerId)) : false;
+      const ms = studActive ? (allS || (m.studentIds||[]).some(id=>_filterStudents.has(id))) : false;
       return mp || ms;
     });
   } else if (_filterCos !== null) {
-    // Filtre société seulement si pas de filtre prestataire/étudiant
     missions = missions.filter(m => _filterCos.has(m.companyId));
   }
   return missions;
