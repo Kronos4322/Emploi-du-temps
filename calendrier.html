@@ -30,7 +30,7 @@
       <!-- Filtres -->
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
         <div style="position:relative">
-          <button id="btn-filter-co" class="btn btn-ghost btn-sm" onclick="window._toggleMenu('cal-co-menu')">🏢 Sociétés <span id="lbl-co">Toutes</span> ▼</button>
+          <button id="btn-filter-co" class="btn btn-ghost btn-sm" onclick="window._calToggle('cal-co-menu')">🏢 Sociétés <span id="lbl-co">Toutes</span> ▼</button>
           <div id="cal-co-menu" style="display:none;position:absolute;top:100%;left:0;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:220px;max-height:280px;overflow-y:auto;padding:6px">
             <div style="display:flex;gap:4px;padding:4px 2px 8px;border-bottom:1px solid var(--border);margin-bottom:4px">
               <button class="btn btn-xs btn-ghost" onclick="window._calSelectAllCo()">Tout</button>
@@ -40,7 +40,7 @@
           </div>
         </div>
         <div style="position:relative">
-          <button id="btn-filter-prov" class="btn btn-ghost btn-sm" onclick="window._toggleMenu('cal-prov-menu')">👤 Prestataires <span id="lbl-prov">Tous</span> ▼</button>
+          <button id="btn-filter-prov" class="btn btn-ghost btn-sm" onclick="window._calToggle('cal-prov-menu')">👤 Prestataires <span id="lbl-prov">Tous</span> ▼</button>
           <div id="cal-prov-menu" style="display:none;position:absolute;top:100%;left:0;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:220px;max-height:280px;overflow-y:auto;padding:6px">
             <div style="display:flex;gap:4px;padding:4px 2px 8px;border-bottom:1px solid var(--border);margin-bottom:4px">
               <button class="btn btn-xs btn-ghost" onclick="window._calSelectAllProv()">Tout</button>
@@ -50,7 +50,7 @@
           </div>
         </div>
         <div style="position:relative">
-          <button id="btn-filter-stud" class="btn btn-ghost btn-sm" onclick="window._toggleMenu('cal-stud-menu')">🎓 Étudiants <span id="lbl-stud">Tous</span> ▼</button>
+          <button id="btn-filter-stud" class="btn btn-ghost btn-sm" onclick="window._calToggle('cal-stud-menu')">🎓 Étudiants <span id="lbl-stud">Tous</span> ▼</button>
           <div id="cal-stud-menu" style="display:none;position:absolute;top:100%;left:0;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:220px;max-height:280px;overflow-y:auto;padding:6px">
             <div style="display:flex;gap:4px;padding:4px 2px 8px;border-bottom:1px solid var(--border);margin-bottom:4px">
               <button class="btn btn-xs btn-ghost" onclick="window._calSelectAllStud()">Tout</button>

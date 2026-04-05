@@ -31,75 +31,94 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-function _chkItem(name, label, id, checked, fn) {
-  return `<label style="display:flex;align-items:center;gap:6px;padding:5px 6px;font-size:0.82rem;cursor:pointer;border-radius:4px">
+function _mkChk(name, label, id, checked, fn) {
+  return `<label style="display:flex;align-items:center;gap:6px;padding:5px 6px;font-size:0.82rem;cursor:pointer">
     <input type="checkbox" name="${name}" value="${id}" ${checked?'checked':''} onchange="${fn}(this)">
     ${Utils.escapeHtml(label)}</label>`;
 }
+
+// Ferme tous les menus du calendrier sauf celui demandé (fix superposition)
+function _closeMenus(exceptId) {
+  ['cal-co-menu','cal-prov-menu','cal-stud-menu'].forEach(id => {
+    if (id !== exceptId) document.getElementById(id).style.display = 'none';
+  });
+}
+// Toggle + fermeture automatique des autres menus
+window._calToggle = id => {
+  _closeMenus(id);
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+};
+// Clic en dehors → ferme tout
+document.addEventListener('click', e => {
+  if (!e.target.closest('#btn-filter-co,#btn-filter-prov,#btn-filter-stud,#cal-co-menu,#cal-prov-menu,#cal-stud-menu')) {
+    _closeMenus(null);
+  }
+});
 
 function buildFilters() {
   const cos      = Data.getCompanies();
   const providers = Data.getProviders();
   const students  = Data.getStudents().filter(s => s.status !== 'inactive');
 
+  // (1) Fix : "Aucun" = Set vide → cases décochées
   document.getElementById('cal-co-list').innerHTML = cos.map(c =>
-    _chkItem('cal-co', c.name, c.id, _filterCos===null||_filterCos.has(c.id), `window._calChkCo`)).join('');
-  document.getElementById('lbl-co').textContent = _filterCos===null ? 'Toutes' : _filterCos.size+' sél.';
+    _mkChk('cal-co', c.name, c.id, _filterCos===null||_filterCos.has(c.id), 'window._calChkCo')).join('');
+  document.getElementById('lbl-co').textContent = _filterCos===null?'Toutes':(_filterCos.size||'Aucune');
 
   document.getElementById('cal-prov-list').innerHTML = providers.map(p =>
-    _chkItem('cal-prov', p.lastName+' '+p.firstName, p.id, _filterProviders===null||_filterProviders.has(p.id), `window._calChkProv`)).join('');
-  document.getElementById('lbl-prov').textContent = _filterProviders===null ? 'Tous' : _filterProviders.size+' sél.';
+    _mkChk('cal-prov', p.lastName+' '+p.firstName, p.id, _filterProviders===null||_filterProviders.has(p.id), 'window._calChkProv')).join('');
+  document.getElementById('lbl-prov').textContent = _filterProviders===null?'Tous':(_filterProviders.size?_filterProviders.size+' sél.':'Aucun');
 
   document.getElementById('cal-stud-list').innerHTML = students.map(s =>
-    _chkItem('cal-stud', s.lastName+' '+s.firstName, s.id, _filterStudents===null||_filterStudents.has(s.id), `window._calChkStud`)).join('');
-  document.getElementById('lbl-stud').textContent = _filterStudents===null ? 'Tous' : _filterStudents.size+' sél.';
+    _mkChk('cal-stud', s.lastName+' '+s.firstName, s.id, _filterStudents===null||_filterStudents.has(s.id), 'window._calChkStud')).join('');
+  document.getElementById('lbl-stud').textContent = _filterStudents===null?'Tous':(_filterStudents.size?_filterStudents.size+' sél.':'Aucun');
 }
 
 window._calChkCo = cb => {
-  if (_filterCos === null) _filterCos = new Set(Data.getCompanies().map(c=>c.id));
+  if (_filterCos===null) _filterCos = new Set(Data.getCompanies().map(c=>c.id));
   cb.checked ? _filterCos.add(cb.value) : _filterCos.delete(cb.value);
-  document.getElementById('lbl-co').textContent = _filterCos.size+' sél.';
+  document.getElementById('lbl-co').textContent = _filterCos.size?_filterCos.size+' sél.':'Aucune';
   renderCalendar();
 };
 window._calChkProv = cb => {
-  if (_filterProviders === null) _filterProviders = new Set(Data.getProviders().map(p=>p.id));
+  if (_filterProviders===null) _filterProviders = new Set(Data.getProviders().map(p=>p.id));
   cb.checked ? _filterProviders.add(cb.value) : _filterProviders.delete(cb.value);
-  document.getElementById('lbl-prov').textContent = _filterProviders.size+' sél.';
+  document.getElementById('lbl-prov').textContent = _filterProviders.size?_filterProviders.size+' sél.':'Aucun';
   renderCalendar();
 };
 window._calChkStud = cb => {
-  if (_filterStudents === null) _filterStudents = new Set(Data.getStudents().filter(s=>s.status!=='inactive').map(s=>s.id));
+  if (_filterStudents===null) _filterStudents = new Set(Data.getStudents().filter(s=>s.status!=='inactive').map(s=>s.id));
   cb.checked ? _filterStudents.add(cb.value) : _filterStudents.delete(cb.value);
-  document.getElementById('lbl-stud').textContent = _filterStudents.size+' sél.';
+  document.getElementById('lbl-stud').textContent = _filterStudents.size?_filterStudents.size+' sél.':'Aucun';
   renderCalendar();
 };
 
-window._calSelectAllCo   = () => { _filterCos=null;       buildFilters(); renderCalendar(); };
-window._calSelectNoneCo  = () => { _filterCos=new Set();   buildFilters(); renderCalendar(); };
-window._calSelectAllProv = () => { _filterProviders=null;  buildFilters(); renderCalendar(); };
-window._calSelectNoneProv= () => { _filterProviders=new Set(); buildFilters(); renderCalendar(); };
-window._calSelectAllStud = () => { _filterStudents=null;   buildFilters(); renderCalendar(); };
-window._calSelectNoneStud= () => { _filterStudents=new Set(); buildFilters(); renderCalendar(); };
-window._calReset = () => { _filterCos=null; _filterProviders=null; _filterStudents=null; buildFilters(); renderCalendar(); };
+window._calSelectAllCo    = () => { _filterCos=null;           buildFilters(); renderCalendar(); };
+window._calSelectNoneCo   = () => { _filterCos=new Set();       buildFilters(); renderCalendar(); };
+window._calSelectAllProv  = () => { _filterProviders=null;      buildFilters(); renderCalendar(); };
+window._calSelectNoneProv = () => { _filterProviders=new Set(); buildFilters(); renderCalendar(); };
+window._calSelectAllStud  = () => { _filterStudents=null;       buildFilters(); renderCalendar(); };
+window._calSelectNoneStud = () => { _filterStudents=new Set();  buildFilters(); renderCalendar(); };
+window._calReset = () => { _filterCos=null;_filterProviders=null;_filterStudents=null; buildFilters(); renderCalendar(); };
 
 function getFilteredMissions(start, end) {
-  const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
   let missions = Data.getMissionsByDateRange(start, end);
 
-  // null = tout afficher, Set vide = rien afficher, Set avec IDs = filtrer
-  if (_filterCos !== null) {
+  // (3) Prestataires/étudiants sont prioritaires sur sociétés si sélectionnés
+  const provActive = _filterProviders !== null;
+  const studActive = _filterStudents  !== null;
+
+  if (provActive || studActive) {
+    // Montrer toutes les missions du prestataire/étudiant, peu importe la société
+    missions = missions.filter(m => {
+      const mp = provActive ? _filterProviders.has(m.providerId) : false;
+      const ms = studActive ? (m.studentIds||[]).some(id=>_filterStudents.has(id)) : false;
+      return mp || ms;
+    });
+  } else if (_filterCos !== null) {
+    // Filtre société seulement si pas de filtre prestataire/étudiant
     missions = missions.filter(m => _filterCos.has(m.companyId));
-  }
-  if (_filterProviders !== null && _filterStudents !== null) {
-    // Les deux actifs → OR
-    missions = missions.filter(m =>
-      _filterProviders.has(m.providerId) ||
-      (m.studentIds||[]).some(id => _filterStudents.has(id))
-    );
-  } else if (_filterProviders !== null) {
-    missions = missions.filter(m => _filterProviders.has(m.providerId));
-  } else if (_filterStudents !== null) {
-    missions = missions.filter(m => (m.studentIds||[]).some(id => _filterStudents.has(id)));
   }
   return missions;
 }
