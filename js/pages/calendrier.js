@@ -30,65 +30,52 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-function buildFilters() {
-  const ownCos    = Data.getOwnCompanies();
-  const clientCos = Data.getClientSchools();
-  const providers = Data.getProviders();
-  const students  = Data.getStudents().filter(s => s.status !== 'inactive');
-  const coMap     = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
-
-  // ── Boutons pôles (Artémis / Astéria + leurs écoles) ─────
-  const polesEl = document.getElementById('filter-poles');
-  const allCos  = [{ id:'', name:'Toutes', color:'#64748b' }, ...ownCos, ...clientCos];
-  polesEl.innerHTML = allCos.map(c => {
-    const active = c.id === '' ? _filterPoles.size === 0 : _filterPoles.has(c.id);
-    return `<button class="btn btn-xs" data-cid="${c.id}"
-      style="padding:3px 10px;border-radius:12px;border:2px solid ${c.color||'#64748b'};background:${active?(c.color||'#64748b'):'transparent'};color:${active?'#fff':(c.color||'#64748b')};font-size:0.78rem;cursor:pointer"
-      onclick="window._calTogglePole('${c.id}')">${Utils.escapeHtml(c.name)}</button>`;
-  }).join('');
-
-  // ── Menu prestataires (checkboxes) ───────────────────────
-  const provMenu = document.getElementById('cal-prov-menu');
-  provMenu.innerHTML = providers.map(p =>
-    `<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:0.82rem;cursor:pointer;border-radius:4px">
-      <input type="checkbox" ${_filterProviders.size===0||_filterProviders.has(p.id)?'checked':''} onchange="window._calToggleProv('${p.id}',this.checked)">
-      ${Utils.escapeHtml(p.lastName+' '+p.firstName)}
-    </label>`).join('');
-  document.getElementById('btn-filter-prov').textContent =
-    _filterProviders.size === 0 ? 'Tous ▼' : `${_filterProviders.size} sélectionné(s) ▼`;
-
-  // ── Menu étudiants (checkboxes) ──────────────────────────
-  const studMenu = document.getElementById('cal-stud-menu');
-  studMenu.innerHTML = students.map(s =>
-    `<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:0.82rem;cursor:pointer;border-radius:4px">
-      <input type="checkbox" ${_filterStudents.size===0||_filterStudents.has(s.id)?'checked':''} onchange="window._calToggleStud('${s.id}',this.checked)">
-      ${Utils.escapeHtml(s.lastName+' '+s.firstName)}
-    </label>`).join('');
-  document.getElementById('btn-filter-stud').textContent =
-    _filterStudents.size === 0 ? 'Tous ▼' : `${_filterStudents.size} sélectionné(s) ▼`;
+function _chk(name, id, checked, onchange) {
+  return `<label style="display:flex;align-items:center;gap:6px;padding:5px 6px;font-size:0.82rem;cursor:pointer;border-radius:4px;hover:background:#f1f5f9">
+    <input type="checkbox" name="${name}" value="${id}" ${checked?'checked':''} onchange="${onchange}">
+    <span>${id}</span></label>`;
+}
+function _makeChk(name, label, id, checked, onchange) {
+  return `<label style="display:flex;align-items:center;gap:6px;padding:5px 6px;font-size:0.82rem;cursor:pointer;border-radius:4px">
+    <input type="checkbox" name="${name}" value="${id}" ${checked?'checked':''} onchange="${onchange}">
+    ${Utils.escapeHtml(label)}</label>`;
+}
+function _updateLbl(elId, set, all) {
+  document.getElementById(elId).textContent = set.size === 0 ? (all?'Tous':'Toutes') : set.size+' sél.';
 }
 
-window._calTogglePole = id => {
-  if (id === '') { _filterPoles.clear(); }
-  else { _filterPoles.has(id) ? _filterPoles.delete(id) : _filterPoles.add(id); }
-  buildFilters(); renderCalendar();
-};
-window._calToggleProv = (id, checked) => {
-  if (checked) _filterProviders.add(id); else _filterProviders.delete(id);
-  document.getElementById('btn-filter-prov').textContent =
-    _filterProviders.size === 0 ? 'Tous ▼' : `${_filterProviders.size} sélectionné(s) ▼`;
-  renderCalendar();
-};
-window._calToggleStud = (id, checked) => {
-  if (checked) _filterStudents.add(id); else _filterStudents.delete(id);
-  document.getElementById('btn-filter-stud').textContent =
-    _filterStudents.size === 0 ? 'Tous ▼' : `${_filterStudents.size} sélectionné(s) ▼`;
-  renderCalendar();
-};
-window._calReset = () => {
-  _filterPoles.clear(); _filterProviders.clear(); _filterStudents.clear();
-  buildFilters(); renderCalendar();
-};
+function buildFilters() {
+  const cos      = Data.getCompanies();
+  const providers = Data.getProviders();
+  const students  = Data.getStudents().filter(s => s.status !== 'inactive');
+
+  document.getElementById('cal-co-list').innerHTML = cos.map(c =>
+    _makeChk('cal-co', c.name, c.id, _filterPoles.size===0||_filterPoles.has(c.id),
+      `window._calToggleCo('${c.id}',this.checked)`)).join('');
+  _updateLbl('lbl-co', _filterPoles, false);
+
+  document.getElementById('cal-prov-list').innerHTML = providers.map(p =>
+    _makeChk('cal-prov', p.lastName+' '+p.firstName, p.id, _filterProviders.size===0||_filterProviders.has(p.id),
+      `window._calToggleProv('${p.id}',this.checked)`)).join('');
+  _updateLbl('lbl-prov', _filterProviders, true);
+
+  document.getElementById('cal-stud-list').innerHTML = students.map(s =>
+    _makeChk('cal-stud', s.lastName+' '+s.firstName, s.id, _filterStudents.size===0||_filterStudents.has(s.id),
+      `window._calToggleStud('${s.id}',this.checked)`)).join('');
+  _updateLbl('lbl-stud', _filterStudents, true);
+}
+
+window._calToggleCo   = (id,on) => { on?_filterPoles.add(id):_filterPoles.delete(id); _updateLbl('lbl-co',_filterPoles,false); renderCalendar(); };
+window._calToggleProv = (id,on) => { on?_filterProviders.add(id):_filterProviders.delete(id); _updateLbl('lbl-prov',_filterProviders,true); renderCalendar(); };
+window._calToggleStud = (id,on) => { on?_filterStudents.add(id):_filterStudents.delete(id); _updateLbl('lbl-stud',_filterStudents,true); renderCalendar(); };
+
+window._calSelectAllCo   = () => { _filterPoles.clear();     buildFilters(); renderCalendar(); };
+window._calSelectNoneCo  = () => { Data.getCompanies().forEach(c=>_filterPoles.add(c.id));    buildFilters(); renderCalendar(); };
+window._calSelectAllProv = () => { _filterProviders.clear(); buildFilters(); renderCalendar(); };
+window._calSelectNoneProv= () => { Data.getProviders().forEach(p=>_filterProviders.add(p.id)); buildFilters(); renderCalendar(); };
+window._calSelectAllStud = () => { _filterStudents.clear();  buildFilters(); renderCalendar(); };
+window._calSelectNoneStud= () => { Data.getStudents().filter(s=>s.status!=='inactive').forEach(s=>_filterStudents.add(s.id)); buildFilters(); renderCalendar(); };
+window._calReset = () => { _filterPoles.clear(); _filterProviders.clear(); _filterStudents.clear(); buildFilters(); renderCalendar(); };
 
 function getFilteredMissions(start, end) {
   const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
