@@ -110,30 +110,39 @@ const Modals = {
       <div class="modal-body modal-body-scroll">
         <div class="form-grid">
 
+          <!-- SECTION 1 : Quoi -->
+          <div class="form-group form-col-2" style="margin-bottom:0">
+            <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px">📋 Quoi</div>
+          </div>
           <div class="form-group form-col-2">
             <label>Titre *</label>
             <input type="text" id="mf-title" class="form-input" value="${Utils.escapeHtml(m.title)}" placeholder="Ex: Formation Droit du travail — Séance 1">
           </div>
-
           <div class="form-group">
-            <label>Matière / Cours</label>
+            <label>Matière</label>
             <select id="mf-subject" class="form-input">${subjectOptions}</select>
           </div>
-
           <div class="form-group">
-            <label>Type de mission</label>
+            <label>Thème libre</label>
+            <input type="text" id="mf-subject-text" class="form-input" value="${Utils.escapeHtml(m.subject || '')}" placeholder="Ex: Droit du travail">
+          </div>
+          <div class="form-group">
+            <label>Type</label>
             <select id="mf-mtype" class="form-input">${typeOptions}</select>
           </div>
-
           <div class="form-group">
             <label>Mode</label>
             <select id="mf-type" class="form-input">
-              <option value="presential" ${m.type === 'presential' ? 'selected' : ''}>Présentiel</option>
-              <option value="visio" ${m.type === 'visio' ? 'selected' : ''}>Visioconférence</option>
-              <option value="hybrid" ${m.type === 'hybrid' ? 'selected' : ''}>Hybride</option>
+              <option value="presential" ${m.type==='presential'?'selected':''}>Présentiel</option>
+              <option value="visio"      ${m.type==='visio'?'selected':''}>Visio</option>
+              <option value="hybrid"     ${m.type==='hybrid'?'selected':''}>Hybride</option>
             </select>
           </div>
 
+          <!-- SECTION 2 : Qui -->
+          <div class="form-group form-col-2" style="margin-bottom:0;margin-top:8px;border-top:1px solid var(--border);padding-top:12px">
+            <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px">👥 Qui</div>
+          </div>
           <div class="form-group">
             <label>École / Client *</label>
             <select id="mf-company" class="form-input">
@@ -141,110 +150,96 @@ const Modals = {
               ${companyOptions}
             </select>
           </div>
-
           <div class="form-group">
             <label>Prestataire</label>
             <select id="mf-provider" class="form-input">${providerOptions}</select>
           </div>
-
           ${students.length > 0 ? `
           <div class="form-group">
             <label>Étudiant(s)</label>
             <details id="mf-students-details" style="border:1px solid var(--border);border-radius:var(--radius);padding:0">
               <summary id="mf-students-summary" style="padding:8px 12px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;user-select:none">
-                <span>${(m.studentIds||[]).length > 0 ? (m.studentIds||[]).length+' étudiant(s) sélectionné(s)' : '— Aucun —'}</span>
+                <span>${(m.studentIds||[]).length>0?(m.studentIds||[]).length+' étudiant(s)':'— Aucun —'}</span>
                 <span style="font-size:0.8rem;color:var(--text-muted)">▼</span>
               </summary>
               <div style="padding:8px;border-top:1px solid var(--border)">
                 <input type="text" placeholder="Rechercher..." oninput="this.nextElementSibling.querySelectorAll('label').forEach(l=>{l.style.display=l.textContent.toLowerCase().includes(this.value.toLowerCase())?'':'none'})" style="width:100%;padding:4px 8px;margin-bottom:6px;border:1px solid var(--border);border-radius:var(--radius);font-size:0.82rem">
-                <div id="mf-students-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
-                  ${students.map(s => `<label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer">
-                    <input type="checkbox" name="mf-student-chk" value="${s.id}" ${(m.studentIds||[]).includes(s.id)?'checked':''} onchange="const sel=document.querySelectorAll('input[name=mf-student-chk]:checked').length;document.getElementById('mf-students-summary').firstElementChild.textContent=sel?sel+' étudiant(s) sélectionné(s)':'— Aucun —'">
-                    ${Utils.escapeHtml(s.lastName+' '+s.firstName)}
-                  </label>`).join('')}
+                <div id="mf-students-list" style="max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+                  ${students.map(s=>`<label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" name="mf-student-chk" value="${s.id}" ${(m.studentIds||[]).includes(s.id)?'checked':''} onchange="const sel=document.querySelectorAll('input[name=mf-student-chk]:checked').length;document.getElementById('mf-students-summary').firstElementChild.textContent=sel?sel+' étudiant(s)':'— Aucun —'">${Utils.escapeHtml(s.lastName+' '+s.firstName)}</label>`).join('')}
                 </div>
               </div>
             </details>
           </div>` : ''}
-
-          <div class="form-group">
-            <label>Thème libre</label>
-            <input type="text" id="mf-subject-text" class="form-input" value="${Utils.escapeHtml(m.subject || '')}" placeholder="Ex: Droit du travail">
-          </div>
-
           <div class="form-group">
             <label>Niveau / Groupe</label>
-            <input type="text" id="mf-level" class="form-input" value="${Utils.escapeHtml(m.level || '')}" placeholder="Ex: B1, Groupe A...">
+            <input type="text" id="mf-level" class="form-input" value="${Utils.escapeHtml(m.level||'')}" placeholder="B1, Groupe A…">
           </div>
 
+          <!-- SECTION 3 : Quand / Où -->
+          <div class="form-group form-col-2" style="margin-bottom:0;margin-top:8px;border-top:1px solid var(--border);padding-top:12px">
+            <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px">📅 Quand / Où</div>
+          </div>
           <div class="form-group">
             <label>Date *</label>
             <input type="date" id="mf-date" class="form-input" value="${m.date}">
           </div>
-
-          <div class="form-group">
-            <label>Heure de début *</label>
-            <input type="time" id="mf-start" class="form-input" value="${m.startTime}">
+          <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div>
+              <label>Début *</label>
+              <input type="time" id="mf-start" class="form-input" value="${m.startTime}">
+            </div>
+            <div>
+              <label>Fin *</label>
+              <input type="time" id="mf-end" class="form-input" value="${m.endTime}">
+            </div>
+          </div>
+          <div class="form-group form-col-2">
+            <label>Lieu / Salle</label>
+            <input type="text" id="mf-location" class="form-input" value="${Utils.escapeHtml(m.location||m.room||'')}" placeholder="Adresse, salle, lien visio…">
           </div>
 
-          <div class="form-group">
-            <label>Heure de fin *</label>
-            <input type="time" id="mf-end" class="form-input" value="${m.endTime}">
+          <!-- SECTION 4 : Finances -->
+          <div class="form-group form-col-2" style="margin-bottom:0;margin-top:8px;border-top:1px solid var(--border);padding-top:12px">
+            <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px">💶 Finances & Statut</div>
           </div>
-
-          <div class="form-group">
-            <label>Lieu</label>
-            <input type="text" id="mf-location" class="form-input" value="${Utils.escapeHtml(m.location || '')}" placeholder="Adresse ou salle">
-          </div>
-
-          <div class="form-group">
-            <label>Salle</label>
-            <input type="text" id="mf-room" class="form-input" value="${Utils.escapeHtml(m.room || '')}" placeholder="Salle A, Visio...">
-          </div>
-
           <div class="form-group">
             <label>Statut</label>
             <select id="mf-status" class="form-input">
-              <option value="planned"   ${m.status === 'planned'   ? 'selected' : ''}>Prévu</option>
-              <option value="done"      ${m.status === 'done'      ? 'selected' : ''}>Réalisé</option>
-              <option value="cancelled" ${m.status === 'cancelled' ? 'selected' : ''}>Annulé</option>
-              <option value="postponed" ${m.status === 'postponed' ? 'selected' : ''}>Reporté</option>
-              <option value="moved"     ${m.status === 'moved'     ? 'selected' : ''}>Déplacé</option>
+              <option value="planned"   ${m.status==='planned'?'selected':''}>Prévu</option>
+              <option value="done"      ${m.status==='done'?'selected':''}>Réalisé</option>
+              <option value="cancelled" ${m.status==='cancelled'?'selected':''}>Annulé</option>
+              <option value="postponed" ${m.status==='postponed'?'selected':''}>Reporté</option>
+              <option value="moved"     ${m.status==='moved'?'selected':''}>Déplacé</option>
             </select>
           </div>
-
           <div class="form-group">
             <label>Paiement</label>
             <select id="mf-payment" class="form-input">
-              <option value="unpaid"   ${m.paymentStatus === 'unpaid'   ? 'selected' : ''}>Non payé</option>
-              <option value="invoiced" ${m.paymentStatus === 'invoiced' ? 'selected' : ''}>Facturé</option>
-              <option value="paid"     ${m.paymentStatus === 'paid'     ? 'selected' : ''}>Payé</option>
+              <option value="unpaid"   ${m.paymentStatus==='unpaid'?'selected':''}>Non payé</option>
+              <option value="invoiced" ${m.paymentStatus==='invoiced'?'selected':''}>Facturé</option>
+              <option value="paid"     ${m.paymentStatus==='paid'?'selected':''}>Payé</option>
             </select>
           </div>
-
           <div class="form-group">
             <label>Tarif facturation (€/h)</label>
-            <input type="number" id="mf-billing-rate" class="form-input" value="${m.billingRate || 0}" min="0" step="0.5">
+            <input type="number" id="mf-billing-rate" class="form-input" value="${m.billingRate||0}" min="0" step="0.5">
           </div>
-
-          <div class="form-group" id="prov-rate-group" style="${m.providerId ? '' : 'display:none'}">
+          <div class="form-group" id="prov-rate-group" style="${m.providerId?'':'display:none'}">
             <label>Tarif prestataire (€/h)</label>
-            <input type="number" id="mf-provider-rate" class="form-input" value="${m.providerRate || 0}" min="0" step="0.5">
+            <input type="number" id="mf-provider-rate" class="form-input" value="${m.providerRate||0}" min="0" step="0.5">
           </div>
 
+          <!-- SECTION 5 : Autres -->
+          <div class="form-group form-col-2" style="margin-bottom:0;margin-top:8px;border-top:1px solid var(--border);padding-top:12px">
+            <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px">🔗 Autres</div>
+          </div>
           <div class="form-group form-col-2">
             <label>Formation liée</label>
             <select id="mf-formation" class="form-input">${formationOptions}</select>
           </div>
-
           <div class="form-group form-col-2">
             <label>Notes</label>
-            <textarea id="mf-notes" class="form-input form-textarea" placeholder="Observations...">${Utils.escapeHtml(m.notes || '')}</textarea>
-          </div>
-
-          <div class="form-group form-col-2">
-            <label>Notes administratives</label>
-            <textarea id="mf-admin-notes" class="form-input form-textarea" placeholder="Facturation, paiement...">${Utils.escapeHtml(m.adminNotes || '')}</textarea>
+            <textarea id="mf-notes" class="form-input form-textarea" placeholder="Observations, notes admin…" style="min-height:60px">${Utils.escapeHtml((m.notes||'')+(m.adminNotes?'\n'+m.adminNotes:''))}</textarea>
           </div>
 
           ${isNew ? `
@@ -374,9 +369,9 @@ const Modals = {
         providerId:  document.getElementById('mf-provider').value || null,
         date, startTime, endTime,
         location:    document.getElementById('mf-location').value.trim(),
-        room:        document.getElementById('mf-room').value.trim(),
+        room:        document.getElementById('mf-location').value.trim(),
         notes:       document.getElementById('mf-notes').value.trim(),
-        adminNotes:  document.getElementById('mf-admin-notes').value.trim(),
+        adminNotes:  '',
         status:      document.getElementById('mf-status').value,
         paymentStatus: document.getElementById('mf-payment').value,
         billingRate: parseFloat(document.getElementById('mf-billing-rate').value) || 0,
