@@ -147,6 +147,19 @@ function studentCard(s, companies, formations, providers, allMissions) {
     </div>`;
   }).join('');
 
+  // Indicateurs Qualiopi
+  const qItems = [
+    { label: 'Positionnement', ok: !!(s.positionScore || s.positionDate) },
+    { label: 'Contrat',        ok: !!(s.contratDate || s.objectifsPeda) },
+    { label: 'Financement',    ok: !!s.financementMode },
+    { label: 'Éval. finale',   ok: !!s.evalFinale },
+    { label: 'Satisfaction',   ok: !!(s.evalChaudDate || s.evalFroidDate) },
+  ];
+  const qDone = qItems.filter(q => q.ok).length;
+  const qBar  = qItems.map(q =>
+    `<span title="${q.label}" style="display:inline-block;width:18px;height:6px;border-radius:3px;background:${q.ok?'var(--success)':'var(--border)'};margin-right:3px"></span>`
+  ).join('');
+
   return `<div class="student-card" onclick="Modals.openStudent('${s.id}')">
     <div class="student-avatar" style="background:${color}">${initials.toUpperCase()}</div>
     <div class="student-info">
@@ -158,6 +171,11 @@ function studentCard(s, companies, formations, providers, allMissions) {
       </div>
       ${formTags ? `<div class="student-formations">${formTags}</div>` : ''}
       ${s.notes ? `<div class="student-meta" style="margin-top:4px;font-style:italic">${Utils.escapeHtml(s.notes)}</div>` : ''}
+      <div style="margin-top:6px;display:flex;align-items:center;gap:6px" title="Qualiopi : ${qDone}/${qItems.length} indicateurs renseignés">
+        <span style="font-size:0.7rem;color:var(--text-muted)">Qualiopi</span>
+        ${qBar}
+        <span style="font-size:0.7rem;color:${qDone===qItems.length?'var(--success)':'var(--text-muted)'}">${qDone}/${qItems.length}</span>
+      </div>
     </div>
     <div style="min-width:200px;text-align:right;padding-left:16px;border-left:1px solid var(--border)">
       <div style="font-size:0.85rem;font-weight:700">${Utils.formatDuration(totalH)} total</div>

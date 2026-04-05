@@ -933,8 +933,17 @@ const Modals = {
 
     const s = student || {
       firstName: '', lastName: '', email: '', phone: '',
-      companyId: '', poleId: ownCos.find(c => c.defaultBillingRate === 35)?.id || ownCos[0]?.id || '',
-      formationIds: [], status: 'active', notes: ''
+      companyId: '', poleId: ownCos[0]?.id || '',
+      formationIds: [], status: 'active', notes: '',
+      // Qualiopi — Ind. 4/8
+      projetPro: '', examenCible: '', rqth: false,
+      positionScore: '', positionDate: '',
+      // Ind. 9 — Contrat pédagogique
+      financementMode: '', financeur: '', objectifsPeda: '', modalite: '', contratDate: '',
+      // Ind. 11 — Évaluation finale
+      evalFinale: '', attestationDate: '', pretExamen: false, obsFinales: '',
+      // Ind. 7/30 — Satisfaction
+      evalChaudDate: '', evalChaudNote: '', evalFroidDate: '', evalFroidNote: '',
     };
 
     const coOptions = ownCos.map(c =>
@@ -948,62 +957,192 @@ const Modals = {
       </label>`
     ).join('');
 
+    const tabStyle = (active) => `padding:8px 16px;border:none;background:none;cursor:pointer;border-bottom:2px solid ${active?'var(--primary)':'transparent'};color:${active?'var(--primary)':'var(--text-muted)'};font-weight:${active?'600':'400'}`;
+
     this._open(`
       <div class="modal-header">
-        <h3>${isNew ? 'Nouvel étudiant' : 'Modifier l\'étudiant'}</h3>
+        <h3>${isNew ? 'Nouvel étudiant' : Utils.escapeHtml(s.firstName+' '+s.lastName)}</h3>
         <button class="modal-close" onclick="Modals.close()">✕</button>
       </div>
+      <div style="display:flex;border-bottom:1px solid var(--border);padding:0 20px;gap:4px">
+        <button id="stab-btn-profil"    style="${tabStyle(true)}"     onclick="window._stTab('profil')">Profil</button>
+        <button id="stab-btn-qualiopi" style="${tabStyle(false)}" onclick="window._stTab('qualiopi')">📋 Qualiopi</button>
+      </div>
       <div class="modal-body modal-body-scroll">
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Prénom *</label>
-            <input type="text" id="stf-first" class="form-input" value="${Utils.escapeHtml(s.firstName)}" placeholder="Prénom">
-          </div>
-          <div class="form-group">
-            <label>Nom *</label>
-            <input type="text" id="stf-last" class="form-input" value="${Utils.escapeHtml(s.lastName)}" placeholder="Nom">
-          </div>
-          <div class="form-group">
-            <label>Email</label>
-            <input type="email" id="stf-email" class="form-input" value="${Utils.escapeHtml(s.email || '')}" placeholder="email@example.com">
-          </div>
-          <div class="form-group">
-            <label>Téléphone</label>
-            <input type="text" id="stf-phone" class="form-input" value="${Utils.escapeHtml(s.phone || '')}" placeholder="06 ...">
-          </div>
-          <div class="form-group">
-            <label>Société racine *</label>
-            <select id="stf-pole" class="form-input">
-              <option value="">— Choisir —</option>${coOptions}
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Niveau</label>
-            <select id="stf-level" class="form-input">
-              <option value="" ${!s.level ? 'selected' : ''}>— Non défini —</option>
-              <option value="college"   ${s.level==='college'   ? 'selected' : ''}>Collège</option>
-              <option value="lycee"     ${s.level==='lycee'     ? 'selected' : ''}>Lycée</option>
-              <option value="superieur" ${s.level==='superieur' ? 'selected' : ''}>Supérieur</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Statut</label>
-            <select id="stf-status" class="form-input">
-              <option value="active"   ${s.status === 'active'   ? 'selected' : ''}>Actif</option>
-              <option value="inactive" ${s.status === 'inactive' ? 'selected' : ''}>Inactif</option>
-              <option value="pending"  ${s.status === 'pending'  ? 'selected' : ''}>En attente</option>
-            </select>
-          </div>
-          ${formations.length > 0 ? `
-          <div class="form-group form-col-2">
-            <label>Formations suivies</label>
-            <div class="form-checks">${formChks}</div>
-          </div>` : ''}
-          <div class="form-group form-col-2">
-            <label>Notes</label>
-            <textarea id="stf-notes" class="form-input form-textarea">${Utils.escapeHtml(s.notes || '')}</textarea>
+
+        <div id="stab-profil">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Prénom *</label>
+              <input type="text" id="stf-first" class="form-input" value="${Utils.escapeHtml(s.firstName)}" placeholder="Prénom">
+            </div>
+            <div class="form-group">
+              <label>Nom *</label>
+              <input type="text" id="stf-last" class="form-input" value="${Utils.escapeHtml(s.lastName)}" placeholder="Nom">
+            </div>
+            <div class="form-group">
+              <label>Email</label>
+              <input type="email" id="stf-email" class="form-input" value="${Utils.escapeHtml(s.email || '')}" placeholder="email@example.com">
+            </div>
+            <div class="form-group">
+              <label>Téléphone</label>
+              <input type="text" id="stf-phone" class="form-input" value="${Utils.escapeHtml(s.phone || '')}" placeholder="06 ...">
+            </div>
+            <div class="form-group">
+              <label>Société racine *</label>
+              <select id="stf-pole" class="form-input">
+                <option value="">— Choisir —</option>${coOptions}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Niveau</label>
+              <select id="stf-level" class="form-input">
+                <option value="" ${!s.level ? 'selected' : ''}>— Non défini —</option>
+                <option value="college"   ${s.level==='college'   ? 'selected' : ''}>Collège</option>
+                <option value="lycee"     ${s.level==='lycee'     ? 'selected' : ''}>Lycée</option>
+                <option value="superieur" ${s.level==='superieur' ? 'selected' : ''}>Supérieur</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Statut</label>
+              <select id="stf-status" class="form-input">
+                <option value="active"   ${s.status === 'active'   ? 'selected' : ''}>Actif</option>
+                <option value="inactive" ${s.status === 'inactive' ? 'selected' : ''}>Inactif</option>
+                <option value="pending"  ${s.status === 'pending'  ? 'selected' : ''}>En attente</option>
+              </select>
+            </div>
+            ${formations.length > 0 ? `
+            <div class="form-group form-col-2">
+              <label>Formations suivies</label>
+              <div class="form-checks">${formChks}</div>
+            </div>` : ''}
+            <div class="form-group form-col-2">
+              <label>Notes</label>
+              <textarea id="stf-notes" class="form-input form-textarea">${Utils.escapeHtml(s.notes || '')}</textarea>
+            </div>
           </div>
         </div>
+
+        <div id="stab-qualiopi" style="display:none">
+          <div class="form-grid">
+
+            <div class="form-group form-col-2" style="margin-bottom:4px">
+              <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:.05em;padding:8px 0 4px;border-top:1px solid var(--border)">Ind. 4 — Analyse des besoins</div>
+            </div>
+            <div class="form-group form-col-2">
+              <label>Projet professionnel</label>
+              <input type="text" id="stf-projet" class="form-input" value="${Utils.escapeHtml(s.projetPro||'')}" placeholder="Ex : intégration en classe prépa">
+            </div>
+            <div class="form-group">
+              <label>Examen / certification cible</label>
+              <input type="text" id="stf-examen" class="form-input" value="${Utils.escapeHtml(s.examenCible||'')}" placeholder="Bac, BTS, CPGE...">
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:10px;padding-top:22px">
+              <label class="form-check" style="margin:0">
+                <input type="checkbox" id="stf-rqth" ${s.rqth ? 'checked' : ''}>
+                Situation de handicap / RQTH
+              </label>
+            </div>
+
+            <div class="form-group form-col-2" style="margin-bottom:4px">
+              <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:.05em;padding:8px 0 4px;border-top:1px solid var(--border)">Ind. 8 — Positionnement initial</div>
+            </div>
+            <div class="form-group">
+              <label>Score test de positionnement</label>
+              <input type="text" id="stf-poscore" class="form-input" value="${Utils.escapeHtml(s.positionScore||'')}" placeholder="Ex : 12/20 ou A2">
+            </div>
+            <div class="form-group">
+              <label>Date du test</label>
+              <input type="date" id="stf-podate" class="form-input" value="${s.positionDate||''}">
+            </div>
+
+            <div class="form-group form-col-2" style="margin-bottom:4px">
+              <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:.05em;padding:8px 0 4px;border-top:1px solid var(--border)">Ind. 9 — Contrat pédagogique</div>
+            </div>
+            <div class="form-group">
+              <label>Mode de financement</label>
+              <select id="stf-financement" class="form-input">
+                <option value="" ${!s.financementMode?'selected':''}>— Choisir —</option>
+                <option value="personnel"    ${s.financementMode==='personnel'   ?'selected':''}>Personnel</option>
+                <option value="cpf"          ${s.financementMode==='cpf'         ?'selected':''}>CPF</option>
+                <option value="opco"         ${s.financementMode==='opco'        ?'selected':''}>OPCO / OPCA</option>
+                <option value="pole_emploi"  ${s.financementMode==='pole_emploi' ?'selected':''}>France Travail</option>
+                <option value="entreprise"   ${s.financementMode==='entreprise'  ?'selected':''}>Employeur</option>
+                <option value="autre"        ${s.financementMode==='autre'       ?'selected':''}>Autre</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Financeur / Employeur</label>
+              <input type="text" id="stf-financeur" class="form-input" value="${Utils.escapeHtml(s.financeur||'')}" placeholder="Nom de l'organisme ou entreprise">
+            </div>
+            <div class="form-group">
+              <label>Modalités</label>
+              <select id="stf-modalite" class="form-input">
+                <option value="" ${!s.modalite?'selected':''}>— Choisir —</option>
+                <option value="presentiel" ${s.modalite==='presentiel'?'selected':''}>Présentiel</option>
+                <option value="distanciel" ${s.modalite==='distanciel'?'selected':''}>Distanciel</option>
+                <option value="hybride"    ${s.modalite==='hybride'   ?'selected':''}>Hybride</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Date signature contrat</label>
+              <input type="date" id="stf-contratdate" class="form-input" value="${s.contratDate||''}">
+            </div>
+            <div class="form-group form-col-2">
+              <label>Objectifs pédagogiques</label>
+              <textarea id="stf-objectifs" class="form-input form-textarea" rows="3" placeholder="Objectifs définis avec l'apprenant...">${Utils.escapeHtml(s.objectifsPeda||'')}</textarea>
+            </div>
+
+            <div class="form-group form-col-2" style="margin-bottom:4px">
+              <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:.05em;padding:8px 0 4px;border-top:1px solid var(--border)">Ind. 11 — Évaluation finale</div>
+            </div>
+            <div class="form-group">
+              <label>Objectifs atteints</label>
+              <select id="stf-evalfinale" class="form-input">
+                <option value="" ${!s.evalFinale?'selected':''}>— Non évalué —</option>
+                <option value="oui"     ${s.evalFinale==='oui'    ?'selected':''}>Oui — atteints</option>
+                <option value="partiel" ${s.evalFinale==='partiel'?'selected':''}>Partiellement</option>
+                <option value="non"     ${s.evalFinale==='non'    ?'selected':''}>Non atteints</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Date attestation délivrée</label>
+              <input type="date" id="stf-attestation" class="form-input" value="${s.attestationDate||''}">
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:10px;padding-top:22px">
+              <label class="form-check" style="margin:0">
+                <input type="checkbox" id="stf-pretexamen" ${s.pretExamen ? 'checked' : ''}>
+                Prêt pour l'examen
+              </label>
+            </div>
+            <div class="form-group form-col-2">
+              <label>Observations finales</label>
+              <textarea id="stf-obsfinales" class="form-input form-textarea" rows="2">${Utils.escapeHtml(s.obsFinales||'')}</textarea>
+            </div>
+
+            <div class="form-group form-col-2" style="margin-bottom:4px">
+              <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:.05em;padding:8px 0 4px;border-top:1px solid var(--border)">Ind. 7/30 — Satisfaction</div>
+            </div>
+            <div class="form-group">
+              <label>Éval. à chaud — date envoi</label>
+              <input type="date" id="stf-chauddate" class="form-input" value="${s.evalChaudDate||''}">
+            </div>
+            <div class="form-group">
+              <label>Éval. à chaud — résultat</label>
+              <input type="text" id="stf-chaudnote" class="form-input" value="${Utils.escapeHtml(s.evalChaudNote||'')}" placeholder="Ex : 4.2/5">
+            </div>
+            <div class="form-group">
+              <label>Éval. à froid — date envoi</label>
+              <input type="date" id="stf-froiddate" class="form-input" value="${s.evalFroidDate||''}">
+            </div>
+            <div class="form-group">
+              <label>Éval. à froid — résultat</label>
+              <input type="text" id="stf-froidnote" class="form-input" value="${Utils.escapeHtml(s.evalFroidNote||'')}" placeholder="Ex : 4.5/5">
+            </div>
+
+          </div>
+        </div>
+
       </div>
       <div class="modal-footer">
         ${!isNew ? `<button class="btn btn-ghost btn-danger-text" id="del-student-btn">Supprimer</button>` : ''}
@@ -1012,6 +1151,19 @@ const Modals = {
         <button class="btn btn-primary" id="save-student-btn">${isNew ? 'Créer' : 'Enregistrer'}</button>
       </div>
     `);
+
+    window._stTab = (tab) => {
+      document.getElementById('stab-profil').style.display    = tab === 'profil'    ? '' : 'none';
+      document.getElementById('stab-qualiopi').style.display  = tab === 'qualiopi'  ? '' : 'none';
+      ['profil','qualiopi'].forEach(t => {
+        const btn = document.getElementById('stab-btn-'+t);
+        if (btn) {
+          btn.style.borderBottomColor = t === tab ? 'var(--primary)' : 'transparent';
+          btn.style.color = t === tab ? 'var(--primary)' : 'var(--text-muted)';
+          btn.style.fontWeight = t === tab ? '600' : '400';
+        }
+      });
+    };
 
     document.getElementById('save-student-btn').addEventListener('click', () => {
       const firstName = document.getElementById('stf-first').value.trim();
@@ -1028,7 +1180,26 @@ const Modals = {
         level:     document.getElementById('stf-level').value,
         status:    document.getElementById('stf-status').value,
         formationIds,
-        notes:     document.getElementById('stf-notes').value.trim()
+        notes:     document.getElementById('stf-notes').value.trim(),
+        // Qualiopi
+        projetPro:       document.getElementById('stf-projet').value.trim(),
+        examenCible:     document.getElementById('stf-examen').value.trim(),
+        rqth:            document.getElementById('stf-rqth').checked,
+        positionScore:   document.getElementById('stf-poscore').value.trim(),
+        positionDate:    document.getElementById('stf-podate').value,
+        financementMode: document.getElementById('stf-financement').value,
+        financeur:       document.getElementById('stf-financeur').value.trim(),
+        modalite:        document.getElementById('stf-modalite').value,
+        contratDate:     document.getElementById('stf-contratdate').value,
+        objectifsPeda:   document.getElementById('stf-objectifs').value.trim(),
+        evalFinale:      document.getElementById('stf-evalfinale').value,
+        attestationDate: document.getElementById('stf-attestation').value,
+        pretExamen:      document.getElementById('stf-pretexamen').checked,
+        obsFinales:      document.getElementById('stf-obsfinales').value.trim(),
+        evalChaudDate:   document.getElementById('stf-chauddate').value,
+        evalChaudNote:   document.getElementById('stf-chaudnote').value.trim(),
+        evalFroidDate:   document.getElementById('stf-froiddate').value,
+        evalFroidNote:   document.getElementById('stf-froidnote').value.trim(),
       });
       Utils.toast(isNew ? 'Étudiant créé.' : 'Étudiant mis à jour.', 'success');
       this.close();
