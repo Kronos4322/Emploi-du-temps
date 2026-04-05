@@ -79,16 +79,40 @@ window._calReset = () => { _filterPoles.clear(); _filterProviders.clear(); _filt
 
 function getFilteredMissions(start, end) {
   const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
+  const allCos = Data.getCompanies();
+  const allCosSize = allCos.length;
+  const allProvs = Data.getProviders();
+  const allStuds = Data.getStudents().filter(s=>s.status!=='inactive');
   let missions = Data.getMissionsByDateRange(start, end);
-  if (_filterPoles.size > 0) missions = missions.filter(m => {
+
+  // Filtre société : si le set contient TOUS les ids c'est "Aucun" → 0 missions
+  // Si vide → Tous → pas de filtre
+  const coActive = _filterPoles.size > 0 && _filterPoles.size < allCosSize;
+  const coNone   = _filterPoles.size >= allCosSize;
+  if (coNone) return [];
+  if (coActive) missions = missions.filter(m => {
     const co = coMap[m.companyId];
     if (!co) return false;
-    if (_filterPoles.has(co.id)) return true;
-    if (co.poleId && _filterPoles.has(co.poleId)) return true;
-    return false;
+    return _filterPoles.has(co.id) || (co.poleId && _filterPoles.has(co.poleId));
   });
-  if (_filterProviders.size > 0) missions = missions.filter(m => _filterProviders.has(m.providerId));
-  if (_filterStudents.size > 0)  missions = missions.filter(m => (m.studentIds||[]).some(id => _filterStudents.has(id)));
+
+  // Filtres prestataires et étudiants : OR entre eux si les deux sont actifs
+  const provNone = _filterProviders.size >= allProvs.length;
+  const studNone = _filterStudents.size >= allStuds.length;
+  if (provNone && studNone) return [];
+
+  const provActive = _filterProviders.size > 0 && !provNone;
+  const studActive = _filterStudents.size > 0 && !studNone;
+
+  if (provActive || studActive) {
+    missions = missions.filter(m => {
+      const matchProv = provActive ? _filterProviders.has(m.providerId) : false;
+      const matchStud = studActive ? (m.studentIds||[]).some(id => _filterStudents.has(id)) : false;
+      if (provActive && studActive) return matchProv || matchStud;
+      if (provActive) return matchProv;
+      return matchStud;
+    });
+  }
   return missions;
 }
 
