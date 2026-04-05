@@ -39,17 +39,11 @@
   // Une section par société propre (Artémis, Astéria, etc.)
   getOwnCompanies().forEach(co => {
     navHTML += section(co.name);
-    if (co.defaultBillingRate === 35) {
-      navHTML += makeLink('etudiants.html',  '🎓', 'Étudiants');
-      navHTML += makeLink('formations.html', '📚', 'Formations');
-    }
+    navHTML += makeLink('etudiants.html',  '🎓', 'Étudiants');
+    navHTML += makeLink('formations.html', '📚', 'Formations');
     navHTML += makeLink(`facturation.html?pole=${co.id}`, '💶', 'Facturation');
     navHTML += makeLink(`finances.html?pole=${co.id}`,    '📊', 'Finances');
   });
-
-  navHTML += section('Analyse');
-  navHTML += makeLink('facturation.html', '💶', 'Facturation');
-  navHTML += makeLink('finances.html',    '📊', 'Finances');
 
   const sidebar = document.getElementById('sidebar');
   if (sidebar) {

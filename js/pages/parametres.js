@@ -9,10 +9,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Tarif par défaut
   const rateInput = document.getElementById('set-rate');
   const settings  = Data.getSettings ? Data.getSettings() : {};
-  if (settings.defaultRate) rateInput.value = settings.defaultRate;
+  if (settings.defaultBillingRate) rateInput.value = settings.defaultBillingRate;
 
   document.getElementById('btn-save-settings').addEventListener('click', () => {
-    if (Data.saveSettings) Data.saveSettings({ defaultRate: parseFloat(rateInput.value) || 0 });
+    if (Data.saveSettings) Data.saveSettings({ defaultBillingRate: parseFloat(rateInput.value) || 0 });
     showToast('Paramètres enregistrés.');
   });
 

@@ -33,11 +33,11 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function buildFilters() {
-  const companies  = Data.getCompanies();
+  const companies  = Data.getOwnCompanies();
   const formations = Data.getFormations();
 
   document.getElementById('filter-company').innerHTML =
-    '<option value="">Toutes les sociétés</option>' +
+    '<option value="">Tous les pôles</option>' +
     companies.map(c => `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`).join('');
 
   document.getElementById('filter-formation').innerHTML =

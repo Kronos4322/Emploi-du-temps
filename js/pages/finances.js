@@ -49,14 +49,15 @@ function buildCompanyFilter() {
 }
 
 function buildFilters() {
-  // Mois de 2026-03 jusqu'à 18 mois dans le futur
   const months = [];
   const now = new Date();
   const end = new Date(now.getFullYear(), now.getMonth() + 18, 1);
+  const firstMission = Data.getMissions().map(m => m.date).filter(Boolean).sort()[0];
+  const stopYm = firstMission ? firstMission.slice(0,7) : `${now.getFullYear()-1}-09`;
   for (let d = new Date(end); ; d.setMonth(d.getMonth() - 1)) {
     const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     months.push(ym);
-    if (ym === '2026-03') break;
+    if (ym <= stopYm) break;
   }
   const ownCos = Data.getOwnCompanies();
 
@@ -408,8 +409,8 @@ function renderChart() {
   // Construire les labels (périodes)
   let labels = [];
   if (group === 'month') {
-    // 2026-03 → 18 mois dans le futur
-    const start = new Date(2026, 2, 1);
+    const _fm = Data.getMissions().map(m=>m.date).filter(Boolean).sort()[0];
+    const start = _fm ? new Date(_fm.slice(0,7)+'-01') : new Date(new Date().getFullYear()-1, 8, 1);
     const end   = new Date(); end.setMonth(end.getMonth() + 18);
     for (let d = new Date(start); d <= end; d.setMonth(d.getMonth() + 1)) {
       labels.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);

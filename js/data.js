@@ -117,6 +117,7 @@ const Data = {
       missions: [],        // anciennement "courses" — toutes les interventions
       students: [],        // étudiants (spécifique Artémis mais global)
       formations: [],      // modules de formation
+      subjects: [],        // matières & cours
       settings: {
         defaultBillingRate: 50,
         currency: 'EUR',
@@ -149,6 +150,7 @@ const Data = {
     if (!this._db.missions)      this._db.missions = [];
     if (!this._db.students)      this._db.students = [];
     if (!this._db.formations)    this._db.formations = [];
+    if (!this._db.subjects)      this._db.subjects = [];
     if (!this._db.settings)      this._db.settings = this._emptyDb().settings;
 
     // Garantir le champ role sur chaque société

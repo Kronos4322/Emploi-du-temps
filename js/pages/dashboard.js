@@ -27,9 +27,7 @@ function _poleFilter(m, coMap) {
   const co = coMap[m.companyId];
   if (!co) return false;
   if (co.role === 'own') return co.id === _dashPole;
-  if (co.poleId) return co.poleId === _dashPole;
-  const pole = coMap[_dashPole];
-  return pole ? (pole.defaultBillingRate === 35 ? m.billingRate === 35 : m.billingRate !== 35) : true;
+  return co.poleId === _dashPole;
 }
 
 function renderDashboard() {
@@ -111,7 +109,7 @@ function renderDashboard() {
     <div class="kpi-card">
       <div class="kpi-icon kpi-gray">🎓</div>
       <div class="kpi-content">
-        <div class="kpi-value">${d.activeStudentsCount}</div>
+        <div class="kpi-value">${_dashPole ? Data.getStudents().filter(s => s.status !== 'inactive' && (s.poleId === _dashPole || s.companyId === _dashPole)).length : d.activeStudentsCount}</div>
         <div class="kpi-label">Étudiants actifs</div>
       </div>
     </div>

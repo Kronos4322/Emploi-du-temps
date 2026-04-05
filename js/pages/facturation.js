@@ -19,10 +19,12 @@ document.addEventListener('DOMContentLoaded', () => {
 function buildFilters() {
   const months  = [];
   const end     = new Date(); end.setMonth(end.getMonth() + 18);
+  const _fm = Data.getMissions().map(m=>m.date).filter(Boolean).sort()[0];
+  const stopYm = _fm ? _fm.slice(0,7) : `${new Date().getFullYear()-1}-09`;
   for (let d = new Date(end); ; d.setMonth(d.getMonth() - 1)) {
     const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     months.push(ym);
-    if (ym === '2026-03') break;
+    if (ym <= stopYm) break;
   }
   const ownCos = Data.getOwnCompanies();
 

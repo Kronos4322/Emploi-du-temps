@@ -58,7 +58,9 @@ function render() {
   const students   = {}; Data.getStudents().forEach(s => students[s.id] = s);
 
   const totalH = filtered.reduce((s, f) => s + (f.totalHours||0), 0);
-  const doneH  = filtered.reduce((s, f) => s + (f.completedHours||0), 0);
+  const doneH  = filtered.reduce((s, f) => {
+    return s + Data.getMissions().filter(m => m.formationId === f.id && m.status === 'done').reduce((a,m) => a+(m.duration||0), 0);
+  }, 0);
   document.getElementById('list-summary').textContent =
     `${filtered.length} formation${filtered.length > 1 ? 's' : ''} · ${doneH}h réalisées / ${totalH}h prévues`;
 
@@ -79,7 +81,7 @@ function render() {
 function formationCard(f, companies, providers, students) {
   const co      = companies[f.companyId];
   const color   = co ? co.color : '#3b82f6';
-  const pct     = f.totalHours > 0 ? Math.round(f.completedHours / f.totalHours * 100) : 0;
+  const pct     = f.totalHours > 0 ? Math.round(realHours / f.totalHours * 100) : 0;
   const statusLabel = Utils.getFormationStatusLabel(f.status);
   const statusClass = Utils.getFormationStatusClass(f.status);
 
@@ -109,7 +111,7 @@ function formationCard(f, companies, providers, students) {
     <div class="formation-card-body">
       <div class="formation-progress">
         <div class="formation-progress-label">
-          <span>${f.completedHours}h réalisées</span>
+          <span>${Utils.formatDuration(realHours)} réalisées</span>
           <span>${pct}% / ${f.totalHours}h</span>
         </div>
         <div class="formation-progress-bar-bg">

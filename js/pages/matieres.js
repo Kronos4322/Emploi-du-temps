@@ -128,13 +128,17 @@ function openSubjectModal(subjectId) {
         <div class="form-group" id="sf-classes-group" style="${s.level?'':'display:none'}">
           <label>Classes</label>
           <div id="sf-classes-wrap" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px;border:1px solid var(--border);border-radius:var(--radius)">
-            ${(({'college':['6e','5e','4e','3e'],'lycee':['2nde','1ère','Terminale'],'superieur':['B1','B2','B3','M1','M2','MBA']})[s.level]||[])
+            ${(({'college':['6e','5e','4e','3e'],'lycee':['2nde','1ère','Terminale'],'superieur':['BTS1','BTS2','B1','B2','B3','M1','M2','MBA']})[s.level]||[])
               .map(c=>`<label style="display:flex;align-items:center;gap:4px;font-size:0.82rem"><input type="checkbox" name="sf-class" value="${c}" ${(s.classes||[]).includes(c)?'checked':''}> ${c}</label>`).join('')}
           </div>
         </div>
         <div class="form-group form-col-2">
           <label>Écoles associées</label>
           <div style="display:flex;flex-wrap:wrap;gap:8px;padding:8px;border:1px solid var(--border);border-radius:var(--radius)">${schoolChecks||'Aucune école client'}</div>
+        </div>
+        <div class="form-group">
+          <label>Couleur</label>
+          <input type="color" id="sf-color" class="form-input" value="${s.color||'#3b82f6'}" style="height:38px;padding:2px 4px;cursor:pointer">
         </div>
         <div class="form-group form-col-2">
           <label>Notes</label>
@@ -155,9 +159,10 @@ function openSubjectModal(subjectId) {
     if (!name) { Utils.toast('Le nom est obligatoire.', 'error'); return; }
     const schoolIds = [...document.querySelectorAll('input[name="subj-school"]:checked')].map(i => i.value);
     Data.saveSubject({ id: s.id || Utils.uuid(), name,
-      level:   document.getElementById('sf-level').value,
-      classes: [...document.querySelectorAll('input[name="sf-class"]:checked')].map(i=>i.value),
-      notes:   document.getElementById('sf-notes').value.trim(),
+      level:     document.getElementById('sf-level').value,
+      classes:   [...document.querySelectorAll('input[name="sf-class"]:checked')].map(i=>i.value),
+      color:     document.getElementById('sf-color').value,
+      notes:     document.getElementById('sf-notes').value.trim(),
       schoolIds });
     Utils.toast(isNew ? 'Matière créée.' : 'Matière mise à jour.', 'success');
     Modals.close(); renderPage();
