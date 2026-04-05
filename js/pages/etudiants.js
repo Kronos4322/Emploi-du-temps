@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function buildFilters() {
-  const companies  = Data.getOwnCompanies();
+  const companies  = Data.getOwnCompanies().filter(c => c.hasTraining);
   const formations = Data.getFormations();
 
   document.getElementById('filter-company').innerHTML =

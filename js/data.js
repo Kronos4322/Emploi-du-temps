@@ -159,8 +159,11 @@ const Data = {
     // Garantir le champ role sur chaque société
     this._db.companies = this._db.companies.map(c => {
       if (!c.role) {
-        // Heuristique : enseignement → client, sinon own
         c.role = (c.type === 'enseignement') ? 'client' : 'own';
+      }
+      // hasTraining: pour les sociétés own existantes, activer si des étudiants y sont rattachés
+      if (c.role === 'own' && c.hasTraining === undefined) {
+        c.hasTraining = (this._db.students||[]).some(s => (s.poleId||s.companyId) === c.id);
       }
       return c;
     });

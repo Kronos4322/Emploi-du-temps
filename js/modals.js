@@ -494,7 +494,7 @@ const Modals = {
           </div>
           <div class="form-group">
             <label>Rôle *</label>
-            <select id="cf-role" class="form-input" onchange="document.getElementById('cf-pole-group').style.display=this.value==='client'?'':'none';document.getElementById('cf-category-group').style.display=this.value==='client'?'':'none';">${roleOptions}</select>
+            <select id="cf-role" class="form-input" onchange="document.getElementById('cf-pole-group').style.display=this.value==='client'?'':'none';document.getElementById('cf-category-group').style.display=this.value==='client'?'':'none';document.getElementById('cf-training-group').style.display=this.value==='own'?'':'none';">${roleOptions}</select>
           </div>
           <div class="form-group" id="cf-pole-group" style="${c.role !== 'client' ? 'display:none' : ''}">
             <label>Société racine *</label>
@@ -513,6 +513,12 @@ const Modals = {
           <div class="form-group">
             <label>Type d'activité</label>
             <select id="cf-type" class="form-input">${typeOptions}</select>
+          </div>
+          <div class="form-group" id="cf-training-group" style="${c.role !== 'own' ? 'display:none' : ''}">
+            <label> </label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem">
+              <input type="checkbox" id="cf-has-training" ${c.hasTraining ? 'checked' : ''}> Propose des formations avec étudiants
+            </label>
           </div>
           <div class="form-group">
             <label>Tarif facturation par défaut (€/h)</label>
@@ -597,7 +603,8 @@ const Modals = {
         notes:    document.getElementById('cf-notes').value.trim(),
         poleId:   document.getElementById('cf-pole')?.value || '',
         category: document.getElementById('cf-category')?.value || 'school',
-        subjectIds: [...document.querySelectorAll('input[name="cf-subject-chk"]:checked')].map(i => i.value)
+        subjectIds: [...document.querySelectorAll('input[name="cf-subject-chk"]:checked')].map(i => i.value),
+        hasTraining: document.getElementById('cf-has-training')?.checked || false
       });
       Utils.toast(isNew ? 'Société créée.' : 'Société mise à jour.', 'success');
       this.close();
@@ -921,7 +928,7 @@ const Modals = {
   openStudent(studentId = null) {
     const student = studentId ? Data.getStudentById(studentId) : null;
     const isNew   = !student;
-    const ownCos  = Data.getOwnCompanies();
+    const ownCos  = Data.getOwnCompanies().filter(c => c.hasTraining);
     const formations = Data.getFormations();
 
     const s = student || {
