@@ -5,6 +5,20 @@
 
 const DB_KEY = 'emploi_du_temps_db';
 
+// ── Firebase Realtime Database (sync multi-appareils) ──────────
+const _FB_URL = 'https://emploi-du-temps-97818-default-rtdb.europe-west1.firebasedatabase.app/db.json';
+let _fbLastTs  = 0;   // timestamp de la dernière donnée connue
+let _fbWriting = false; // on est en train d'écrire → ignorer le poll
+
+function _reRenderPage() {
+  try {
+    if      (typeof renderDashboard  === 'function') renderDashboard();
+    else if (typeof renderCalendar   === 'function') renderCalendar();
+    else if (typeof render           === 'function') render();
+    else if (typeof renderPage       === 'function') renderPage();
+  } catch(e) { console.warn('re-render:', e); }
+}
+
 const Data = {
 
   _db: null,
@@ -12,6 +26,7 @@ const Data = {
   // ── Initialisation ──────────────────────────────────────────
 
   init() {
+    // 1. Chargement local immédiat (affichage instantané)
     const raw = localStorage.getItem(DB_KEY);
     if (raw) {
       try {
@@ -24,7 +39,71 @@ const Data = {
     } else {
       this._db = this._emptyDb();
     }
-    this._save();
+    // 2. Synchronisation Firebase (async, sans bloquer le rendu)
+    this._loadFromFirebase();
+    // 3. Polling toutes les 10s pour détecter les changements des autres appareils
+    setInterval(() => this._pollFirebase(), 10000);
+  },
+
+  // Charge les données depuis Firebase (source de vérité)
+  async _loadFromFirebase() {
+    try {
+      const res = await fetch(_FB_URL);
+      if (!res.ok) return;
+      const fbData = await res.json();
+      if (!fbData) {
+        // Firebase vide → on y pousse les données locales
+        this._pushToFirebase();
+        return;
+      }
+      _fbLastTs = fbData._updatedAt || 0;
+      const localTs = this._db._updatedAt || 0;
+      if (_fbLastTs > localTs) {
+        // Firebase plus récent → on l'utilise
+        this._db = fbData;
+        this._migrate();
+        localStorage.setItem(DB_KEY, JSON.stringify(this._db));
+        _reRenderPage();
+      } else if (localTs > _fbLastTs) {
+        // Local plus récent → on pousse vers Firebase
+        this._pushToFirebase();
+      }
+    } catch(e) {
+      console.warn('Firebase non disponible, données locales utilisées.', e);
+    }
+  },
+
+  // Pousse les données vers Firebase
+  async _pushToFirebase() {
+    _fbWriting = true;
+    try {
+      const payload = { ...this._db, _updatedAt: Date.now() };
+      const res = await fetch(_FB_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        _fbLastTs = payload._updatedAt;
+        this._db._updatedAt = payload._updatedAt;
+      }
+    } catch(e) {
+      console.warn('Échec push Firebase.', e);
+    }
+    _fbWriting = false;
+  },
+
+  // Vérifie si Firebase a des données plus récentes (polling)
+  async _pollFirebase() {
+    if (_fbWriting) return;
+    try {
+      const res = await fetch(_FB_URL.replace('.json', '/_updatedAt.json'));
+      if (!res.ok) return;
+      const ts = await res.json();
+      if (ts && ts > _fbLastTs) {
+        await this._loadFromFirebase();
+      }
+    } catch(e) { /* silencieux */ }
   },
 
   _emptyDb() {
@@ -83,6 +162,7 @@ const Data = {
   _save() {
     localStorage.setItem(DB_KEY, JSON.stringify(this._db));
     this._autoBackup();
+    this._pushToFirebase(); // sync Firebase
   },
 
   // ── Sauvegardes automatiques (3 jours glissants) ────────────
