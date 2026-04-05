@@ -62,4 +62,22 @@
       <div class="sidebar-footer">${makeLink(FOOTER_ITEM.href, FOOTER_ITEM.icon, FOOTER_ITEM.label)}</div>
     `;
   }
+
+  // ── Hamburger mobile ──────────────────────────────────────
+  const btn = document.createElement('button');
+  btn.id = 'hamburger';
+  btn.innerHTML = '☰';
+  btn.setAttribute('aria-label', 'Menu');
+  document.body.appendChild(btn);
+
+  const overlay = document.createElement('div');
+  overlay.id = 'sidebar-overlay';
+  document.body.appendChild(overlay);
+
+  function openSidebar()  { sidebar.classList.add('open'); overlay.classList.add('open'); btn.innerHTML = '✕'; }
+  function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('open'); btn.innerHTML = '☰'; }
+
+  btn.addEventListener('click', () => sidebar.classList.contains('open') ? closeSidebar() : openSidebar());
+  overlay.addEventListener('click', closeSidebar);
+  sidebar.querySelectorAll('a').forEach(a => a.addEventListener('click', closeSidebar));
 })();

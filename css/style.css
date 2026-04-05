@@ -1501,8 +1501,43 @@ label {
 }
 
 @media (max-width: 640px) {
-  :root { --sidebar-width: 0px; }
-  #sidebar { transform: translateX(-100%); }
+  :root { --sidebar-width: 240px; }
+  #sidebar { transform: translateX(-100%); transition: transform 0.25s ease; width: 240px; }
+  #sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.4); }
   #app-main { margin-left: 0; }
   .page-title { font-size: 1.2rem; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+  .page-header { padding-right: 8px; }
 }
+
+/* ── Hamburger button (mobile uniquement) ─────────────────── */
+#hamburger {
+  display: none;
+  position: fixed;
+  top: 12px; left: 12px;
+  z-index: 200;
+  background: var(--sidebar-bg);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  width: 40px; height: 40px;
+  font-size: 1.3rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-md);
+}
+@media (max-width: 640px) {
+  #hamburger { display: flex; }
+  #main-content { padding-top: 60px; }
+}
+
+/* ── Overlay sidebar mobile ───────────────────────────────── */
+#sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 99;
+}
+#sidebar-overlay.open { display: block; }

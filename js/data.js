@@ -58,14 +58,16 @@ const Data = {
       }
       _fbLastTs = fbData._updatedAt || 0;
       const localTs = this._db._updatedAt || 0;
-      if (_fbLastTs > localTs) {
+      const localHasData = (this._db.companies||[]).length + (this._db.missions||[]).length + (this._db.providers||[]).length;
+      const fbHasData    = (fbData.companies||[]).length  + (fbData.missions||[]).length  + (fbData.providers||[]).length;
+      if (_fbLastTs > localTs && fbHasData >= localHasData) {
         // Firebase plus récent → on l'utilise
         this._db = fbData;
         this._migrate();
         localStorage.setItem(DB_KEY, JSON.stringify(this._db));
         _reRenderPage();
-      } else if (localTs > _fbLastTs) {
-        // Local plus récent → on pousse vers Firebase
+      } else if (localHasData > 0) {
+        // Local a des données → on pousse vers Firebase (premier sync ou local plus récent)
         this._pushToFirebase();
       }
     } catch(e) {
