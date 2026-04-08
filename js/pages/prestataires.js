@@ -128,7 +128,11 @@ function render() {
     </div>
   </div>`;
 
+  // Mémoriser les dossiers ouverts avant le re-render
+  const openDossiers = new Set([...document.querySelectorAll('details[id^="dossier-"][open]')].map(d => d.id));
   list.innerHTML = summary + providers.map(p => providerCard(p, allMissions, allMissionsWithProv)).join('');
+  // Rétablir l'état ouvert après le re-render
+  openDossiers.forEach(id => { const d = document.getElementById(id); if (d) d.open = true; });
 }
 
 function _exportProvider(providerId, month) {
@@ -167,7 +171,7 @@ function providerDossier(provider) {
   const total = PDOCS.length;
   const done  = PDOCS.filter(d => ['valide','archive'].includes(docs[d.k]||'non_recu')).length;
   const pct   = Math.round(done / total * 100);
-  const col   = pct === 100 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#94a3b8';
+  const col   = done === 0 ? '#ef4444' : done === total ? '#22c55e' : '#f59e0b';
 
   const rows = PDOCS.map(d => {
     const v    = docs[d.k] || 'non_recu';
@@ -186,7 +190,7 @@ function providerDossier(provider) {
     </div>`;
   }).join('');
 
-  return `<details style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+  return `<details id="dossier-${provider.id}" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
     <summary style="cursor:pointer;display:flex;align-items:center;gap:10px;list-style:none;user-select:none;padding-bottom:2px">
       <span style="font-size:0.85rem;font-weight:600;white-space:nowrap">📁 Dossier intervenant</span>
       <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
