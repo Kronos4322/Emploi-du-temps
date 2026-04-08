@@ -5,11 +5,45 @@ const _excluded = new Set(); // IDs prestataires exclus du récap
 function toggleProvider(id) { _excluded.has(id) ? _excluded.delete(id) : _excluded.add(id); render(); }
 function renderPage() { render(); }
 
+// ── Dossier intervenant — documents & statuts ────────────────────
+const PDOCS = [
+  {k:'cv',          l:'CV / Portfolio'},
+  {k:'syllabus',    l:'Syllabus de cours'},
+  {k:'fiche_int',   l:'Fiche intervenant'},
+  {k:'charte',      l:'Charte Qualiopi'},
+  {k:'contrat',     l:"Contrat d'engagement"},
+  {k:'diplomes',    l:'Diplômes / certifications'},
+  {k:'competences', l:'Référentiel de compétences'},
+  {k:'plan_dev',    l:'Plan de développement'},
+];
+const PDOCS_TEMPLATES = {
+  syllabus:    [{label:'Modèle syllabus',   file:'modele_syllabus.docx'}],
+  fiche_int:   [{label:'Fiche intervenant', file:'fiche_intervenant.docx'}],
+  charte:      [{label:'Charte Qualiopi',   file:'charte_qualiopi_intervenant.docx'}],
+  contrat:     [{label:"Contrat d'engagement", file:'contrat_engagement_intervenant.docx'}],
+  competences: [{label:'Référentiel',       file:'referentiel_competences.docx'}],
+  plan_dev:    [{label:'Plan compétences',  file:'plan_developpement_competences.docx'}],
+};
+const PDS = ['non_recu','demande','recu','valide','archive'];
+const PDL = {non_recu:'Non reçu', demande:'Demandé', recu:'Reçu', valide:'Validé', archive:'Archivé'};
+const PDC = {non_recu:'#94a3b8', demande:'#f59e0b', recu:'#3b82f6', valide:'#22c55e', archive:'#22c55e'};
+
 document.addEventListener('DOMContentLoaded', () => {
   Data.init();
   render();
   document.getElementById('btn-new-provider').addEventListener('click', () =>
     Modals.openProvider(null));
+  // Cycling statuts dossier intervenant
+  document.addEventListener('click', e => {
+    const t = e.target.closest('[data-action="p-doc"]');
+    if (!t) return;
+    e.stopPropagation();
+    const p = Data.getProviderById(t.dataset.id); if (!p) return;
+    const docs = {...(p.pDocs||{})};
+    docs[t.dataset.key] = PDS[(PDS.indexOf(docs[t.dataset.key]||'non_recu')+1) % PDS.length];
+    Data.saveProvider({...p, pDocs: docs});
+    render();
+  });
 });
 
 function render() {
@@ -125,6 +159,47 @@ function _exportProvider(providerId, month) {
   rows.push(['','','','','','','','TOTAL',total.toFixed(2),'','']);
 
   _downloadCSV(rows, `interventions_${provider.lastName}_${month||'complet'}.csv`);
+}
+
+// ── Dossier intervenant ──────────────────────────────────────────
+function providerDossier(provider) {
+  const docs  = provider.pDocs || {};
+  const total = PDOCS.length;
+  const done  = PDOCS.filter(d => ['valide','archive'].includes(docs[d.k]||'non_recu')).length;
+  const pct   = Math.round(done / total * 100);
+  const col   = pct === 100 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#94a3b8';
+
+  const rows = PDOCS.map(d => {
+    const v    = docs[d.k] || 'non_recu';
+    const tpls = PDOCS_TEMPLATES[d.k] || [];
+    const dlBtns = tpls.map(t =>
+      `<a href="docs/${t.file}" download title="Télécharger ${t.label}"
+          onclick="event.stopPropagation()"
+          style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);font-size:0.7rem;text-decoration:none;white-space:nowrap;flex-shrink:0">⬇ ${t.label}</a>`
+    ).join('');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <span data-action="p-doc" data-id="${provider.id}" data-key="${d.k}"
+        style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;background:${PDC[v]}20;color:${PDC[v]};font-size:0.72rem;font-weight:600;cursor:pointer;min-width:80px;justify-content:center;flex-shrink:0;user-select:none"
+        title="Cliquer pour changer le statut">${PDL[v]}</span>
+      <span style="flex:1;font-size:0.87rem;min-width:100px">${d.l}</span>
+      ${dlBtns ? `<div style="display:flex;gap:4px;flex-wrap:wrap">${dlBtns}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  return `<details style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+    <summary style="cursor:pointer;display:flex;align-items:center;gap:10px;list-style:none;user-select:none;padding-bottom:2px">
+      <span style="font-size:0.85rem;font-weight:600;white-space:nowrap">📁 Dossier intervenant</span>
+      <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${col};border-radius:3px;transition:width .3s"></div>
+      </div>
+      <span style="font-size:0.78rem;font-weight:700;color:${col};white-space:nowrap">${done}/${total}</span>
+      <span style="font-size:0.75rem;color:var(--text-muted)">▼</span>
+    </summary>
+    <div style="margin-top:8px">
+      <p style="font-size:0.72rem;color:var(--text-muted);margin:0 0 6px">Cliquez sur un statut pour le faire avancer · Non reçu → Demandé → Reçu → Validé → Archivé</p>
+      ${rows}
+    </div>
+  </details>`;
 }
 
 function providerCard(provider, allMissions, allMissionsWithProv) {
@@ -243,6 +318,7 @@ function providerCard(provider, allMissions, allMissionsWithProv) {
           <div class="provider-stat-label">Marge totale</div>
         </div>
       </div>
+      ${providerDossier(provider)}
     </div>
     <div class="provider-card-actions">
       <button class="btn btn-ghost btn-sm" onclick="Modals.openProvider('${provider.id}')">Modifier</button>
