@@ -127,7 +127,7 @@ function getFilteredMissions(start, end) {
   if (!allP || !allS) {
     // Filtre perso (prov/stud spécifiques) → override pôle/école
     return missions.filter(m => {
-      const mp = !allP && _filterProviders.has(m.providerId);
+      const mp = !allP && (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])).some(pid => _filterProviders.has(pid));
       const ms = !allS && (m.studentIds||[]).some(id=>_filterStudents.has(id));
       return mp || ms;
     });
@@ -195,12 +195,14 @@ function hourLines() {
   return html;
 }
 
-// Détecte si une mission est en conflit (même prestataire, même heure, même jour)
+// Détecte si une mission est en conflit (prestataire commun, même heure, même jour)
 function hasConflict(mission, allMissions) {
-  if (!mission.providerId) return false;
+  const mProvIds = mission.providerIds?.length ? mission.providerIds : (mission.providerId ? [mission.providerId] : []);
+  if (!mProvIds.length) return false;
   return allMissions.some(m => {
-    if (m.id === mission.id || m.providerId !== mission.providerId) return false;
-    if (m.date !== mission.date || m.status === 'cancelled') return false;
+    if (m.id === mission.id || m.date !== mission.date || m.status === 'cancelled') return false;
+    const oProvIds = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+    if (!oProvIds.some(pid => mProvIds.includes(pid))) return false;
     const aS = Utils.timeToMinutes(mission.startTime), aE = Utils.timeToMinutes(mission.endTime);
     const bS = Utils.timeToMinutes(m.startTime),       bE = Utils.timeToMinutes(m.endTime);
     return aS < bE && bS < aE;
@@ -342,8 +344,8 @@ function renderMonth() {
     const provMap2 = {}; Data.getProviders().forEach(p => provMap2[p.id] = p);
     const studMap2 = {}; Data.getStudents().forEach(s => studMap2[s.id] = s);
     const dots = [];
-    [...new Set(dayM.map(m=>m.providerId).filter(Boolean))].slice(0,4).forEach(pid => {
-      const co = companies[dayM.find(m=>m.providerId===pid)?.companyId];
+    [...new Set(dayM.flatMap(m => m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])))].slice(0,4).forEach(pid => {
+      const co = companies[dayM.find(m => (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])).includes(pid))?.companyId];
       dots.push(`<span title="${provMap2[pid]?provMap2[pid].lastName:''}" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${co?co.color:'#94a3b8'};border:1px solid rgba(0,0,0,0.15)"></span>`);
     });
     const studIds = [...new Set(dayM.flatMap(m=>m.studentIds||[]))].slice(0,4);
