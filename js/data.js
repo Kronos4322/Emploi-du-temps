@@ -547,7 +547,7 @@ const Data = {
   // Retourne les conflits d'agenda pour un prestataire
   getConflictsForProvider(providerId) {
     const missions = this.getMissionsSorted()
-      .filter(m => m.providerId === providerId && m.status !== 'cancelled');
+      .filter(m => m.status !== 'cancelled' && (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])).includes(providerId));
     const conflicts = [];
     for (let i = 0; i < missions.length; i++) {
       for (let j = i + 1; j < missions.length; j++) {
@@ -567,7 +567,7 @@ const Data = {
 
   // Retourne tous les conflits (tous prestataires)
   getAllConflicts() {
-    const providerIds = [...new Set(this._db.missions.map(m => m.providerId).filter(Boolean))];
+    const providerIds = [...new Set(this._db.missions.flatMap(m => m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])))];
     const conflicts = [];
     providerIds.forEach(pid => {
       this.getConflictsForProvider(pid).forEach(c => conflicts.push({ providerId: pid, ...c }));
@@ -595,7 +595,7 @@ const Data = {
     const totalHoursPlanned = planned.reduce((s, m) => s + (m.duration || 0), 0);
     const grossRevenue      = done.reduce((s, m) => s + (m.duration || 0) * (m.billingRate || 0), 0);
     const providerCosts     = done.reduce((s, m) => {
-      if (!m.providerId) return s;
+      if (!m.providerId && !m.providerIds?.length) return s;
       return s + (m.duration || 0) * (m.providerRate || 0);
     }, 0);
     const netMargin = grossRevenue - providerCosts;
@@ -611,11 +611,13 @@ const Data = {
 
     const byProvider = {};
     done.forEach(m => {
-      if (!m.providerId) return;
-      if (!byProvider[m.providerId]) byProvider[m.providerId] = { hours: 0, cost: 0, count: 0 };
-      byProvider[m.providerId].hours += m.duration || 0;
-      byProvider[m.providerId].cost  += (m.duration || 0) * (m.providerRate || 0);
-      byProvider[m.providerId].count++;
+      const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+      pids.forEach(pid => {
+        if (!byProvider[pid]) byProvider[pid] = { hours: 0, cost: 0, count: 0 };
+        byProvider[pid].hours += m.duration || 0;
+        byProvider[pid].cost  += (m.duration || 0) * (m.providerRate || 0);
+        byProvider[pid].count++;
+      });
     });
 
     // Données facturation prestataire (toutes missions y compris non done)

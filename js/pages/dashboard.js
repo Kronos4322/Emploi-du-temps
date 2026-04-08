@@ -44,8 +44,8 @@ function renderDashboard() {
   // Heures pôle (missions + prestataires)
   const hDone = donePole.reduce((s,m)=>s+(m.duration||0),0);
   const hPlan = planPole.reduce((s,m)=>s+(m.duration||0),0);
-  // Heures prestataires (missions du pôle avec providerId)
-  const hProv = poleM.filter(m=>m.providerId).reduce((s,m)=>s+(m.duration||0),0);
+  // Heures prestataires (missions du pôle avec au moins un prestataire)
+  const hProv = poleM.filter(m=>m.providerId||m.providerIds?.length).reduce((s,m)=>s+(m.duration||0),0);
 
   // CA par pôle (toujours les deux)
   const caByPole = {};
@@ -66,8 +66,8 @@ function renderDashboard() {
   });
 
   // Charges prestataires du pôle ce mois
-  const charges = donePole.filter(m=>m.providerId).reduce((s,m)=>s+(m.duration||0)*(m.providerRate||0),0);
-  const chargesPlan = planPole.filter(m=>m.providerId).reduce((s,m)=>s+(m.duration||0)*(m.providerRate||0),0);
+  const charges = donePole.filter(m=>m.providerId||m.providerIds?.length).reduce((s,m)=>s+(m.duration||0)*(m.providerRate||0),0);
+  const chargesPlan = planPole.filter(m=>m.providerId||m.providerIds?.length).reduce((s,m)=>s+(m.duration||0)*(m.providerRate||0),0);
 
   // ── KPIs ──
   const kpiGrid = document.getElementById('kpi-grid');
@@ -173,7 +173,10 @@ function _renderAlert(id, html) {
 }
 
 function missionRow(m, coMap, provMap) {
-  const co = coMap[m.companyId], prov = provMap[m.providerId];
+  const co = coMap[m.companyId];
+  const provIds = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+  const provNames = provIds.map(pid => { const p = provMap[pid]; return p ? p.firstName+' '+p.lastName : ''; }).filter(Boolean).join(', ');
+  const prov = provNames; // compatibilité
   const color = co ? co.color : '#94a3b8';
   const bg = Utils.lightenColor(color, 0.88);
   return `<div class="course-row" onclick="Modals.openMission('${m.id}',null,()=>renderDashboard())" style="border-left:3px solid ${color};background:${bg}">
@@ -184,7 +187,7 @@ function missionRow(m, coMap, provMap) {
     <div class="course-row-meta">
       <span class="course-row-date">${Utils.formatDateShort(m.date)}</span>
       ${co?`<span class="course-school-badge" style="background:${color};color:${Utils.contrastColor(color)}">${Utils.escapeHtml(co.name)}</span>`:''}
-      ${prov?`<span class="course-row-location">👤 ${Utils.escapeHtml(prov.firstName+' '+prov.lastName)}</span>`:''}
+      ${prov?`<span class="course-row-location">👤 ${Utils.escapeHtml(prov)}</span>`:''}
     </div>
   </div>`;
 }
