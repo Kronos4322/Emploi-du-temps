@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function render() {
   const providers   = Data.getProviders();
   const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled');
-  const allMissionsWithProv = allMissions.filter(m => m.providerId);
+  const allMissionsWithProv = allMissions.filter(m => m.providerId || m.providerIds?.length);
   const list        = document.getElementById('providers-list');
 
   if (providers.length === 0) {
@@ -60,8 +60,9 @@ function render() {
   // ── Totaux globaux ─────────────────────────────────────────
   const cm = Utils.currentYearMonth();
   const inclProvIds = new Set(providers.filter(p => !_excluded.has(p.id)).map(p => p.id));
-  const inclMonth = allMissionsWithProv.filter(m => inclProvIds.has(m.providerId) && m.date && m.date.startsWith(cm));
-  const inclAll   = allMissionsWithProv.filter(m => inclProvIds.has(m.providerId));
+  const _mProvIds = m => m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+  const inclMonth = allMissionsWithProv.filter(m => _mProvIds(m).some(pid => inclProvIds.has(pid)) && m.date && m.date.startsWith(cm));
+  const inclAll   = allMissionsWithProv.filter(m => _mProvIds(m).some(pid => inclProvIds.has(pid)));
   const totMonthCost  = inclMonth.reduce((s,m) => s+(m.duration||0)*(m.providerRate||0), 0);
   const totMonthRev   = inclMonth.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
   const totMonthH     = inclMonth.reduce((s,m) => s+(m.duration||0), 0);
@@ -102,7 +103,8 @@ function _exportProvider(providerId, month) {
   const companies = {}; Data.getCompanies().forEach(c => companies[c.id] = c);
   const students = {}; Data.getStudents().forEach(s => students[s.id] = s);
   const missions = Data.getMissions().filter(m =>
-    m.providerId === providerId && m.status !== 'cancelled' &&
+    (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])).includes(providerId) &&
+    m.status !== 'cancelled' &&
     (!month || (m.date && m.date.startsWith(month)))
   ).sort((a,b) => a.date.localeCompare(b.date));
 
@@ -128,7 +130,7 @@ function _exportProvider(providerId, month) {
 function providerCard(provider, allMissions, allMissionsWithProv) {
   const links = Data.getProviderLinksByProvider(provider.id);
   const linkedCoIds = new Set(links.map(l => l.companyId));
-  const rawDirect = allMissions.filter(m => m.providerId === provider.id);
+  const rawDirect = allMissions.filter(m => (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])).includes(provider.id));
   // Agence = flag explicite uniquement (ex: Agency Evol)
   const isBillingAgency = !!provider.isAgency;
   const directMissions = rawDirect;

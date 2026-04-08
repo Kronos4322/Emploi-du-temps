@@ -75,7 +75,7 @@ function getFiltered() {
   let missions = Data.getMissionsSorted();
   if (filters.yearMonth)    missions = missions.filter(m => m.date && m.date.startsWith(filters.yearMonth));
   if (filters.companyId)    missions = missions.filter(m => m.companyId   === filters.companyId);
-  if (filters.providerId)   missions = missions.filter(m => m.providerId  === filters.providerId);
+  if (filters.providerId)   missions = missions.filter(m => (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])).includes(filters.providerId));
   if (filters.missionType)  missions = missions.filter(m => m.missionType === filters.missionType);
   if (filters.status)       missions = missions.filter(m => m.status       === filters.status);
   if (filters.paymentStatus)missions = missions.filter(m => m.paymentStatus=== filters.paymentStatus);
@@ -119,10 +119,11 @@ function render() {
 
   tbody.innerHTML = filtered.map(m => {
     const co       = companies[m.companyId];
-    const provider = providers[m.providerId];
     const color    = co ? co.color : '#94a3b8';
     const revenue  = (m.duration||0) * (m.billingRate||0);
-    const cost     = m.providerId ? (m.duration||0) * (m.providerRate||0) : null;
+    const provIds  = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+    const providerNames = provIds.map(pid => { const p = providers[pid]; return p ? Utils.escapeHtml(p.lastName + ' ' + p.firstName) : ''; }).filter(Boolean).join(', ');
+    const cost     = provIds.length ? (m.duration||0) * (m.providerRate||0) : null;
     const typeInfo = Utils.MISSION_TYPES[m.missionType] || { label: m.missionType || '—', icon: '📌' };
     return `<tr class="table-row${m.status==='cancelled'?' row-cancelled':''}"
                 onclick="Modals.openMission('${m.id}',null,()=>{buildFilterOptions();render();})">
@@ -143,7 +144,7 @@ function render() {
       <td>${STATUS_BADGES[m.status]||m.status}</td>
       <td>${PAYMENT_BADGES[m.paymentStatus]||m.paymentStatus}</td>
       <td class="cell-money">${m.status!=='cancelled'?Utils.formatMoney(revenue):'—'}</td>
-      <td class="cell-provider">${provider?Utils.escapeHtml(provider.lastName+' '+provider.firstName):'—'}</td>
+      <td class="cell-provider">${providerNames || '—'}</td>
       <td class="cell-money cell-cost">${cost!==null?Utils.formatMoney(cost):'—'}</td>
       <td class="cell-actions" onclick="event.stopPropagation()">
         <button class="btn-icon-sm btn-icon-danger" onclick="deleteMission('${m.id}')" title="Supprimer">✕</button>

@@ -70,7 +70,9 @@ const Modals = {
 
     const m = mission || {
       title: '', missionType: 'course', subject: '', level: '', type: 'presential',
-      companyId: preCompany, providerId: defaults.providerId || '',
+      companyId: preCompany,
+      providerId: defaults.providerId || '',
+      providerIds: defaults.providerIds || (defaults.providerId ? [defaults.providerId] : []),
       date: defaultDate || Utils.today(), startTime: '09:00', endTime: '10:00', duration: 1,
       location: '', room: '', notes: '', adminNotes: '',
       status: 'planned', paymentStatus: 'unpaid',
@@ -86,10 +88,15 @@ const Modals = {
       `<option value="${c.id}" ${m.companyId === c.id ? 'selected' : ''}>${Utils.escapeHtml(c.name)}</option>`
     ).join('');
 
-    const providerOptions = `<option value="">— Aucun prestataire —</option>` +
-      providers.map(p =>
-        `<option value="${p.id}" ${m.providerId === p.id ? 'selected' : ''}>${Utils.escapeHtml(p.lastName + ' ' + p.firstName)}</option>`
-      ).join('');
+    const currentProvIds = Array.isArray(m.providerIds) && m.providerIds.length
+      ? m.providerIds
+      : (m.providerId ? [m.providerId] : []);
+    const currentProvSummary = currentProvIds.length > 0
+      ? currentProvIds.map(pid => { const p = providers.find(x => x.id === pid); return p ? Utils.escapeHtml(p.lastName + ' ' + p.firstName) : ''; }).filter(Boolean).join(', ')
+      : '— Aucun prestataire —';
+    const provCheckboxes = providers.map(p =>
+      `<label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer;padding:2px 0"><input type="checkbox" name="mf-provider-chk" value="${p.id}" data-name="${Utils.escapeHtml(p.lastName + ' ' + p.firstName)}" ${currentProvIds.includes(p.id) ? 'checked' : ''} onchange="window._mfProvChange()">${Utils.escapeHtml(p.lastName + ' ' + p.firstName)}</label>`
+    ).join('');
 
     const formationOptions = `<option value="">— Aucune formation —</option>` +
       formations.map(f =>
@@ -151,8 +158,18 @@ const Modals = {
             </select>
           </div>
           <div class="form-group">
-            <label>Prestataire</label>
-            <select id="mf-provider" class="form-input">${providerOptions}</select>
+            <label>Prestataire(s)</label>
+            <details id="mf-providers-details" style="border:1px solid var(--border);border-radius:var(--radius);padding:0">
+              <summary id="mf-providers-summary" style="padding:8px 12px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;user-select:none">
+                <span id="mf-providers-summary-text">${currentProvSummary}</span>
+                <span style="font-size:0.8rem;color:var(--text-muted)">▼</span>
+              </summary>
+              <div style="padding:8px;border-top:1px solid var(--border)">
+                <div id="mf-providers-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+                  ${provCheckboxes}
+                </div>
+              </div>
+            </details>
           </div>
           ${students.length > 0 ? `
           <div class="form-group">
@@ -224,7 +241,7 @@ const Modals = {
             <label>Tarif facturation (€/h)</label>
             <input type="number" id="mf-billing-rate" class="form-input" value="${m.billingRate||0}" min="0" step="0.5">
           </div>
-          <div class="form-group" id="prov-rate-group" style="${m.providerId?'':'display:none'}">
+          <div class="form-group" id="prov-rate-group" style="${currentProvIds.length ? '' : 'display:none'}">
             <label>Tarif prestataire (€/h)</label>
             <input type="number" id="mf-provider-rate" class="form-input" value="${m.providerRate||0}" min="0" step="0.5">
           </div>
@@ -292,21 +309,25 @@ const Modals = {
       } else if (prev) { prev.innerHTML = ''; }
     };
 
-    // Provider changed → auto-fill rate
-    const provSel = document.getElementById('mf-provider');
+    // Prestataires changed → update summary, show/hide rate, auto-fill rate
     const compSel = document.getElementById('mf-company');
-    if (provSel) {
-      provSel.addEventListener('change', () => {
-        const grp = document.getElementById('prov-rate-group');
-        if (grp) grp.style.display = provSel.value ? '' : 'none';
-        if (provSel.value) {
-          const companyId = compSel?.value;
-          const rate = Data.getEffectiveRate(provSel.value, companyId);
-          if (rate) document.getElementById('mf-provider-rate').value = rate;
-        }
-        updatePreview();
-      });
-    }
+    window._mfProvChange = () => {
+      const checked = [...document.querySelectorAll('input[name="mf-provider-chk"]:checked')];
+      const summEl = document.getElementById('mf-providers-summary-text');
+      if (summEl) {
+        summEl.textContent = checked.length > 0
+          ? checked.map(i => i.dataset.name).join(', ')
+          : '— Aucun prestataire —';
+      }
+      const grp = document.getElementById('prov-rate-group');
+      if (grp) grp.style.display = checked.length > 0 ? '' : 'none';
+      if (checked.length > 0) {
+        const companyId = compSel?.value;
+        const rate = Data.getEffectiveRate(checked[0].value, companyId);
+        if (rate) document.getElementById('mf-provider-rate').value = rate;
+      }
+      updatePreview();
+    };
 
     // Company changed → auto-fill billing rate
     if (compSel) {
@@ -315,9 +336,10 @@ const Modals = {
         if (co && co.defaultBillingRate) {
           document.getElementById('mf-billing-rate').value = co.defaultBillingRate;
         }
-        // Re-apply provider rate for new company
-        if (provSel?.value) {
-          const rate = Data.getEffectiveRate(provSel.value, compSel.value);
+        // Re-apply provider rate from first selected provider for new company
+        const firstProv = document.querySelector('input[name="mf-provider-chk"]:checked');
+        if (firstProv) {
+          const rate = Data.getEffectiveRate(firstProv.value, compSel.value);
           if (rate) document.getElementById('mf-provider-rate').value = rate;
         }
         updatePreview();
@@ -366,7 +388,8 @@ const Modals = {
         type:        document.getElementById('mf-type').value,
         companyId:   document.getElementById('mf-company').value,
         schoolId:    document.getElementById('mf-company').value,
-        providerId:  document.getElementById('mf-provider').value || null,
+        providerIds: [...document.querySelectorAll('input[name="mf-provider-chk"]:checked')].map(i => i.value),
+        providerId:  document.querySelector('input[name="mf-provider-chk"]:checked')?.value || null,
         date, startTime, endTime,
         location:    document.getElementById('mf-location').value.trim(),
         room:        document.getElementById('mf-location').value.trim(),

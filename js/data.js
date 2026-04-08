@@ -377,6 +377,11 @@ const Data = {
   saveMission(mission) {
     mission.duration = Utils.calcDuration(mission.startTime, mission.endTime);
     mission.companyId = mission.companyId || mission.schoolId || null;
+    // Normalise multi-prestataires : assure la cohérence entre providerIds et providerId
+    if (!mission.providerIds || !Array.isArray(mission.providerIds)) {
+      mission.providerIds = mission.providerId ? [mission.providerId] : [];
+    }
+    mission.providerId = mission.providerIds[0] || null;
 
     const idx = this._db.missions.findIndex(m => m.id === mission.id);
     if (idx >= 0) {
