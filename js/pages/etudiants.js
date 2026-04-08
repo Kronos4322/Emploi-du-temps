@@ -18,6 +18,23 @@ const QDOCS = [
   {k:'attestation',l:'Attestation de fin'},{k:'bilan',l:'Bilan'},
   {k:'satisfaction',l:'Questionnaire satisfaction'},{k:'justificatifs',l:'Justificatifs complémentaires'}
 ];
+// Modèles téléchargeables (fichiers dans /docs/)
+const QDOCS_TEMPLATES = {
+  fiche_rens:    [{label:'Fiche individuelle',  file:'fiche_renseignement.docx'}, {label:'Fiche contact', file:'fiche_contact_apprenant.docx'}],
+  positionnement:[{label:'Fiche positionnement',file:'fiche_positionnement.docx'}],
+  programme:     [{label:'Programme type',      file:'programme_formation.docx'}],
+  devis:         [{label:'Convention / devis',  file:'convention_formation.docx'}],
+  contrat:       [{label:'Convention',          file:'convention_formation.docx'}, {label:'Contrat pédagogique', file:'contrat_pedagogique.docx'}],
+  reglement:     [{label:'Règlement intérieur', file:'reglement_interieur.docx'}],
+  livret:        [{label:"Livret d'accueil",    file:'livret_accueil.docx'}],
+  planning:      [{label:'Déroulé pédagogique', file:'planning_formation.docx'}],
+  emargement:    [{label:'Feuille émargement',  file:'feuille_emargement.docx'}],
+  evaluation:    [{label:'Éval. à chaud',       file:'evaluation_chaud.docx'}, {label:'Grille acquis', file:'evaluation_grille_acquis.docx'}],
+  attestation:   [{label:'Attestation fin',     file:'attestation_fin_formation.docx'}],
+  bilan:         [{label:'Suivi individuel',    file:'bilan_suivi_individuel.docx'}],
+  satisfaction:  [{label:'Questionnaire',       file:'questionnaire_satisfaction.docx'}],
+  justificatifs: [],
+};
 const QPHASES = [
   {label:"Phase 1 — Préparation de l'arrivée", icon:'📝', steps:[0,1,2,3,4,5,6],
    docs:['fiche_rens','positionnement','programme','devis','contrat','reglement','livret']},
@@ -353,10 +370,17 @@ function qDetailHTML() {
 
   const docRows = QDOCS.map(d=>{
     const v = docs[d.k]||'non_cree';
-    return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)">
+    const tpls = QDOCS_TEMPLATES[d.k] || [];
+    const dlBtns = tpls.map(t =>
+      `<a href="docs/${t.file}" download title="Télécharger ${t.label}"
+        style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);font-size:0.7rem;text-decoration:none;white-space:nowrap;flex-shrink:0"
+        onclick="event.stopPropagation()">⬇ ${t.label}</a>`
+    ).join('');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
       <span data-action="q-doc" data-id="${s.id}" data-key="${d.k}"
         style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;background:${DC[v]}20;color:${DC[v]};font-size:0.72rem;font-weight:600;cursor:pointer;min-width:76px;justify-content:center;flex-shrink:0">${DL[v]}</span>
-      <span style="flex:1;font-size:0.87rem">${d.l}</span>
+      <span style="flex:1;font-size:0.87rem;min-width:100px">${d.l}</span>
+      ${dlBtns ? `<div style="display:flex;gap:4px;flex-wrap:wrap">${dlBtns}</div>` : ''}
     </div>`;
   }).join('');
 
