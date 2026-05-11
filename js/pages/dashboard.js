@@ -13,6 +13,91 @@ document.addEventListener('DOMContentLoaded', () => {
 
 window._setPole = id => { _dashPole = id; _buildPoleSwitch(); renderDashboard(); };
 
+// ── Mémos personnels ─────────────────────────────────────────────
+
+const MEMO_COLORS = ['#f59e0b','#ef4444','#3b82f6','#10b981','#8b5cf6','#64748b'];
+window._memoColor = '#f59e0b'; // couleur sélectionnée
+
+function _getMemos() {
+  try { return JSON.parse(localStorage.getItem('_edt_memos') || '[]'); } catch { return []; }
+}
+function _saveMemos(memos) {
+  localStorage.setItem('_edt_memos', JSON.stringify(memos));
+}
+
+window._addMemo = function() {
+  const input = document.getElementById('memo-input');
+  const color = window._memoColor || '#f59e0b';
+  const text = input?.value?.trim();
+  if (!text) return;
+  const memos = _getMemos();
+  memos.unshift({ id: Date.now().toString(36), text, color, createdAt: Utils.today() });
+  _saveMemos(memos);
+  input.value = '';
+  renderDashboard();
+};
+
+window._deleteMemo = function(id) {
+  _saveMemos(_getMemos().filter(m => m.id !== id));
+  renderDashboard();
+};
+
+window._toggleMemoResolved = function(id) {
+  const memos = _getMemos();
+  const m = memos.find(m => m.id === id);
+  if (m) m.resolved = !m.resolved;
+  _saveMemos(memos);
+  renderDashboard();
+};
+
+function _renderMemos() {
+  const memos = _getMemos();
+  const open = memos.filter(m => !m.resolved);
+  const done = memos.filter(m => m.resolved);
+  return `<div class="card" style="border:2px solid #f59e0b20">
+    <div class="card-header" style="background:#fffbeb">
+      <h2 class="card-title" style="color:#92400e">📌 Mes rappels</h2>
+      <span class="badge" style="background:#f59e0b;color:#fff">${open.length}</span>
+    </div>
+    <div class="card-body">
+      <!-- Saisie -->
+      <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
+        <div style="display:flex;gap:5px;align-items:center">
+          ${MEMO_COLORS.map((c,i) => `<span data-memo-color="${c}"
+            onclick="window._memoColor='${c}';document.querySelectorAll('[data-memo-color]').forEach(s=>s.style.transform=s.dataset.memoColor==='${c}'?'scale(1.35)':'scale(1)')"
+            style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;transition:transform .15s;flex-shrink:0;${i===0?'transform:scale(1.35)':''}"></span>`).join('')}
+        </div>
+        <input id="memo-input" type="text" class="form-input" placeholder="Ajouter un rappel…" style="flex:1;min-width:140px;font-size:0.85rem;padding:6px 10px"
+          onkeydown="if(event.key==='Enter')window._addMemo()">
+        <button class="btn btn-primary btn-sm" onclick="window._addMemo()" style="white-space:nowrap">+ Ajouter</button>
+      </div>
+      <!-- Rappels ouverts -->
+      ${open.length === 0
+        ? '<p style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:8px 0">Aucun rappel en cours ✓</p>'
+        : open.map(m => `
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:8px;background:${m.color}12;border-left:3px solid ${m.color};margin-bottom:6px">
+            <button onclick="window._toggleMemoResolved('${m.id}')" title="Marquer résolu" style="background:none;border:2px solid ${m.color};border-radius:50%;width:18px;height:18px;cursor:pointer;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;padding:0;color:${m.color};font-size:0.7rem">○</button>
+            <span style="flex:1;font-size:0.85rem;line-height:1.4">${Utils.escapeHtml(m.text)}</span>
+            <span style="font-size:0.68rem;color:var(--text-muted);white-space:nowrap;margin-top:2px">${m.createdAt||''}</span>
+            <button onclick="window._deleteMemo('${m.id}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.85rem;padding:0;flex-shrink:0" title="Supprimer">✕</button>
+          </div>`).join('')}
+      <!-- Résolus (repliables) -->
+      ${done.length > 0 ? `
+        <details style="margin-top:6px">
+          <summary style="font-size:0.75rem;color:var(--text-muted);cursor:pointer;padding:4px 0">✓ ${done.length} résolu${done.length>1?'s':''}</summary>
+          <div style="margin-top:6px;opacity:0.6">
+            ${done.map(m => `
+              <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;background:var(--surface);margin-bottom:4px">
+                <button onclick="window._toggleMemoResolved('${m.id}')" title="Rouvrir" style="background:none;border:2px solid #22c55e;border-radius:50%;width:16px;height:16px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;color:#22c55e;font-size:0.65rem">✓</button>
+                <span style="flex:1;font-size:0.8rem;text-decoration:line-through;color:var(--text-muted)">${Utils.escapeHtml(m.text)}</span>
+                <button onclick="window._deleteMemo('${m.id}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.8rem;padding:0" title="Supprimer">✕</button>
+              </div>`).join('')}
+          </div>
+        </details>` : ''}
+    </div>
+  </div>`;
+}
+
 window._dismissConflict = function(aId, bId) {
   try {
     const dismissed = JSON.parse(localStorage.getItem('_edt_dismissed_conflicts') || '[]');
@@ -230,6 +315,9 @@ function renderDashboard() {
         return dayHeader + missions.map(m => missionRow(m, coMap, provMap)).join('');
       }).join('');
   }
+
+  // ── Mémos personnels ─────────────────────────────────────
+  _renderAlert('alert-memos', _renderMemos());
 
   // ── Alertes ──────────────────────────────────────────────────
   const visConflicts = _visibleConflicts(d.conflicts);

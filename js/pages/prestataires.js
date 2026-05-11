@@ -2,6 +2,7 @@
 'use strict';
 
 const _excluded = new Set(); // IDs prestataires exclus du récap
+let _provMonth = Utils.currentYearMonth(); // mois sélectionné pour les stats
 function toggleProvider(id) { _excluded.has(id) ? _excluded.delete(id) : _excluded.add(id); render(); }
 function renderPage() { render(); }
 
@@ -62,37 +63,57 @@ function render() {
     return;
   }
 
-  // ── Barre de filtre ────────────────────────────────────────
+  // ── Barre de filtre + sélecteur de mois ───────────────────
   let filterBar = document.getElementById('prov-filter-bar');
   if (!filterBar) {
     filterBar = document.createElement('div');
     filterBar.id = 'prov-filter-bar';
-    filterBar.style.cssText = 'position:relative;margin-bottom:16px';
+    filterBar.style.cssText = 'margin-bottom:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
     list.parentElement.insertBefore(filterBar, list);
   }
+
+  // Mois disponibles depuis les missions
+  const availMonths = [...new Set(
+    Data.getMissions().map(m => m.date?.substring(0,7)).filter(Boolean)
+  )].sort().reverse();
+  if (!availMonths.includes(_provMonth)) availMonths.unshift(_provMonth);
+
+  const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const monthLabel = m => { const [y,mo]=m.split('-'); return `${MONTHS_FR[+mo-1]} ${y}`; };
+
   const activeCount = providers.filter(p => !_excluded.has(p.id)).length;
-  filterBar.innerHTML =
-    `<button class="btn btn-ghost btn-sm" onclick="var p=document.getElementById('prov-filter-panel');p.style.display=p.style.display==='none'?'block':'none'" style="width:100%;text-align:left;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;font-size:0.85rem">
-      👥 Récap — <b>${activeCount} / ${providers.length}</b> prestataires ▼
-    </button>
-    <div id="prov-filter-panel" style="display:none;position:absolute;top:100%;left:0;z-index:40;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-md);padding:10px 14px;min-width:240px">
-      <div style="display:flex;gap:6px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
-        <button class="btn btn-xs btn-ghost" onclick="window._provAll()">Tous</button>
-        <button class="btn btn-xs btn-ghost" onclick="window._provNone()">Aucun</button>
+  filterBar.innerHTML = `
+    <div style="position:relative;flex:1;min-width:180px">
+      <button class="btn btn-ghost btn-sm" onclick="var p=document.getElementById('prov-filter-panel');p.style.display=p.style.display==='none'?'block':'none'" style="width:100%;text-align:left;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;font-size:0.85rem">
+        👥 Récap — <b>${activeCount} / ${providers.length}</b> prestataires ▼
+      </button>
+      <div id="prov-filter-panel" style="display:none;position:absolute;top:100%;left:0;z-index:40;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-md);padding:10px 14px;min-width:240px">
+        <div style="display:flex;gap:6px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+          <button class="btn btn-xs btn-ghost" onclick="window._provAll()">Tous</button>
+          <button class="btn btn-xs btn-ghost" onclick="window._provNone()">Aucun</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto">
+          ${providers.map(p=>`<label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;padding:3px 0">
+            <input type="checkbox" value="${p.id}" ${!_excluded.has(p.id)?'checked':''} onchange="window._provToggle('${p.id}')">
+            ${Utils.escapeHtml(p.lastName+' '+p.firstName)}
+          </label>`).join('')}
+        </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto">
-        ${providers.map(p=>`<label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;padding:3px 0">
-          <input type="checkbox" value="${p.id}" ${!_excluded.has(p.id)?'checked':''} onchange="window._provToggle('${p.id}')">
-          ${Utils.escapeHtml(p.lastName+' '+p.firstName)}
-        </label>`).join('')}
-      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:6px 12px">
+      <span style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap">📅 Mois :</span>
+      <select id="prov-month-select" style="border:none;background:transparent;font-size:0.88rem;font-weight:600;color:var(--text-primary);cursor:pointer;outline:none" onchange="window._setProvMonth(this.value)">
+        ${availMonths.map(m => `<option value="${m}" ${m===_provMonth?'selected':''}>${monthLabel(m)}</option>`).join('')}
+      </select>
     </div>`;
+
   window._provToggle = id => { _excluded.has(id) ? _excluded.delete(id) : _excluded.add(id); render(); };
   window._provAll = () => { _excluded.clear(); render(); };
   window._provNone = () => { providers.forEach(p => _excluded.add(p.id)); render(); };
+  window._setProvMonth = m => { _provMonth = m; render(); };
 
   // ── Totaux globaux ─────────────────────────────────────────
-  const cm = Utils.currentYearMonth();
+  const cm = _provMonth;
   const inclProvIds = new Set(providers.filter(p => !_excluded.has(p.id)).map(p => p.id));
   const _mProvIds = m => m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
   const inclMonth = allMissionsWithProv.filter(m => _mProvIds(m).some(pid => inclProvIds.has(pid)) && m.date && m.date.startsWith(cm));
@@ -110,7 +131,7 @@ function render() {
     <h3 class="section-title">Récapitulatif global</h3>
     <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
       <div class="kpi-card"><div class="kpi-content">
-        <div class="kpi-label" style="margin-bottom:4px">Ce mois — ${Utils.MONTHS_LONG[+cm.split('-')[1]-1]}</div>
+        <div class="kpi-label" style="margin-bottom:4px">${monthLabel(cm)}${cm===Utils.currentYearMonth()?' (mois en cours)':''}</div>
         <div style="display:flex;gap:16px;flex-wrap:wrap">
           <div><div class="kpi-value" style="font-size:1rem;color:var(--danger)">${Utils.formatMoney(totMonthCost)}</div><div class="kpi-label">Charges (${totMonthCount} interv. · ${Utils.formatDuration(totMonthH)})</div></div>
           <div><div class="kpi-value" style="font-size:1rem;color:var(--success)">${Utils.formatMoney(totMonthRev - totMonthCost)}</div><div class="kpi-label">Marge brute</div></div>
@@ -224,7 +245,7 @@ function providerCard(provider, allMissions, allMissionsWithProv) {
   const totalCost  = isBillingAgency ? 0 : active.reduce((s, m) => s + (m.duration||0)*(m.providerRate||0), 0);
   const totalRev   = active.reduce((s, m) => s + (m.duration||0)*(m.billingRate||0), 0);
   const totalMargin = totalRev - totalCost;
-  const cm         = Utils.currentYearMonth();
+  const cm         = _provMonth;
   const monthAll   = active.filter(m => m.date && m.date.startsWith(cm));
   const monthDone  = monthAll.filter(m => m.status === 'done');
   const monthHDone = monthDone.reduce((s, m) => s + (m.duration||0), 0);
@@ -285,19 +306,19 @@ function providerCard(provider, allMissions, allMissionsWithProv) {
         </div>
         <div class="provider-stat">
           <div class="provider-stat-value">${Utils.formatDuration(monthH)}</div>
-          <div class="provider-stat-label">Ce mois (h)</div>
+          <div class="provider-stat-label">${Utils.MONTHS_LONG[+cm.split('-')[1]-1]} (h)</div>
         </div>
         <div class="provider-stat highlight">
           <div class="provider-stat-value">${Utils.formatMoney(monthCost)}</div>
-          <div class="provider-stat-label">Coût ce mois</div>
+          <div class="provider-stat-label">Coût ${Utils.MONTHS_LONG[+cm.split('-')[1]-1]}</div>
         </div>
         <div class="provider-stat">
           <div class="provider-stat-value">${Utils.formatMoney(monthRev)}</div>
-          <div class="provider-stat-label">CA ce mois</div>
+          <div class="provider-stat-label">CA ${Utils.MONTHS_LONG[+cm.split('-')[1]-1]}</div>
         </div>
         <div class="provider-stat">
           <div class="provider-stat-value" style="color:${monthMargin>=0?'var(--success)':'var(--danger)'}">${Utils.formatMoney(monthMargin)}</div>
-          <div class="provider-stat-label">Marge mois</div>
+          <div class="provider-stat-label">Marge ${Utils.MONTHS_LONG[+cm.split('-')[1]-1]}</div>
         </div>
       </div>
       <div class="provider-stats" style="margin-top:4px;padding-top:8px;border-top:1px solid var(--border)">
