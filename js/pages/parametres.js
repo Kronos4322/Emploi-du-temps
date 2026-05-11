@@ -6,13 +6,18 @@ document.addEventListener('DOMContentLoaded', () => {
   updateInfo();
   renderBackups();
 
-  // Tarif par défaut
-  const rateInput = document.getElementById('set-rate');
-  const settings  = Data.getSettings ? Data.getSettings() : {};
+  // Paramètres généraux
+  const rateInput        = document.getElementById('set-rate');
+  const responsableInput = document.getElementById('set-responsable');
+  const settings         = Data.getSettings ? Data.getSettings() : {};
   if (settings.defaultBillingRate) rateInput.value = settings.defaultBillingRate;
+  if (settings.responsableName)    responsableInput.value = settings.responsableName;
 
   document.getElementById('btn-save-settings').addEventListener('click', () => {
-    if (Data.saveSettings) Data.saveSettings({ defaultBillingRate: parseFloat(rateInput.value) || 0 });
+    if (Data.saveSettings) Data.saveSettings({
+      defaultBillingRate: parseFloat(rateInput.value) || 0,
+      responsableName:    responsableInput.value.trim(),
+    });
     showToast('Paramètres enregistrés.');
   });
 
@@ -38,13 +43,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
-      try {
-        const parsed = JSON.parse(ev.target.result);
-        localStorage.setItem('emploi_du_temps_db', JSON.stringify(parsed));
+      const result = Data.importFromJson(ev.target.result);
+      if (result.error) {
+        showToast(result.error, true);
+      } else {
         showToast('Import réussi. Rechargement...');
         setTimeout(() => location.reload(), 800);
-      } catch {
-        showToast('Fichier JSON invalide.', true);
       }
     };
     reader.readAsText(file);
@@ -55,6 +59,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-reset-all').addEventListener('click', () => {
     if (!confirm('Effacer TOUTES les données ? Cette action est irréversible.')) return;
     localStorage.removeItem('emploi_du_temps_db');
+    localStorage.removeItem('_edt_ts');
+    // Supprimer toutes les sauvegardes automatiques
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('edt_backup_'))
+      .forEach(k => localStorage.removeItem(k));
     showToast('Données effacées. Rechargement...');
     setTimeout(() => location.reload(), 800);
   });

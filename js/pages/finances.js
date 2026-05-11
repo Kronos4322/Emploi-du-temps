@@ -34,8 +34,7 @@ function buildCompanyFilter() {
   const clientCos = Data.getClientSchools().filter(co => {
     if (!_poleId) return true;
     if (co.poleId) return co.poleId === _poleId;
-    const pole = Data.getCompanyById(_poleId);
-    return pole ? (pole.defaultBillingRate === 35 ? co.defaultBillingRate === 35 : co.defaultBillingRate !== 35) : true;
+    return false; // société sans poleId → exclure du filtre par pôle
   });
   const el = document.getElementById('filter-company');
   const prev = _companyId;
@@ -129,8 +128,7 @@ function render() {
       if (!co) return false;
       if (co.role === 'own') return co.id === _poleId;
       if (co.poleId) return co.poleId === _poleId;
-      if (!pole) return false;
-      return pole.defaultBillingRate === 35 ? m.billingRate === 35 : m.billingRate !== 35;
+      return false; // société sans poleId → exclure du filtre par pôle
     };
     doneMissions    = doneMissions.filter(filterByPole);
     plannedMissions = plannedMissions.filter(filterByPole);
@@ -146,7 +144,10 @@ function render() {
   const doneRevenue    = doneMissions.reduce((s,m) => s + (m.duration||0)*(m.billingRate||0), 0);
   const plannedRevenue = plannedMissions.reduce((s,m) => s + (m.duration||0)*(m.billingRate||0), 0);
   const totalRevenue   = Math.round((doneRevenue + plannedRevenue) * 100) / 100;
-  const totalCosts     = doneMissions.reduce((s,m) => m.providerId ? s + (m.duration||0)*(m.providerRate||0) : s, 0);
+  const totalCosts     = doneMissions.reduce((s,m) => {
+    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+    return pids.length ? s + (m.duration||0)*(m.providerRate||0) : s;
+  }, 0);
   const netMargin      = Math.round((doneRevenue - totalCosts) * 100) / 100;
   const hoursDone      = doneMissions.reduce((s,m) => s + (m.duration||0), 0);
   const hoursPlanned   = plannedMissions.reduce((s,m) => s + (m.duration||0), 0);
@@ -172,9 +173,7 @@ function render() {
   const clientSchools = Data.getClientSchools().filter(co => {
     if (!_poleId) return true;
     if (co.poleId) return co.poleId === _poleId;
-    // fallback billingRate
-    const pole = Data.getCompanyById(_poleId);
-    return pole ? (pole.defaultBillingRate === 35 ? co.defaultBillingRate === 35 : co.defaultBillingRate !== 35) : true;
+    return false; // société sans poleId → exclure du filtre par pôle
   });
   const allByCompany  = {};
   clientSchools.forEach(co => { allByCompany[co.id] = { hours: 0, revenue: 0, done: 0, planned: 0 }; });
@@ -285,8 +284,7 @@ function renderAnnual() {
     all = all.filter(m => {
       const school = coMap[m.companyId];
       if (school?.poleId) return school.poleId === _poleId;
-      if (!pole) return false;
-      return pole.defaultBillingRate === 35 ? m.billingRate === 35 : m.billingRate !== 35;
+      return false; // société sans poleId → exclure du filtre par pôle
     });
   }
 
@@ -314,11 +312,8 @@ function renderAnnual() {
       const pole = coMap[co.poleId];
       viaName = pole ? pole.name : '—';
       poleRevs[co.poleId] = (poleRevs[co.poleId] || 0) + d.revenue;
-    } else {
-      // fallback billingRate
-      const p = ownCos.find(o => o.defaultBillingRate === 35 ? rate === 35 : rate !== 35);
-      if (p) { viaName = p.name; poleRevs[p.id] = (poleRevs[p.id] || 0) + d.revenue; }
     }
+    // Si pas de poleId → viaName reste '—' (société non rattachée à un pôle)
     totalCount += d.count; totalHours += d.hours; totalRevenue += d.revenue;
     return `<tr>
       <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(co.name)}</td>
@@ -336,12 +331,9 @@ function renderAnnual() {
   document.getElementById('annual-total-revenue').innerHTML = `<strong>${Utils.formatMoney(totalRevenue)}</strong>`;
 
   // Totaux par pôle
-  const artemis = ownCos.find(o => o.defaultBillingRate === 35);
-  const asteria  = ownCos.find(o => o.defaultBillingRate !== 35);
-  const artVal = Utils.formatMoney(artemis ? (poleRevs[artemis.id]||0) : 0);
-  const astVal = Utils.formatMoney(asteria ? (poleRevs[asteria.id]||0) : 0);
+  // Résumé dynamique par pôle (sans heuristique sur le tarif)
   const summaryEl = document.getElementById('annual-poles-summary');
-  if (summaryEl) summaryEl.textContent = `${artemis?.name||'Artémis'} : ${artVal}  |  ${asteria?.name||'Astéria'} : ${astVal}`;
+  if (summaryEl) summaryEl.textContent = ownCos.map(o => `${o.name} : ${Utils.formatMoney(poleRevs[o.id]||0)}`).join('  |  ');
   document.getElementById('annual-year-label').textContent = `Année scolaire ${_schoolYear}`;
 }
 
@@ -436,8 +428,7 @@ function renderChart() {
     if (!co) return false;
     if (co.role === 'own') return co.id === _poleId;
     if (co.poleId) return co.poleId === _poleId;
-    const pole = coMap[_poleId];
-    return pole ? (pole.defaultBillingRate===35 ? m.billingRate===35 : m.billingRate!==35) : true;
+    return false; // société sans poleId → exclure du filtre par pôle
   };
   let missions = allMissions.filter(poleFilterFn);
 
@@ -455,7 +446,7 @@ function renderChart() {
           if (missionKey(m) !== lbl) return false;
           const school = coMap[m.companyId];
           if (school?.poleId) return school.poleId === pole.id;
-          return pole.defaultBillingRate === 35 ? m.billingRate === 35 : m.billingRate !== 35;
+          return false; // société sans poleId → exclure du filtre par pôle
         });
         return Math.round(ms.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0)*100)/100;
       });
@@ -468,8 +459,7 @@ function renderChart() {
       const schools = Data.getClientSchools().filter(co => {
         if (!_poleId) return true;
         if (co.poleId) return co.poleId === _poleId;
-        const pole = coMap[_poleId];
-        return pole ? (pole.defaultBillingRate === 35 ? co.defaultBillingRate === 35 : co.defaultBillingRate !== 35) : true;
+        return false; // société sans poleId → exclure du filtre par pôle
       });
       schools.forEach((co, i) => {
         const data = labels.map(lbl =>

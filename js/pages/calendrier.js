@@ -33,9 +33,11 @@ document.addEventListener('DOMContentLoaded', () => {
       _view = btn.dataset.view;
       document.querySelectorAll('.cal-view-switcher .btn').forEach(b => {
         b.className = b.dataset.view === _view ? 'btn btn-primary' : 'btn btn-ghost';
+        b.setAttribute('aria-pressed', b.dataset.view === _view ? 'true' : 'false');
       });
       renderCalendar();
     });
+    btn.setAttribute('aria-pressed', btn.dataset.view === _view ? 'true' : 'false');
   });
 });
 
@@ -170,7 +172,7 @@ function renderCalendar() {
   if (_view === 'week')  body.innerHTML = renderWeek();
   if (_view === 'month') body.innerHTML = renderMonth();
   const scrollEl = body.querySelector('.week-body, .day-body');
-  if (scrollEl) scrollEl.scrollTop = 90;
+  if (scrollEl) scrollEl.scrollTop = 60; // 8h00 = (8-7) × 60px/h
 }
 
 function getTitle() {
@@ -301,6 +303,9 @@ function renderMonth() {
   const first = new Date(year, month, 1);
   const last  = new Date(year, month + 1, 0);
   const companies = {}; Data.getCompanies().forEach(c => companies[c.id] = c);
+  // Hissé hors de la boucle pour éviter N+1 (31 appels → 1)
+  const provMap2 = {}; Data.getProviders().forEach(p => provMap2[p.id] = p);
+  const studMap2 = {}; Data.getStudents().forEach(s => studMap2[s.id] = s);
 
   let startWD = first.getDay(); startWD = startWD === 0 ? 6 : startWD - 1;
   const gridStart = new Date(first); gridStart.setDate(1 - startWD);
@@ -341,8 +346,6 @@ function renderMonth() {
       ? `<div class="month-more" title="${hiddenTitles}" onclick="event.stopPropagation();_date='${iso}';_view='day';document.querySelector('[data-view=day]').click()">+${dayM.length - MAX} voir tout →</div>`
       : '';
     // Ronds de couleur : prestataires + étudiants impliqués ce jour
-    const provMap2 = {}; Data.getProviders().forEach(p => provMap2[p.id] = p);
-    const studMap2 = {}; Data.getStudents().forEach(s => studMap2[s.id] = s);
     const dots = [];
     [...new Set(dayM.flatMap(m => m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])))].slice(0,4).forEach(pid => {
       const co = companies[dayM.find(m => (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])).includes(pid))?.companyId];

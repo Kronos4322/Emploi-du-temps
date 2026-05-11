@@ -33,7 +33,6 @@ function render() {
     const color = own.color || '#3b82f6';
     const schools      = clientSchools.filter(c => c.poleId === own.id && (c.category||'school') === 'school');
     const institutions = clientSchools.filter(c => c.poleId === own.id && c.category === 'institution');
-    const unlinked     = clientSchools.filter(c => !c.poleId);
     const provs        = allProviders.filter(p => p.poleId === own.id);
     const studs        = allStudents.filter(s => (s.poleId || s.companyId) === own.id);
 
@@ -85,8 +84,7 @@ function companyCard(co, allMissions) {
     missions = allMissions.filter(m => {
       const school = allCos[m.companyId];
       if (school?.poleId) return school.poleId === co.id;
-      // fallback heuristique billingRate
-      return co.defaultBillingRate === 35 ? m.billingRate === 35 : m.billingRate !== 35;
+      return false; // société sans poleId → exclure du filtre par pôle
     });
   } else {
     missions = allMissions.filter(m => m.companyId === co.id);

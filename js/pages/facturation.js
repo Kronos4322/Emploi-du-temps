@@ -45,8 +45,7 @@ function buildTagFilters() {
   const schools = Data.getClientSchools().filter(co => {
     if (!_poleId) return true;
     if (co.poleId) return co.poleId === _poleId;
-    const pole = allCos[_poleId];
-    return pole ? (pole.defaultBillingRate===35 ? co.defaultBillingRate===35 : co.defaultBillingRate!==35) : true;
+    return false; // société sans poleId → exclure du filtre par pôle
   });
   const providers = Data.getProviders().filter(p => !_poleId || !p.poleId || p.poleId === _poleId);
 
@@ -87,8 +86,7 @@ function poleFilter(m) {
   if (!co) return false;
   if (co.role === 'own') return co.id === _poleId;
   if (co.poleId) return co.poleId === _poleId;
-  const pole = allCos[_poleId];
-  return pole ? (pole.defaultBillingRate===35 ? m.billingRate===35 : m.billingRate!==35) : true;
+  return false; // société sans poleId → exclure du filtre par pôle
 }
 
 function render() {
@@ -118,21 +116,24 @@ function render() {
       <div class="kpi-value">${Utils.formatMoney(done.reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0))}</div>
       <div class="kpi-label">CA réalisé</div></div></div>
     <div class="kpi-card"><div class="kpi-icon kpi-red">📤</div><div class="kpi-content">
-      <div class="kpi-value">${Utils.formatMoney(done.reduce((s,m)=>m.providerId?s+(m.duration||0)*(m.providerRate||0):s,0))}</div>
+      <div class="kpi-value">${Utils.formatMoney(done.reduce((s,m)=>{const pids=m.providerIds?.length?m.providerIds:(m.providerId?[m.providerId]:[]);return pids.length?s+(m.duration||0)*(m.providerRate||0):s;},0))}</div>
       <div class="kpi-label">Charges prestataires</div></div></div>
-    ${(()=>{ const rev=done.reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0); const cost=done.reduce((s,m)=>m.providerId?s+(m.duration||0)*(m.providerRate||0):s,0); const mg=rev-cost; return `<div class="kpi-card ${mg>=0?'kpi-positive':'kpi-negative'}"><div class="kpi-icon kpi-teal">📊</div><div class="kpi-content"><div class="kpi-value">${Utils.formatMoney(mg)}</div><div class="kpi-label">Marge nette</div></div></div>`; })()}
+    ${(()=>{ const rev=done.reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0); const cost=done.reduce((s,m)=>{const pids=m.providerIds?.length?m.providerIds:(m.providerId?[m.providerId]:[]);return pids.length?s+(m.duration||0)*(m.providerRate||0):s;},0); const mg=rev-cost; return `<div class="kpi-card ${mg>=0?'kpi-positive':'kpi-negative'}"><div class="kpi-icon kpi-teal">📊</div><div class="kpi-content"><div class="kpi-value">${Utils.formatMoney(mg)}</div><div class="kpi-label">Marge nette</div></div></div>`; })()}
   `;
 
   // ── Section prestataires (indépendant du filtre école) ──
   const allFiltered = [...doneAll, ...plannedAll];
   const byProv = {};
   allFiltered.forEach(mi => {
-    if (!mi.providerId) return;
-    if (_selProviders && !_selProviders.has(mi.providerId)) return;
-    if (!byProv[mi.providerId]) byProv[mi.providerId] = { done:{h:0,cost:0,rev:0,n:0}, planned:{h:0,cost:0,rev:0,n:0}, schools:new Set() };
-    const b = mi.status==='done' ? byProv[mi.providerId].done : byProv[mi.providerId].planned;
-    b.h += mi.duration||0; b.cost += (mi.duration||0)*(mi.providerRate||0); b.rev += (mi.duration||0)*(mi.billingRate||0); b.n++;
-    if (mi.companyId) byProv[mi.providerId].schools.add(mi.companyId);
+    const pids = mi.providerIds?.length ? mi.providerIds : (mi.providerId ? [mi.providerId] : []);
+    if (!pids.length) return;
+    pids.forEach(pid => {
+      if (_selProviders && !_selProviders.has(pid)) return;
+      if (!byProv[pid]) byProv[pid] = { done:{h:0,cost:0,rev:0,n:0}, planned:{h:0,cost:0,rev:0,n:0}, schools:new Set() };
+      const b = mi.status==='done' ? byProv[pid].done : byProv[pid].planned;
+      b.h += mi.duration||0; b.cost += (mi.duration||0)*(mi.providerRate||0)/pids.length; b.rev += (mi.duration||0)*(mi.billingRate||0); b.n++;
+      if (mi.companyId) byProv[pid].schools.add(mi.companyId);
+    });
   });
 
   const provCards = Object.entries(byProv).map(([pid, d]) => {

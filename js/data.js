@@ -7,8 +7,9 @@ const DB_KEY = 'emploi_du_temps_db';
 
 // ── Firebase Realtime Database (sync multi-appareils) ──────────
 const _FB_URL = 'https://emploi-du-temps-97818-default-rtdb.europe-west1.firebasedatabase.app/db.json';
-let _fbLastTs  = 0;   // timestamp de la dernière donnée connue
-let _fbWriting = false; // on est en train d'écrire → ignorer le poll
+let _fbLastTs   = 0;   // timestamp de la dernière donnée connue
+let _fbWriting  = false; // on est en train d'écrire → ignorer le poll
+let _fbPending  = false; // un push supplémentaire est en attente (évite les écritures concurrentes)
 
 function _reRenderPage() {
   try {
@@ -42,8 +43,18 @@ const Data = {
     }
     // 2. Synchronisation Firebase
     this._loadFromFirebase();
-    // 3. Polling toutes les 3s
-    setInterval(() => { if (!_fbWriting) this._pollFallback(); }, 3000);
+    // 3. Polling avec backoff exponentiel (3s → 6s → 12s → … max 60s, reset sur succès)
+    let _pollDelay = 3000;
+    const _schedulePoll = () => {
+      setTimeout(async () => {
+        if (!_fbWriting) {
+          const ok = await this._pollFallback();
+          _pollDelay = ok ? 3000 : Math.min(_pollDelay * 2, 60000);
+        }
+        _schedulePoll();
+      }, _pollDelay);
+    };
+    _schedulePoll();
   },
 
   // Charge les données depuis Firebase (source de vérité absolue)
@@ -53,8 +64,10 @@ const Data = {
       if (!res.ok) return;
       const fbData = await res.json();
       if (!fbData || !fbData._updatedAt) {
-        // Firebase vide → push local si on a des données
-        const hasLocal = (this._db.companies||[]).length + (this._db.missions||[]).length > 0;
+        // Firebase vide → push local si on a des données (toutes collections confondues)
+        const hasLocal = (this._db.companies||[]).length + (this._db.missions||[]).length +
+          (this._db.providers||[]).length + (this._db.students||[]).length +
+          (this._db.formations||[]).length > 0;
         if (hasLocal) this._pushToFirebase();
         return;
       }
@@ -79,8 +92,13 @@ const Data = {
   },
 
   // Pousse les données vers Firebase + persiste le timestamp
+  // Utilise un verrou (_fbWriting) et un flag _fbPending pour éviter les écritures concurrentes :
+  // si un push est déjà en cours, on mémorise qu'un autre est en attente
+  // et on le relance à la fin du premier.
   async _pushToFirebase() {
+    if (_fbWriting) { _fbPending = true; return; }
     _fbWriting = true;
+    _fbPending = false;
     try {
       const ts = Date.now();
       const payload = { ...this._db, _updatedAt: ts };
@@ -96,17 +114,22 @@ const Data = {
       }
     } catch(e) {
       console.warn('Échec push Firebase.', e);
+      // Notifier l'utilisateur discrètement
+      if (typeof _showSyncError === 'function') _showSyncError();
     }
     _fbWriting = false;
+    // Rejouer le push si une modification est arrivée pendant l'écriture
+    if (_fbPending) this._pushToFirebase();
   },
 
   async _pollFallback() {
     try {
       const res = await fetch(_FB_URL.replace('.json', '/_updatedAt.json'));
-      if (!res.ok) return;
+      if (!res.ok) return false;
       const ts = await res.json();
       if (ts && ts > _fbLastTs) await this._loadFromFirebase();
-    } catch(_) {}
+      return true;
+    } catch(_) { return false; }
   },
 
   _emptyDb() {
@@ -124,6 +147,7 @@ const Data = {
         defaultBillingRate: 50,
         currency: 'EUR',
         firstDayOfWeek: 1,
+        responsableName: '', // nom du responsable pédagogique (utilisé dans les formulaires Qualiopi)
       }
     };
   },
@@ -433,7 +457,7 @@ const Data = {
       else if (frequency === 'biweekly') current = Utils.addDays(current, 14);
       else if (frequency === 'monthly') {
         const d = new Date(current + 'T00:00:00'); d.setMonth(d.getMonth() + 1);
-        current = d.toISOString().split('T')[0];
+        current = Utils.localISO(d);
       } else break;
     }
     this._save();
@@ -514,9 +538,13 @@ const Data = {
 
   saveSubject(subject) {
     if (!this._db.subjects) this._db.subjects = [];
+    if (!subject.id) subject.id = Utils.uuid();
     const idx = this._db.subjects.findIndex(s => s.id === subject.id);
-    if (idx >= 0) this._db.subjects[idx] = subject;
-    else this._db.subjects.push(subject);
+    if (idx >= 0) {
+      this._db.subjects[idx] = { ...subject, updatedAt: Date.now() };
+    } else {
+      this._db.subjects.push({ ...subject, createdAt: Date.now(), updatedAt: Date.now() });
+    }
     this._save();
   },
 
@@ -582,8 +610,10 @@ const Data = {
 
     if (filters.yearMonth)  missions = missions.filter(m => m.date && m.date.startsWith(filters.yearMonth));
     if (filters.companyId)  missions = missions.filter(m => m.companyId === filters.companyId);
-    if (filters.schoolId)   missions = missions.filter(m => m.companyId === filters.schoolId);
-    if (filters.providerId) missions = missions.filter(m => m.providerId === filters.providerId);
+    if (filters.providerId) missions = missions.filter(m => {
+      const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+      return pids.includes(filters.providerId);
+    });
     if (filters.missionType) missions = missions.filter(m => m.missionType === filters.missionType);
     if (filters.status)     missions = missions.filter(m => m.status === filters.status);
 
@@ -612,10 +642,12 @@ const Data = {
     const byProvider = {};
     done.forEach(m => {
       const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+      // On divise le coût entre le nombre de prestataires pour éviter le double comptage
+      const costPerProvider = pids.length > 0 ? (m.duration || 0) * (m.providerRate || 0) / pids.length : 0;
       pids.forEach(pid => {
         if (!byProvider[pid]) byProvider[pid] = { hours: 0, cost: 0, count: 0 };
         byProvider[pid].hours += m.duration || 0;
-        byProvider[pid].cost  += (m.duration || 0) * (m.providerRate || 0);
+        byProvider[pid].cost  += costPerProvider;
         byProvider[pid].count++;
       });
     });
@@ -672,11 +704,12 @@ const Data = {
     const unpaid       = allMissions.filter(m => m.status === 'done' && m.paymentStatus !== 'paid').slice(0, 5);
     const conflicts    = this.getAllConflicts().slice(0, 5);
 
-    // Stats par société
+    // Stats par société (mois courant uniquement, pour cohérence avec les KPIs)
     const companies    = this.getCompanies();
     const byCompany    = {};
+    const monthMissions = allMissions.filter(m => m.date && m.date.startsWith(currentMonth) && m.status !== 'cancelled');
     companies.forEach(c => {
-      const cMissions = allMissions.filter(m => m.companyId === c.id);
+      const cMissions = monthMissions.filter(m => m.companyId === c.id);
       byCompany[c.id] = {
         company: c,
         planned: cMissions.filter(m => m.status === 'planned').length,
@@ -721,15 +754,25 @@ const Data = {
   importFromJson(jsonString) {
     try {
       const data = JSON.parse(jsonString);
-      if (!data.companies && !data.schools) {
-        return { error: 'Fichier invalide : structure incorrecte.' };
+      // Validation minimale du schéma
+      if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+        return { error: 'Fichier invalide : la racine doit être un objet JSON.' };
+      }
+      if (!data.companies && !data.schools && !data.missions) {
+        return { error: 'Fichier invalide : aucune collection reconnue (companies, missions…).' };
+      }
+      const ARRAY_KEYS = ['companies','missions','providers','students','formations','subjects'];
+      for (const k of ARRAY_KEYS) {
+        if (data[k] !== undefined && !Array.isArray(data[k])) {
+          return { error: `Fichier invalide : la collection "${k}" devrait être un tableau.` };
+        }
       }
       this._db = data;
       this._migrate();
       this._save();
       return { success: true, message: 'Données importées avec succès.' };
     } catch (e) {
-      return { error: 'Erreur de lecture du fichier JSON.' };
+      return { error: 'Erreur de lecture du fichier JSON : ' + e.message };
     }
   },
 

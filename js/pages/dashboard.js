@@ -1,4 +1,4 @@
-// dashboard.js v3
+// dashboard.js v4
 'use strict';
 
 let _dashPole = ''; // '' = tous, sinon poleId
@@ -9,6 +9,28 @@ document.addEventListener('DOMContentLoaded', () => {
   renderDashboard();
 });
 
+// ── Fonctions globales appelées depuis les onclick HTML ───────────
+
+window._setPole = id => { _dashPole = id; _buildPoleSwitch(); renderDashboard(); };
+
+window._dismissConflict = function(aId, bId) {
+  try {
+    const dismissed = JSON.parse(localStorage.getItem('_edt_dismissed_conflicts') || '[]');
+    dismissed.push({ aId, bId });
+    localStorage.setItem('_edt_dismissed_conflicts', JSON.stringify(dismissed));
+  } catch {}
+  renderDashboard();
+};
+
+window._markPaid = function(missionId) {
+  const m = Data.getMissionById(missionId);
+  if (!m) return;
+  Data.saveMission({ ...m, paymentStatus: 'paid' });
+  renderDashboard();
+};
+
+// ── Switch pôle ──────────────────────────────────────────────────
+
 function _buildPoleSwitch() {
   const ownCos = Data.getOwnCompanies();
   const sw = document.getElementById('pole-switch');
@@ -18,7 +40,6 @@ function _buildPoleSwitch() {
     `<button ${btnStyle(!_dashPole, '#64748b')} onclick="window._setPole('')">Tous</button>` +
     ownCos.map(c => `<button ${btnStyle(_dashPole===c.id, c.color)} onclick="window._setPole('${c.id}')">${Utils.escapeHtml(c.name)}</button>`).join('');
 }
-window._setPole = id => { _dashPole = id; _buildPoleSwitch(); renderDashboard(); };
 
 function _poleFilter(m, coMap) {
   if (!_dashPole) return true;
@@ -28,6 +49,54 @@ function _poleFilter(m, coMap) {
   return co.poleId === _dashPole;
 }
 
+// ── Helpers ──────────────────────────────────────────────────────
+
+/** Retourne true si la mission est en distanciel/visio. */
+function _isDistanciel(m) {
+  const haystack = [m.title||'', m.location||'', m.missionType||'', m.type||'', m.notes||''].join(' ');
+  return /distanc|visio|en ligne|online|zoom|teams|google meet|webex|skype/i.test(haystack);
+}
+
+/** Formate une date ISO en "lun. 12 mai" avec mise en avant si aujourd'hui. */
+function _dayLabel(iso) {
+  const DAYS = ['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
+  const MONTHS = ['jan.','fév.','mar.','avr.','mai','juin','juil.','août','sep.','oct.','nov.','déc.'];
+  const d = new Date(iso + 'T00:00:00');
+  return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+
+/** Renvoie les conflits non-ignorés. */
+function _visibleConflicts(conflicts) {
+  let dismissed = [];
+  try { dismissed = JSON.parse(localStorage.getItem('_edt_dismissed_conflicts') || '[]'); } catch {}
+  return conflicts.filter(({ a, b }) =>
+    !dismissed.some(d => (d.aId===a.id && d.bId===b.id) || (d.aId===b.id && d.bId===a.id))
+  );
+}
+
+/** KPI : valeur principale et sous-label intelligents selon réalisé vs prévu. */
+function _kpiMoney(done, planned, color) {
+  if (done > 0) {
+    // Réalisé disponible : on l'affiche en gros, prévu en petit
+    return {
+      main: Utils.formatMoney(done),
+      mainColor: color,
+      sub: `<span style="font-size:0.7rem;color:var(--text-muted)">+${Utils.formatMoney(planned)} prévu</span>`
+    };
+  } else if (planned > 0) {
+    // Aucun réalisé mais du prévu → montrer prévu en gros avec badge
+    return {
+      main: Utils.formatMoney(planned),
+      mainColor: '#94a3b8',
+      sub: `<span style="font-size:0.68rem;background:#f1f5f9;color:#64748b;border-radius:4px;padding:1px 6px;font-weight:600">PRÉVU</span>`
+    };
+  } else {
+    return { main: Utils.formatMoney(0), mainColor: 'var(--text-muted)', sub: '' };
+  }
+}
+
+// ── Render principal ─────────────────────────────────────────────
+
 function renderDashboard() {
   const d = Data.getDashboardData();
   const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
@@ -36,42 +105,37 @@ function renderDashboard() {
   const ym = Utils.currentYearMonth();
   const allM = Data.getMissions().filter(m => m.status !== 'cancelled' && m.date && m.date.startsWith(ym));
 
-  // Missions filtrées par pôle
-  const poleM = allM.filter(m => _poleFilter(m, coMap));
+  const poleM    = allM.filter(m => _poleFilter(m, coMap));
   const donePole = poleM.filter(m => m.status === 'done');
   const planPole = poleM.filter(m => m.status === 'planned');
 
-  // Heures pôle (missions + prestataires)
-  const hDone = donePole.reduce((s,m)=>s+(m.duration||0),0);
-  const hPlan = planPole.reduce((s,m)=>s+(m.duration||0),0);
-  // Heures prestataires (missions du pôle avec au moins un prestataire)
-  const hProv = poleM.filter(m=>m.providerId||m.providerIds?.length).reduce((s,m)=>s+(m.duration||0),0);
+  const hDone = donePole.reduce((s,m) => s+(m.duration||0), 0);
+  const hPlan = planPole.reduce((s,m) => s+(m.duration||0), 0);
+  const hProv = poleM.filter(m => m.providerId||m.providerIds?.length).reduce((s,m) => s+(m.duration||0), 0);
 
-  // CA par pôle (toujours les deux)
+  // CA par pôle
   const caByPole = {};
   ownCos.forEach(p => {
-    const ms = allM.filter(m => _poleFilter(m, {...coMap, _override: p.id}));
-    // On recalcule sans override : CA de chaque pôle indépendamment
     const pMs = allM.filter(m => {
       const co = coMap[m.companyId];
       if (!co) return false;
       if (co.role === 'own') return co.id === p.id;
       if (co.poleId) return co.poleId === p.id;
-      return p.defaultBillingRate === 35 ? m.billingRate === 35 : m.billingRate !== 35;
+      return false;
     });
-    caByPole[p.id] = { name: p.name, color: p.color,
-      ca:     pMs.filter(m=>m.status==='done').reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0),
-      planned:pMs.filter(m=>m.status==='planned').reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0)
+    caByPole[p.id] = {
+      name:    p.name,
+      color:   p.color,
+      ca:      pMs.filter(m => m.status==='done').reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0),
+      planned: pMs.filter(m => m.status==='planned').reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0)
     };
   });
 
-  // Charges prestataires du pôle ce mois
-  const charges = donePole.filter(m=>m.providerId||m.providerIds?.length).reduce((s,m)=>s+(m.duration||0)*(m.providerRate||0),0);
-  const chargesPlan = planPole.filter(m=>m.providerId||m.providerIds?.length).reduce((s,m)=>s+(m.duration||0)*(m.providerRate||0),0);
+  const charges     = donePole.filter(m => m.providerId||m.providerIds?.length).reduce((s,m) => s+(m.duration||0)*(m.providerRate||0), 0);
+  const chargesPlan = planPole.filter(m => m.providerId||m.providerIds?.length).reduce((s,m) => s+(m.duration||0)*(m.providerRate||0), 0);
 
-  // ── KPIs ──
+  // ── KPIs ──────────────────────────────────────────────────────
   const kpiGrid = document.getElementById('kpi-grid');
-  const poleLabel = _dashPole ? (coMap[_dashPole]?.name||'') : 'tous pôles';
   kpiGrid.innerHTML = `
     <div class="kpi-card">
       <div class="kpi-icon kpi-purple">⏱</div>
@@ -88,39 +152,42 @@ function renderDashboard() {
       </div>
     </div>
     ${ownCos.map(p => {
-      const v = caByPole[p.id]||{ca:0,planned:0};
+      const v = caByPole[p.id] || { ca:0, planned:0 };
+      const kpi = _kpiMoney(v.ca, v.planned, p.color);
       return `<div class="kpi-card">
         <div class="kpi-icon" style="background:${p.color}20;color:${p.color}">💶</div>
         <div class="kpi-content">
-          <div class="kpi-value" style="color:${p.color}">${Utils.formatMoney(v.ca)}</div>
-          <div class="kpi-label">CA ${Utils.escapeHtml(p.name)} <span style="font-size:0.7rem;color:var(--text-muted)">(+${Utils.formatMoney(v.planned)} prévu)</span></div>
+          <div class="kpi-value" style="color:${kpi.mainColor}">${kpi.main}</div>
+          <div class="kpi-label">CA ${Utils.escapeHtml(p.name)} ${kpi.sub}</div>
         </div>
       </div>`;
     }).join('')}
-    <div class="kpi-card">
-      <div class="kpi-icon kpi-red">📤</div>
-      <div class="kpi-content">
-        <div class="kpi-value">${Utils.formatMoney(charges)}</div>
-        <div class="kpi-label">Charges prestataires <span style="font-size:0.7rem;color:var(--text-muted)">(+${Utils.formatMoney(chargesPlan)} prévu)</span></div>
-      </div>
-    </div>
+    ${(()=>{
+      const kpi = _kpiMoney(charges, chargesPlan, '#ef4444');
+      return `<div class="kpi-card">
+        <div class="kpi-icon kpi-red">📤</div>
+        <div class="kpi-content">
+          <div class="kpi-value" style="color:${kpi.mainColor}">${kpi.main}</div>
+          <div class="kpi-label">Charges prestataires ${kpi.sub}</div>
+        </div>
+      </div>`;
+    })()}
     <div class="kpi-card">
       <div class="kpi-icon kpi-gray">🎓</div>
       <div class="kpi-content">
-        <div class="kpi-value">${_dashPole ? Data.getStudents().filter(s => s.status !== 'inactive' && (s.poleId === _dashPole || s.companyId === _dashPole)).length : d.activeStudentsCount}</div>
+        <div class="kpi-value">${_dashPole ? Data.getStudents().filter(s => s.status!=='inactive'&&(s.poleId===_dashPole||s.companyId===_dashPole)).length : d.activeStudentsCount}</div>
         <div class="kpi-label">Étudiants actifs</div>
       </div>
     </div>
   `;
 
-  // ── Aperçu écoles (sans sociétés propres) ──
+  // ── Aperçu écoles ─────────────────────────────────────────────
   const compEl = document.getElementById('companies-overview');
   if (compEl) {
     const entries = Object.values(d.byCompany).filter(({company:co}) => co.role !== 'own');
     const filtered = _dashPole ? entries.filter(({company:co}) => {
       if (co.poleId) return co.poleId === _dashPole;
-      const pole = coMap[_dashPole];
-      return pole ? (pole.defaultBillingRate===35 ? co.defaultBillingRate===35 : co.defaultBillingRate!==35) : true;
+      return false; // société sans poleId → exclure
     }) : entries;
     compEl.innerHTML = filtered.map(({company:co, planned, done, hoursPlanned, hoursDone}) => {
       const lightBg = Utils.lightenColor(co.color, 0.88);
@@ -135,21 +202,93 @@ function renderDashboard() {
     }).join('') || '<p class="empty-state">Aucune école.</p>';
   }
 
-  // ── Prochaines missions ──
+  // ── Prochaines missions — groupées par jour ───────────────────
   const upEl = document.getElementById('upcoming-courses');
   const upFiltered = _dashPole ? d.upcoming.filter(m => _poleFilter(m, coMap)) : d.upcoming;
-  upEl.innerHTML = upFiltered.length === 0
-    ? '<p class="empty-state">Aucune mission prévue prochainement.</p>'
-    : upFiltered.map(m => missionRow(m, coMap, provMap)).join('');
+  if (upFiltered.length === 0) {
+    upEl.innerHTML = '<p class="empty-state">Aucune mission prévue prochainement.</p>';
+  } else {
+    const today = Utils.today();
+    // Grouper par date
+    const byDate = {};
+    upFiltered.forEach(m => { if (!byDate[m.date]) byDate[m.date] = []; byDate[m.date].push(m); });
+    upEl.innerHTML = Object.entries(byDate)
+      .sort(([a],[b]) => a.localeCompare(b))
+      .map(([date, missions]) => {
+        const isToday = date === today;
+        const isTomorrow = (() => { const t=new Date(today+'T00:00:00'); t.setDate(t.getDate()+1); return Utils.localISO(t)===date; })();
+        let label = _dayLabel(date);
+        if (isToday) label += ' <span style="background:var(--primary);color:#fff;font-size:0.65rem;border-radius:4px;padding:1px 6px;vertical-align:middle;font-weight:700">AUJOURD\'HUI</span>';
+        else if (isTomorrow) label += ' <span style="background:#f59e0b;color:#fff;font-size:0.65rem;border-radius:4px;padding:1px 6px;vertical-align:middle;font-weight:700">DEMAIN</span>';
+        const headerColor = isToday ? 'var(--primary)' : (isTomorrow ? '#f59e0b' : 'var(--text-muted)');
+        const dayHeader = `
+          <div style="display:flex;align-items:center;gap:10px;margin:${date===Object.keys(byDate)[0]?'0':'20px'} 0 6px;">
+            <span style="font-size:0.8rem;font-weight:700;color:${headerColor};white-space:nowrap">${label}</span>
+            <div style="flex:1;height:1px;background:var(--border)"></div>
+            <span style="font-size:0.72rem;color:var(--text-muted)">${missions.length} mission${missions.length>1?'s':''}</span>
+          </div>`;
+        return dayHeader + missions.map(m => missionRow(m, coMap, provMap)).join('');
+      }).join('');
+  }
 
-  // ── Alertes ──
-  _renderAlert('alert-conflicts', d.conflicts.length > 0 ? `<div class="card card-alert"><div class="card-header"><h2 class="card-title">🚨 Conflits</h2><span class="badge badge-danger">${d.conflicts.length}</span></div><div class="card-body">${d.conflicts.map(({providerId,a,b})=>{const p=provMap[providerId];return`<div class="conflict-alert"><div class="conflict-alert-title">⚠ ${p?p.firstName+' '+p.lastName:'—'}</div><div class="conflict-alert-body">${Utils.escapeHtml(a.title)} ↔ ${Utils.escapeHtml(b.title)} — ${Utils.formatDate(a.date)}</div></div>`;}).join('')}</div></div>` : '');
-  _renderAlert('alert-reschedule', d.toReschedule.length > 0 ? `<div class="card card-alert"><div class="card-header"><h2 class="card-title">⚠ À reprogrammer</h2><span class="badge badge-warning">${d.toReschedule.length}</span></div><div class="card-body">${d.toReschedule.map(m=>missionRowCompact(m,coMap)).join('')}</div></div>` : '');
+  // ── Alertes ──────────────────────────────────────────────────
+  const visConflicts = _visibleConflicts(d.conflicts);
+  _renderAlert('alert-conflicts', visConflicts.length > 0
+    ? `<div class="card card-alert">
+        <div class="card-header">
+          <h2 class="card-title">🚨 Conflits</h2>
+          <span class="badge badge-danger">${visConflicts.length}</span>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:8px">
+          ${visConflicts.map(({providerId,a,b}) => {
+            const p = provMap[providerId];
+            const isPast = a.date < Utils.today();
+            return `<div class="conflict-alert" style="position:relative">
+              <div class="conflict-alert-title" style="display:flex;align-items:center;justify-content:space-between">
+                <span>⚠ ${p?Utils.escapeHtml(p.firstName+' '+p.lastName):'—'}</span>
+                ${isPast ? '<span style="font-size:0.65rem;background:#fef2f2;color:#dc2626;border-radius:4px;padding:1px 6px">passé</span>' : ''}
+              </div>
+              <div class="conflict-alert-body">${Utils.escapeHtml(a.title)} ↔ ${Utils.escapeHtml(b.title)} — ${Utils.formatDate(a.date)}</div>
+              <div style="display:flex;gap:6px;margin-top:6px">
+                <button class="btn btn-ghost btn-sm" onclick="Modals.openMission('${a.id}',null,()=>renderDashboard())" style="font-size:0.75rem">✏ Modifier</button>
+                <button class="btn btn-ghost btn-sm" onclick="window._dismissConflict('${a.id}','${b.id}')" style="font-size:0.75rem;color:var(--text-muted)">✕ Ignorer</button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`
+    : '');
+
+  _renderAlert('alert-reschedule', d.toReschedule.length > 0
+    ? `<div class="card card-alert">
+        <div class="card-header"><h2 class="card-title">⚠ À reprogrammer</h2><span class="badge badge-warning">${d.toReschedule.length}</span></div>
+        <div class="card-body">${d.toReschedule.map(m => missionRowCompact(m, coMap)).join('')}</div>
+      </div>`
+    : '');
+
   _renderAlert('alert-unpaid', d.unpaid.length > 0
-    ? `<div class="card card-alert"><div class="card-header"><h2 class="card-title">💳 Non payés</h2><span class="badge badge-danger">${d.unpaid.length}</span></div><div class="card-body">${d.unpaid.map(m=>missionRowCompact(m,coMap)).join('')}</div></div>`
+    ? `<div class="card card-alert">
+        <div class="card-header">
+          <h2 class="card-title">💳 Non payés</h2>
+          <span class="badge badge-danger">${d.unpaid.length}</span>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:6px">
+          ${d.unpaid.map(m => {
+            const co = coMap[m.companyId], color = co ? co.color : '#94a3b8';
+            const rev = (m.duration||0)*(m.billingRate||0);
+            return `<div class="course-row-compact" style="align-items:flex-start;flex-wrap:wrap;gap:4px">
+              <span class="course-dot" style="background:${color};flex-shrink:0;margin-top:3px"></span>
+              <span class="course-compact-title" style="flex:1;cursor:pointer" onclick="Modals.openMission('${m.id}',null,()=>renderDashboard())">${Utils.escapeHtml(m.title)}</span>
+              <span class="course-compact-date" style="color:var(--text-muted)">${Utils.formatDateShort(m.date)}</span>
+              ${rev>0?`<span class="course-compact-amount" style="font-weight:700">${Utils.formatMoney(rev)}</span>`:''}
+              <button class="btn btn-ghost btn-sm" onclick="window._markPaid('${m.id}')" style="font-size:0.72rem;color:#10b981;border-color:#10b981;padding:1px 8px;margin-left:auto">✓ Payé</button>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`
     : `<div class="card card-success-light"><div class="card-body"><p class="success-message">✓ Toutes les missions réalisées sont payées.</p></div></div>`);
 
-  // ── Formations ──
+  // ── Formations en cours ───────────────────────────────────────
   const formEl = document.getElementById('active-formations');
   if (formEl) {
     formEl.innerHTML = d.activeFormations.length > 0
@@ -167,6 +306,8 @@ function renderDashboard() {
   }
 }
 
+// ── Helpers render ───────────────────────────────────────────────
+
 function _renderAlert(id, html) {
   const el = document.getElementById(id);
   if (el) el.innerHTML = html;
@@ -176,18 +317,21 @@ function missionRow(m, coMap, provMap) {
   const co = coMap[m.companyId];
   const provIds = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
   const provNames = provIds.map(pid => { const p = provMap[pid]; return p ? p.firstName+' '+p.lastName : ''; }).filter(Boolean).join(', ');
-  const prov = provNames; // compatibilité
   const color = co ? co.color : '#94a3b8';
   const bg = Utils.lightenColor(color, 0.88);
+  const distanciel = _isDistanciel(m);
+
   return `<div class="course-row" onclick="Modals.openMission('${m.id}',null,()=>renderDashboard())" style="border-left:3px solid ${color};background:${bg}">
     <div class="course-row-main">
-      <span class="course-row-title">${Utils.getMissionTypeIcon(m.missionType)} ${Utils.escapeHtml(m.title)}</span>
-      <span class="course-row-time">${m.startTime} → ${m.endTime} · ${Utils.formatDuration(m.duration)}</span>
+      <span class="course-row-title">
+        ${Utils.getMissionTypeIcon(m.missionType)} ${Utils.escapeHtml(m.title)}
+        ${distanciel ? '<span title="Distanciel / Visio" style="display:inline-flex;align-items:center;justify-content:center;background:#e0f2fe;color:#0284c7;border-radius:6px;padding:0 5px;font-size:0.78rem;margin-left:5px;vertical-align:middle">💻 visio</span>' : ''}
+      </span>
+      <span class="course-row-time">${m.startTime||''} → ${m.endTime||''} · ${Utils.formatDuration(m.duration)}</span>
     </div>
     <div class="course-row-meta">
-      <span class="course-row-date">${Utils.formatDateShort(m.date)}</span>
       ${co?`<span class="course-school-badge" style="background:${color};color:${Utils.contrastColor(color)}">${Utils.escapeHtml(co.name)}</span>`:''}
-      ${prov?`<span class="course-row-location">👤 ${Utils.escapeHtml(prov)}</span>`:''}
+      ${provNames?`<span class="course-row-location">👤 ${Utils.escapeHtml(provNames)}</span>`:''}
     </div>
   </div>`;
 }

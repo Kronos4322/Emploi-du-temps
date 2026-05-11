@@ -76,9 +76,9 @@ const Utils = {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
   },
 
-  // Retourne la date du jour en YYYY-MM-DD
+  // Retourne la date du jour en YYYY-MM-DD (heure locale, pas UTC)
   today() {
-    return new Date().toISOString().split('T')[0];
+    return this.localISO(new Date());
   },
 
   // Retourne l'année-mois du jour (YYYY-MM)

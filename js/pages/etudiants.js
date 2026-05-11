@@ -136,8 +136,10 @@ function hubHTML() {
       <div style="display:flex;justify-content:center;gap:32px">${stats}</div>
     </div>`;
   const stat = (v,l,c) => `<div><div style="font-size:2.2rem;font-weight:800;color:${c}">${v}</div><div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px">${l}</div></div>`;
+  const ownCos = Data.getCompanies().filter(c => c.role === 'own');
+  const hubTitle = ownCos.length ? ownCos.map(c => c.name).join(' & ') + ' — Formation' : 'Formation';
   return `
-  <div class="page-header"><h1 class="page-title">Artémis — Formation</h1></div>
+  <div class="page-header"><h1 class="page-title">${Utils.escapeHtml(hubTitle)}</h1></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:16px">
     ${card('goto-students','🎓','Étudiants','Gestion des dossiers & fiches',
       stat(all.length,'total','var(--primary)')+stat(nA,'actifs','#22c55e'),'rgba(59,130,246,.25)')}
@@ -182,8 +184,8 @@ function studentsHTML() {
       const provStats = provIds.map(pid=>{
         const p=prov[pid]; if(!p) return '';
         const pMs=sMs.filter(m=>m.providerId===pid);
-        const rk=RATE[s.level]; const rate=(rk&&p[rk])||p.defaultHourlyRate||0;
-        const cost=pMs.reduce((a,m)=>a+(m.duration||0)*rate,0);
+        // On utilise le providerRate de chaque mission (source de vérité), pas le tarif de la fiche prestataire
+        const cost=pMs.reduce((a,m)=>a+(m.duration||0)*(m.providerRate||0),0);
         const rev=pMs.reduce((a,m)=>a+(m.duration||0)*(m.billingRate||0),0);
         return `<div style="font-size:0.78rem;margin-top:4px"><strong>${Utils.escapeHtml(p.lastName+' '+p.firstName)}</strong>
           <span style="color:var(--danger);margin-left:6px">Coût: ${Utils.formatMoney(cost)}</span>
@@ -461,10 +463,12 @@ window._exportStudent = function(studentId, month) {
   const DAYS=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
   const rows=[['Date','Jour','Heure début','Heure fin','Durée (h)','Matière','Prestataire','Tarif (€/h)','Total (€)']];
   missions.forEach(m=>{
-    const d=new Date(m.date+'T00:00:00'); const p=providers[m.providerId];
+    const d=new Date(m.date+'T00:00:00');
+    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+    const provNames = pids.map(pid => { const p=providers[pid]; return p ? p.firstName+' '+p.lastName : ''; }).filter(Boolean).join(', ');
     const subj=m.subjectId?(subjects[m.subjectId]?.name||m.subject||''):(m.subject||m.title||'');
     rows.push([m.date,DAYS[d.getDay()],m.startTime||'',m.endTime||'',(m.duration||0).toFixed(2),subj,
-      p?p.firstName+' '+p.lastName:'',(m.billingRate||0).toFixed(2),((m.duration||0)*(m.billingRate||0)).toFixed(2)]);
+      provNames,(m.billingRate||0).toFixed(2),((m.duration||0)*(m.billingRate||0)).toFixed(2)]);
   });
   rows.push(['','','','','','','','TOTAL',missions.reduce((a,m)=>a+(m.duration||0)*(m.billingRate||0),0).toFixed(2)]);
   _downloadCSV(rows,`cours_${s.lastName}_${month||'complet'}.csv`);

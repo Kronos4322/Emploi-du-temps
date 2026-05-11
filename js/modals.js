@@ -14,7 +14,7 @@ const Modals = {
     const overlay = document.createElement('div');
     overlay.id = 'modal-overlay';
     overlay.className = 'modal-overlay';
-    overlay.innerHTML = `<div class="modal-box">${html}</div>`;
+    overlay.innerHTML = `<div class="modal-box" role="dialog" aria-modal="true">${html}</div>`;
     document.body.appendChild(overlay);
 
     overlay.addEventListener('click', e => { if (e.target === overlay) this.close(); });
@@ -55,8 +55,7 @@ const Modals = {
 
   openMission(missionId = null, defaultDate = null, onDone = null, defaults = {}) {
     const mission    = missionId ? Data.getMissionById(missionId) : null;
-    const allCompanies = Data.getCompanies();
-    const companies  = allCompanies;
+    const companies  = Data.getCompanies();
     const providers  = Data.getProviders();
     const students   = Data.getStudents();
     const formations = Data.getFormations();
@@ -256,7 +255,7 @@ const Modals = {
           </div>
           <div class="form-group form-col-2">
             <label>Notes</label>
-            <textarea id="mf-notes" class="form-input form-textarea" placeholder="Observations, notes admin…" style="min-height:60px">${Utils.escapeHtml((m.notes||'')+(m.adminNotes?'\n'+m.adminNotes:''))}</textarea>
+            <textarea id="mf-notes" class="form-input form-textarea" placeholder="Observations, notes admin…" style="min-height:60px">${Utils.escapeHtml(m.notes||'')}</textarea>
           </div>
 
           ${isNew ? `
@@ -387,14 +386,13 @@ const Modals = {
         level:       document.getElementById('mf-level').value.trim(),
         type:        document.getElementById('mf-type').value,
         companyId:   document.getElementById('mf-company').value,
-        schoolId:    document.getElementById('mf-company').value,
         providerIds: [...document.querySelectorAll('input[name="mf-provider-chk"]:checked')].map(i => i.value),
         providerId:  document.querySelector('input[name="mf-provider-chk"]:checked')?.value || null,
         date, startTime, endTime,
         location:    document.getElementById('mf-location').value.trim(),
-        room:        document.getElementById('mf-location').value.trim(),
+        room:        m.room || '', // champ distinct conservé si existant
         notes:       document.getElementById('mf-notes').value.trim(),
-        adminNotes:  '',
+        adminNotes:  m.adminNotes || '', // on préserve les notes admin existantes
         status:      document.getElementById('mf-status').value,
         paymentStatus: document.getElementById('mf-payment').value,
         billingRate: parseFloat(document.getElementById('mf-billing-rate').value) || 0,
@@ -413,7 +411,7 @@ const Modals = {
       }
 
       this.close();
-      if (onDone) onDone(); else if (typeof renderPage === 'function') renderPage();
+      if (onDone) onDone(); else if (typeof renderPage === 'function') renderPage(); else if (typeof renderDashboard === 'function') renderDashboard();
     });
 
     // Delete
@@ -427,7 +425,7 @@ const Modals = {
             Data.deleteMission(m.id);
             Utils.toast('Mission supprimée.', 'success');
             this.close();
-            if (onDone) onDone(); else if (typeof renderPage === 'function') renderPage();
+            if (onDone) onDone(); else if (typeof renderPage === 'function') renderPage(); else if (typeof renderDashboard === 'function') renderDashboard();
           });
         }
       });
@@ -467,13 +465,13 @@ const Modals = {
       Data.deleteMission(mission.id);
       Utils.toast('Mission supprimée.', 'success');
       this.close();
-      if (onDone) onDone(); else if (typeof renderPage === 'function') renderPage();
+      if (onDone) onDone(); else if (typeof renderPage === 'function') renderPage(); else if (typeof renderDashboard === 'function') renderDashboard();
     });
     document.getElementById('del-all').addEventListener('click', () => {
       Data.deleteRecurringGroup(mission.recurringGroupId);
       Utils.toast('Série supprimée.', 'success');
       this.close();
-      if (onDone) onDone(); else if (typeof renderPage === 'function') renderPage();
+      if (onDone) onDone(); else if (typeof renderPage === 'function') renderPage(); else if (typeof renderDashboard === 'function') renderDashboard();
     });
   },
 
@@ -631,7 +629,9 @@ const Modals = {
       });
       Utils.toast(isNew ? 'Société créée.' : 'Société mise à jour.', 'success');
       this.close();
+      if (typeof window._refreshSidebar === 'function') window._refreshSidebar();
       if (typeof renderPage === 'function') renderPage();
+      else if (typeof renderDashboard === 'function') renderDashboard();
     });
 
     const delBtn = document.getElementById('del-company-btn');
@@ -642,7 +642,9 @@ const Modals = {
         else {
           Utils.toast('Société supprimée.', 'success');
           this.close();
+          if (typeof window._refreshSidebar === 'function') window._refreshSidebar();
           if (typeof renderPage === 'function') renderPage();
+          else if (typeof renderDashboard === 'function') renderDashboard();
         }
       });
     }
@@ -825,6 +827,7 @@ const Modals = {
       Utils.toast(isNew ? 'Prestataire créé.' : 'Prestataire mis à jour.', 'success');
       this.close();
       if (typeof renderPage === 'function') renderPage();
+      else if (typeof renderDashboard === 'function') renderDashboard();
     });
 
     const delBtn = document.getElementById('del-provider-btn');
@@ -836,6 +839,7 @@ const Modals = {
           Utils.toast('Prestataire supprimé.', 'success');
           this.close();
           if (typeof renderPage === 'function') renderPage();
+          else if (typeof renderDashboard === 'function') renderDashboard();
         }
       });
     }

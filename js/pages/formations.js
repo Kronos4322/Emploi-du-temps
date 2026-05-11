@@ -58,9 +58,11 @@ function render() {
   const students   = {}; Data.getStudents().forEach(s => students[s.id] = s);
 
   const totalH = filtered.reduce((s, f) => s + (f.totalHours||0), 0);
-  const doneH  = filtered.reduce((s, f) => {
-    return s + Data.getMissions().filter(m => m.formationId === f.id && m.status === 'done').reduce((a,m) => a+(m.duration||0), 0);
-  }, 0);
+  const allMissions = Data.getMissions(); // hissé hors du reduce pour éviter N+1
+  const filteredIds = new Set(filtered.map(f => f.id));
+  const doneH  = allMissions
+    .filter(m => m.status === 'done' && filteredIds.has(m.formationId))
+    .reduce((s, m) => s + (m.duration||0), 0);
   document.getElementById('list-summary').textContent =
     `${filtered.length} formation${filtered.length > 1 ? 's' : ''} · ${doneH}h réalisées / ${totalH}h prévues`;
 
@@ -81,7 +83,6 @@ function render() {
 function formationCard(f, companies, providers, students) {
   const co      = companies[f.companyId];
   const color   = co ? co.color : '#3b82f6';
-  const pct     = f.totalHours > 0 ? Math.round(realHours / f.totalHours * 100) : 0;
   const statusLabel = Utils.getFormationStatusLabel(f.status);
   const statusClass = Utils.getFormationStatusClass(f.status);
 
@@ -92,10 +93,11 @@ function formationCard(f, companies, providers, students) {
 
   const stuCount = (f.studentIds||[]).length;
 
-  // Missions liées à cette formation
+  // Missions liées à cette formation (déclarées avant utilisation)
   const linkedMissions = Data.getMissions().filter(m => m.formationId === f.id);
   const doneMissions   = linkedMissions.filter(m => m.status === 'done');
   const realHours      = doneMissions.reduce((s, m) => s + (m.duration||0), 0);
+  const pct            = f.totalHours > 0 ? Math.round(realHours / f.totalHours * 100) : 0;
 
   return `<div class="formation-card" onclick="Modals.openFormation('${f.id}')">
     <div class="formation-card-header">
