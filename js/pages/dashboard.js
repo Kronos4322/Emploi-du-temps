@@ -438,38 +438,57 @@ function missionRowCompact(m, coMap) {
 // ── Export Planning mensuel ──────────────────────────────────────
 
 window._showPlanningExport = function() {
-  // Récupérer tous les mois qui ont des missions
   const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled');
   const months = [...new Set(allMissions.map(m => m.date?.substring(0,7)).filter(Boolean))].sort().reverse();
   if (!months.length) { Utils.toast('Aucune mission trouvée.', 'info'); return; }
 
   const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   const monthLabel = m => { const [y,mo] = m.split('-'); return `${MONTHS_FR[+mo-1]} ${y}`; };
-  const currentM = Utils.currentYearMonth();
+  const currentM  = Utils.currentYearMonth();
+  const providers = Data.getProviders().slice().sort((a,b) => (a.lastName+a.firstName).localeCompare(b.lastName+b.firstName));
 
   Modals._open(`
     <div class="modal-header">
       <h3>📄 Exporter un planning mensuel</h3>
       <button class="modal-close" onclick="Modals.close()">✕</button>
     </div>
-    <div class="modal-body" style="padding:24px">
-      <p style="color:var(--text-muted);margin-bottom:16px;font-size:0.9rem">
-        Génère un document imprimable (style agenda) pour le mois sélectionné, incluant toutes les missions, heures, écoles et prestataires.
+    <div class="modal-body modal-body-scroll" style="padding:24px;display:flex;flex-direction:column;gap:16px">
+      <p style="color:var(--text-muted);font-size:0.88rem;margin:0">
+        Génère un document imprimable (style agenda) pour le mois sélectionné.
       </p>
+
+      <div class="form-grid">
+        <div class="form-group form-col-2">
+          <label>Mois</label>
+          <select id="planning-month-sel" class="form-input">
+            ${months.map(m => `<option value="${m}" ${m===currentM?'selected':''}>${monthLabel(m)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group form-col-2">
+          <label>Pôle (optionnel)</label>
+          <select id="planning-pole-sel" class="form-input">
+            <option value="">Tous les pôles</option>
+            ${Data.getOwnCompanies().map(c => `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
       <div class="form-group">
-        <label>Mois à exporter</label>
-        <select id="planning-month-sel" class="form-input" style="font-size:1rem">
-          ${months.map(m => `<option value="${m}" ${m===currentM?'selected':''}>${monthLabel(m)}</option>`).join('')}
-        </select>
+        <label style="margin-bottom:8px;display:block">Prestataire(s) — laisser vide pour tous</label>
+        <div style="border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;gap:6px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;padding:2px 0;border-bottom:1px solid var(--border);margin-bottom:2px">
+            <input type="checkbox" id="planning-prov-all" checked style="width:auto" onchange="document.querySelectorAll('.planning-prov-chk').forEach(c=>c.checked=this.checked)">
+            <strong>Tous les prestataires</strong>
+          </label>
+          ${providers.map(p => `<label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;padding:2px 0">
+            <input type="checkbox" class="planning-prov-chk" value="${p.id}" checked style="width:auto"
+              onchange="document.getElementById('planning-prov-all').checked=[...document.querySelectorAll('.planning-prov-chk')].every(c=>c.checked)">
+            ${Utils.escapeHtml(p.lastName+' '+p.firstName)}${p.structure?` <span style="color:var(--text-muted);font-size:0.78rem">— ${Utils.escapeHtml(p.structure)}</span>`:''}
+          </label>`).join('')}
+        </div>
       </div>
-      <div class="form-group" style="margin-top:12px">
-        <label>Filtrer par pôle (optionnel)</label>
-        <select id="planning-pole-sel" class="form-input">
-          <option value="">Tous les pôles</option>
-          ${Data.getOwnCompanies().map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group" style="margin-top:12px">
+
+      <div class="form-group" style="margin:0">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal">
           <input type="checkbox" id="planning-cancelled" style="width:auto">
           Inclure les missions annulées
@@ -484,9 +503,15 @@ window._showPlanningExport = function() {
 };
 
 window._generatePlanning = function() {
-  const month       = document.getElementById('planning-month-sel')?.value;
-  const poleId      = document.getElementById('planning-pole-sel')?.value || '';
+  const month         = document.getElementById('planning-month-sel')?.value;
+  const poleId        = document.getElementById('planning-pole-sel')?.value || '';
   const inclCancelled = document.getElementById('planning-cancelled')?.checked || false;
+
+  // Prestataires sélectionnés (null = tous)
+  const checkedProvs = [...document.querySelectorAll('.planning-prov-chk:checked')].map(c => c.value);
+  const allChecked   = document.getElementById('planning-prov-all')?.checked;
+  const provFilter   = allChecked ? null : new Set(checkedProvs); // null = pas de filtre
+
   Modals.close();
   if (!month) return;
 
@@ -508,9 +533,17 @@ window._generatePlanning = function() {
     if (co.role === 'own') return co.id === poleId;
     return co.poleId === poleId;
   });
+  // Filtre prestataires
+  if (provFilter !== null) {
+    missions = missions.filter(m => {
+      const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+      // Garder si au moins un prestataire sélectionné est impliqué
+      return pids.some(pid => provFilter.has(pid));
+    });
+  }
   missions.sort((a, b) => (a.date + (a.startTime||'')).localeCompare(b.date + (b.startTime||'')));
 
-  if (!missions.length) { Utils.toast('Aucune mission pour ce mois / pôle.', 'info'); return; }
+  if (!missions.length) { Utils.toast('Aucune mission trouvée pour ces critères.', 'info'); return; }
 
   // Grouper par date
   const byDate = {};
