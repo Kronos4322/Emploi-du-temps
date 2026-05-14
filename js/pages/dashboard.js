@@ -650,7 +650,7 @@ window._generatePlanning = function() {
     .cancelled td { opacity: 0.45; text-decoration: line-through; }
 
     /* Pied de page */
-    .doc-footer { margin-top: 24px; padding-top: 14px; border-top: 2px solid #e2e8f0; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; }
+    .doc-footer { margin-top: 24px; padding-top: 14px; border-top: 2px solid #e2e8f0; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
     .footer-kpi { text-align: center; background: #f8fafc; border-radius: 8px; padding: 10px; }
     .footer-kpi .val { font-size: 15pt; font-weight: 800; color: #1e293b; }
     .footer-kpi .lbl { font-size: 8pt; color: #64748b; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -688,13 +688,12 @@ window._generatePlanning = function() {
   </table>
 
   <div class="doc-footer">
-    <div class="footer-kpi"><div class="val">${missions.length}</div><div class="lbl">Missions<br>${doneCount} réal. · ${planCount} prév.</div></div>
+    <div class="footer-kpi"><div class="val">${planCount}</div><div class="lbl">Missions prévues</div></div>
     <div class="footer-kpi"><div class="val">${Utils.formatDuration(totalH)}</div><div class="lbl">Heures totales</div></div>
     <div class="footer-kpi"><div class="val">${Utils.formatMoney(totalRev)}</div><div class="lbl">CA facturé</div></div>
-    <div class="footer-kpi"><div class="val" style="color:#ef4444">${Utils.formatMoney(totalCost)}</div><div class="lbl">Charges prestataires</div></div>
   </div>
 
-  <div class="footer-sign">${respName} — ${poleLabel} — Planning ${monthName}</div>
+  <div class="footer-sign">${respName === poleLabel ? respName : respName+' — '+poleLabel} — Planning ${monthName}</div>
 
 </body>
 </html>`;
