@@ -434,3 +434,239 @@ function missionRowCompact(m, coMap) {
     ${rev>0?`<span class="course-compact-amount">${Utils.formatMoney(rev)}</span>`:''}
   </div>`;
 }
+
+// ── Export Planning mensuel ──────────────────────────────────────
+
+window._showPlanningExport = function() {
+  // Récupérer tous les mois qui ont des missions
+  const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled');
+  const months = [...new Set(allMissions.map(m => m.date?.substring(0,7)).filter(Boolean))].sort().reverse();
+  if (!months.length) { Utils.toast('Aucune mission trouvée.', 'info'); return; }
+
+  const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const monthLabel = m => { const [y,mo] = m.split('-'); return `${MONTHS_FR[+mo-1]} ${y}`; };
+  const currentM = Utils.currentYearMonth();
+
+  Modals._open(`
+    <div class="modal-header">
+      <h3>📄 Exporter un planning mensuel</h3>
+      <button class="modal-close" onclick="Modals.close()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <p style="color:var(--text-muted);margin-bottom:16px;font-size:0.9rem">
+        Génère un document imprimable (style agenda) pour le mois sélectionné, incluant toutes les missions, heures, écoles et prestataires.
+      </p>
+      <div class="form-group">
+        <label>Mois à exporter</label>
+        <select id="planning-month-sel" class="form-input" style="font-size:1rem">
+          ${months.map(m => `<option value="${m}" ${m===currentM?'selected':''}>${monthLabel(m)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label>Filtrer par pôle (optionnel)</label>
+        <select id="planning-pole-sel" class="form-input">
+          <option value="">Tous les pôles</option>
+          ${Data.getOwnCompanies().map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal">
+          <input type="checkbox" id="planning-cancelled" style="width:auto">
+          Inclure les missions annulées
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="Modals.close()">Annuler</button>
+      <button class="btn btn-primary" onclick="window._generatePlanning()">🖨 Générer & Imprimer</button>
+    </div>
+  `);
+};
+
+window._generatePlanning = function() {
+  const month       = document.getElementById('planning-month-sel')?.value;
+  const poleId      = document.getElementById('planning-pole-sel')?.value || '';
+  const inclCancelled = document.getElementById('planning-cancelled')?.checked || false;
+  Modals.close();
+  if (!month) return;
+
+  const MONTHS_FR  = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const DAYS_FR    = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const DAYS_SHORT = ['DIM.','LUN.','MAR.','MER.','JEU.','VEN.','SAM.'];
+  const [yr, mo]   = month.split('-');
+  const monthName  = `${MONTHS_FR[+mo-1]} ${yr}`;
+
+  const coMap   = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
+  const provMap = {}; Data.getProviders().forEach(p => provMap[p.id] = p);
+  const ownCos  = Data.getOwnCompanies();
+
+  // Filtrer les missions du mois
+  let missions = Data.getMissions().filter(m => m.date && m.date.startsWith(month));
+  if (!inclCancelled) missions = missions.filter(m => m.status !== 'cancelled');
+  if (poleId) missions = missions.filter(m => {
+    const co = coMap[m.companyId]; if (!co) return false;
+    if (co.role === 'own') return co.id === poleId;
+    return co.poleId === poleId;
+  });
+  missions.sort((a, b) => (a.date + (a.startTime||'')).localeCompare(b.date + (b.startTime||'')));
+
+  if (!missions.length) { Utils.toast('Aucune mission pour ce mois / pôle.', 'info'); return; }
+
+  // Grouper par date
+  const byDate = {};
+  missions.forEach(m => { if (!byDate[m.date]) byDate[m.date] = []; byDate[m.date].push(m); });
+
+  // Totaux
+  const totalH     = missions.reduce((s,m) => s+(m.duration||0), 0);
+  const totalRev   = missions.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
+  const totalCost  = missions.reduce((s,m) => {
+    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+    return pids.length ? s+(m.duration||0)*(m.providerRate||0) : s;
+  }, 0);
+  const doneCount  = missions.filter(m => m.status==='done').length;
+  const planCount  = missions.filter(m => m.status==='planned').length;
+
+  const settings  = Data.getSettings();
+  const respName  = settings.responsableName || ownCos.map(c=>c.name).join(' & ');
+  const poleLabel = poleId ? (coMap[poleId]?.name||'') : ownCos.map(c=>c.name).join(' & ');
+
+  // Palettes statuts
+  const statusBadge = s => s==='done' ? '✓' : s==='cancelled' ? '✗' : '';
+  const statusColor = s => s==='done' ? '#22c55e' : s==='cancelled' ? '#ef4444' : '#3b82f6';
+
+  // Générer les lignes par jour
+  const dayRows = Object.entries(byDate).sort(([a],[b])=>a.localeCompare(b)).map(([date, ms]) => {
+    const d = new Date(date + 'T00:00:00');
+    const dayNum  = d.getDate();
+    const dayName = DAYS_FR[d.getDay()];
+    const dayShort = DAYS_SHORT[d.getDay()];
+    const dayH    = ms.reduce((s,m)=>s+(m.duration||0),0);
+
+    const missionLines = ms.map(m => {
+      const co = coMap[m.companyId];
+      const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+      const provNames = pids.map(pid => { const p=provMap[pid]; return p?p.lastName+' '+p.firstName:''; }).filter(Boolean).join(', ');
+      const time = m.startTime && m.endTime
+        ? `De ${m.startTime.replace(':','h')} à ${m.endTime.replace(':','h')}`
+        : (m.startTime ? `À ${m.startTime.replace(':','h')}` : '—');
+      const loc = m.location || '';
+      const badge = statusBadge(m.status);
+      const bColor = statusColor(m.status);
+      const isCancelled = m.status === 'cancelled';
+      return `<tr class="${isCancelled?'cancelled':''}">
+        <td class="td-time">${time}</td>
+        <td class="td-dot"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${co?co.color:'#94a3b8'};flex-shrink:0"></span></td>
+        <td class="td-title">
+          <span class="mission-title">${badge?`<span style="color:${bColor};font-weight:700;margin-right:4px">${badge}</span>`:''}${m.title}</span>
+          ${co?`<span class="mission-school">${co.name}</span>`:''}
+          ${loc?`<span class="mission-loc">📍 ${loc}</span>`:''}
+          ${provNames?`<span class="mission-prov">👤 ${provNames}</span>`:''}
+        </td>
+        <td class="td-duration">${Utils.formatDuration(m.duration)}</td>
+      </tr>`;
+    }).join('');
+
+    return `<tbody class="day-group">
+      <tr class="day-header">
+        <td colspan="4">
+          <span class="day-num">${dayNum}</span>
+          <span class="day-name">${dayName.toUpperCase()}</span>
+          <span class="day-total">${Utils.formatDuration(dayH)}</span>
+        </td>
+      </tr>
+      ${missionLines}
+    </tbody>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Planning ${monthName} — ${poleLabel}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; color: #1e293b; background: #fff; padding: 18mm 16mm; }
+
+    /* En-tête */
+    .doc-header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1e293b; padding-bottom: 10px; margin-bottom: 18px; }
+    .doc-title   { font-size: 20pt; font-weight: 800; letter-spacing: -0.5px; }
+    .doc-month   { font-size: 13pt; font-weight: 600; color: #3b82f6; }
+    .doc-meta    { text-align: right; font-size: 9pt; color: #64748b; line-height: 1.6; }
+
+    /* Tableau */
+    table { width: 100%; border-collapse: collapse; }
+
+    /* Entête de jour */
+    .day-header td { background: #f8fafc; padding: 8px 10px; border-top: 2px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; }
+    .day-num  { font-size: 16pt; font-weight: 800; color: #1e293b; margin-right: 8px; }
+    .day-name { font-size: 9pt; font-weight: 700; color: #64748b; letter-spacing: 0.08em; }
+    .day-total{ float: right; font-size: 9pt; font-weight: 600; color: #64748b; background: #e2e8f0; border-radius: 10px; padding: 1px 8px; margin-top: 4px; }
+
+    /* Lignes missions */
+    .td-time     { width: 130px; padding: 7px 10px 7px 18px; font-size: 9.5pt; color: #475569; vertical-align: top; white-space: nowrap; }
+    .td-dot      { width: 18px; padding: 10px 4px 0; vertical-align: top; }
+    .td-title    { padding: 7px 10px; vertical-align: top; }
+    .td-duration { width: 52px; padding: 7px 10px 7px 4px; font-size: 9pt; color: #64748b; text-align: right; vertical-align: top; white-space: nowrap; font-weight: 600; }
+
+    .mission-title  { display: block; font-weight: 600; font-size: 10pt; color: #1e293b; }
+    .mission-school { display: block; font-size: 9pt; color: #3b82f6; margin-top: 1px; }
+    .mission-loc    { display: block; font-size: 8.5pt; color: #94a3b8; margin-top: 1px; }
+    .mission-prov   { display: block; font-size: 8.5pt; color: #64748b; margin-top: 1px; }
+
+    tr:nth-child(even) td { background: #fafbfc; }
+    .cancelled td { opacity: 0.45; text-decoration: line-through; }
+
+    /* Pied de page */
+    .doc-footer { margin-top: 24px; padding-top: 14px; border-top: 2px solid #e2e8f0; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; }
+    .footer-kpi { text-align: center; background: #f8fafc; border-radius: 8px; padding: 10px; }
+    .footer-kpi .val { font-size: 15pt; font-weight: 800; color: #1e293b; }
+    .footer-kpi .lbl { font-size: 8pt; color: #64748b; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .footer-sign { margin-top: 20px; font-size: 9pt; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+
+    @media print {
+      body { padding: 12mm 10mm; }
+      .no-print { display: none !important; }
+      .day-group { break-inside: avoid; }
+      tr { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="no-print" style="background:#3b82f6;color:#fff;padding:10px 18px;border-radius:8px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between">
+    <span>📄 Planning <strong>${monthName}</strong> — Prêt à imprimer</span>
+    <button onclick="window.print()" style="background:#fff;color:#3b82f6;border:none;border-radius:6px;padding:6px 16px;font-weight:700;cursor:pointer;font-size:0.9rem">🖨 Imprimer / Sauvegarder PDF</button>
+  </div>
+
+  <div class="doc-header">
+    <div>
+      <div class="doc-title">Planning mensuel</div>
+      <div class="doc-month">${monthName}${poleId ? ' — '+poleLabel : ''}</div>
+    </div>
+    <div class="doc-meta">
+      ${respName}<br>
+      ${poleLabel}<br>
+      Généré le ${new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})}
+    </div>
+  </div>
+
+  <table>
+    ${dayRows}
+  </table>
+
+  <div class="doc-footer">
+    <div class="footer-kpi"><div class="val">${missions.length}</div><div class="lbl">Missions<br>${doneCount} réal. · ${planCount} prév.</div></div>
+    <div class="footer-kpi"><div class="val">${Utils.formatDuration(totalH)}</div><div class="lbl">Heures totales</div></div>
+    <div class="footer-kpi"><div class="val">${Utils.formatMoney(totalRev)}</div><div class="lbl">CA facturé</div></div>
+    <div class="footer-kpi"><div class="val" style="color:#ef4444">${Utils.formatMoney(totalCost)}</div><div class="lbl">Charges prestataires</div></div>
+  </div>
+
+  <div class="footer-sign">${respName} — ${poleLabel} — Planning ${monthName}</div>
+
+</body>
+</html>`;
+
+  const w = window.open('', '_blank', 'width=900,height=700');
+  w.document.write(html);
+  w.document.close();
+};
