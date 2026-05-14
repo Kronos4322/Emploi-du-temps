@@ -574,6 +574,7 @@ window._generatePlanning = function() {
     const dayName = DAYS_FR[d.getDay()];
     const dayShort = DAYS_SHORT[d.getDay()];
     const dayH    = ms.reduce((s,m)=>s+(m.duration||0),0);
+    const dayAmt  = ms.reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0);
 
     const missionLines = ms.map(m => {
       const co = coMap[m.companyId];
@@ -586,6 +587,7 @@ window._generatePlanning = function() {
       const badge = statusBadge(m.status);
       const bColor = statusColor(m.status);
       const isCancelled = m.status === 'cancelled';
+      const lineAmt = (m.duration||0) * (m.billingRate||0);
       return `<tr class="${isCancelled?'cancelled':''}">
         <td class="td-time">${time}</td>
         <td class="td-dot"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${co?co.color:'#94a3b8'};flex-shrink:0"></span></td>
@@ -595,7 +597,8 @@ window._generatePlanning = function() {
           ${loc?`<span class="mission-loc">📍 ${loc}</span>`:''}
           ${provNames?`<span class="mission-prov">👤 ${provNames}</span>`:''}
         </td>
-        <td class="td-duration">${Utils.formatDuration(m.duration)}</td>
+        <td class="td-duration">${Utils.formatDuration(m.duration)}<br><span style="font-size:7.5pt;color:#94a3b8;font-weight:400">${m.billingRate||0}€/h</span></td>
+        <td class="td-amount">${Utils.formatMoney(lineAmt)}</td>
       </tr>`;
     }).join('');
 
@@ -606,6 +609,7 @@ window._generatePlanning = function() {
           <span class="day-name">${dayName.toUpperCase()}</span>
           <span class="day-total">${Utils.formatDuration(dayH)}</span>
         </td>
+        <td style="background:#f8fafc;padding:7px 10px;border-top:2px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-align:right;font-size:9pt;font-weight:700;color:#475569;white-space:nowrap">${Utils.formatMoney(dayAmt)}</td>
       </tr>
       ${missionLines}
     </tbody>`;
@@ -639,7 +643,8 @@ window._generatePlanning = function() {
     .td-time     { width: 130px; padding: 7px 10px 7px 18px; font-size: 9.5pt; color: #475569; vertical-align: top; white-space: nowrap; }
     .td-dot      { width: 18px; padding: 10px 4px 0; vertical-align: top; }
     .td-title    { padding: 7px 10px; vertical-align: top; }
-    .td-duration { width: 52px; padding: 7px 10px 7px 4px; font-size: 9pt; color: #64748b; text-align: right; vertical-align: top; white-space: nowrap; font-weight: 600; }
+    .td-duration { width: 52px; padding: 7px 6px 7px 4px; font-size: 9pt; color: #64748b; text-align: right; vertical-align: top; white-space: nowrap; font-weight: 600; }
+    .td-amount   { width: 80px; padding: 7px 10px 7px 4px; font-size: 9pt; color: #1e293b; text-align: right; vertical-align: top; white-space: nowrap; font-weight: 700; }
 
     .mission-title  { display: block; font-weight: 600; font-size: 10pt; color: #1e293b; }
     .mission-school { display: block; font-size: 9pt; color: #3b82f6; margin-top: 1px; }
