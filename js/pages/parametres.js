@@ -55,6 +55,26 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.value = '';
   });
 
+  // Force sync depuis Firebase
+  document.getElementById('btn-force-sync').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-force-sync');
+    const status = document.getElementById('sync-status');
+    btn.disabled = true;
+    btn.textContent = '↻ Synchronisation en cours…';
+    status.textContent = '';
+    try {
+      localStorage.removeItem('_edt_ts');
+      await Data._loadFromFirebase();
+      showToast('Données mises à jour depuis le cloud !');
+      status.textContent = 'Dernière sync : ' + new Date().toLocaleTimeString('fr-FR');
+      updateInfo();
+    } catch(e) {
+      showToast('Échec de la synchronisation.', true);
+    }
+    btn.disabled = false;
+    btn.textContent = '↻ Forcer la sync depuis le cloud';
+  });
+
   // Reset
   document.getElementById('btn-reset-all').addEventListener('click', () => {
     if (!confirm('Effacer TOUTES les données ? Cette action est irréversible.')) return;

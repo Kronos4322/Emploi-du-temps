@@ -61,7 +61,11 @@ const Data = {
   async _loadFromFirebase() {
     try {
       const res = await fetch(_FB_URL);
-      if (!res.ok) return;
+      if (!res.ok) {
+        console.warn('Firebase _loadFromFirebase : réponse', res.status);
+        if (typeof _showSyncError === 'function') _showSyncError();
+        return;
+      }
       const fbData = await res.json();
       if (!fbData || !fbData._updatedAt) {
         // Firebase vide → push local si on a des données (toutes collections confondues)
