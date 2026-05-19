@@ -55,24 +55,43 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.value = '';
   });
 
-  // Force sync depuis Firebase
-  document.getElementById('btn-force-sync').addEventListener('click', async () => {
-    const btn = document.getElementById('btn-force-sync');
+  // Récupérer depuis le cloud (pull)
+  document.getElementById('btn-force-pull').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-force-pull');
     const status = document.getElementById('sync-status');
     btn.disabled = true;
-    btn.textContent = '↻ Synchronisation en cours…';
+    btn.textContent = '⬇ Récupération en cours…';
     status.textContent = '';
     try {
       localStorage.removeItem('_edt_ts');
       await Data._loadFromFirebase();
-      showToast('Données mises à jour depuis le cloud !');
-      status.textContent = 'Dernière sync : ' + new Date().toLocaleTimeString('fr-FR');
+      showToast('Données récupérées depuis le cloud !');
+      status.textContent = 'Récupéré le ' + new Date().toLocaleTimeString('fr-FR');
       updateInfo();
     } catch(e) {
-      showToast('Échec de la synchronisation.', true);
+      showToast('Échec de la récupération.', true);
     }
     btn.disabled = false;
-    btn.textContent = '↻ Forcer la sync depuis le cloud';
+    btn.textContent = '⬇ Récupérer depuis le cloud';
+  });
+
+  // Envoyer vers le cloud (push)
+  document.getElementById('btn-force-push').addEventListener('click', async () => {
+    if (!confirm('Envoyer vos données locales vers le cloud ?\nCela remplacera la version cloud par celle de cet appareil.')) return;
+    const btn = document.getElementById('btn-force-push');
+    const status = document.getElementById('sync-status');
+    btn.disabled = true;
+    btn.textContent = '⬆ Envoi en cours…';
+    status.textContent = '';
+    try {
+      await Data.forcePushToFirebase();
+      showToast('Données envoyées vers le cloud !');
+      status.textContent = 'Envoyé le ' + new Date().toLocaleTimeString('fr-FR');
+    } catch(e) {
+      showToast('Échec de l\'envoi.', true);
+    }
+    btn.disabled = false;
+    btn.textContent = '⬆ Envoyer mes données vers le cloud';
   });
 
   // Reset

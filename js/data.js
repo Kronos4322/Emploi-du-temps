@@ -126,6 +126,16 @@ const Data = {
     if (_fbPending) this._pushToFirebase();
   },
 
+  async forcePushToFirebase() {
+    const ts = Date.now() + 1000; // +1s pour être sûr d'être plus récent que Firebase
+    this._db._updatedAt = ts;
+    localStorage.setItem(DB_KEY, JSON.stringify(this._db));
+    localStorage.setItem('_edt_ts', String(ts));
+    _fbWriting = false;
+    _fbPending = false;
+    await this._pushToFirebase();
+  },
+
   async _pollFallback() {
     try {
       const res = await fetch(_FB_URL.replace('.json', '/_updatedAt.json'));
@@ -198,9 +208,12 @@ const Data = {
   },
 
   _save() {
+    const ts = Date.now();
+    this._db._updatedAt = ts;
     localStorage.setItem(DB_KEY, JSON.stringify(this._db));
+    localStorage.setItem('_edt_ts', String(ts)); // marque local comme plus récent avant le push
     this._autoBackup();
-    this._pushToFirebase(); // sync Firebase
+    this._pushToFirebase();
   },
 
   // ── Sauvegardes automatiques (3 jours glissants) ────────────
