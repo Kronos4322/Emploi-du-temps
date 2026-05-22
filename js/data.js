@@ -201,7 +201,9 @@ const Data = {
     // Garantir le champ role sur chaque société
     this._db.companies = this._db.companies.map(c => {
       if (!c.role) {
-        c.role = (c.type === 'enseignement') ? 'client' : 'own';
+        // Une société avec poleId est forcément un client (elle est rattachée à une société propre)
+        if (c.poleId) c.role = 'client';
+        else c.role = (c.type === 'enseignement') ? 'client' : 'own';
       }
       // hasTraining: pour les sociétés own existantes, activer si des étudiants y sont rattachés
       if (c.role === 'own' && c.hasTraining === undefined) {

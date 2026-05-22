@@ -1542,6 +1542,14 @@ label {
 }
 #sidebar-overlay.open { display: block; }
 
+/* ── Form row (2 colonnes) ───────────────────────────────── */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
+
 /* ── Module Location ─────────────────────────────────────── */
 
 .properties-grid {
@@ -1597,52 +1605,77 @@ label {
 .loc-drawer-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.45);
+  background: rgba(0,0,0,.5);
   z-index: 200;
   display: none;
+  backdrop-filter: blur(2px);
 }
 .loc-drawer-overlay.open { display: block; }
 
 .loc-drawer {
   position: fixed;
   top: 0;
-  right: -460px;
-  width: 440px;
+  right: -520px;
+  width: 500px;
   max-width: 100vw;
   height: 100vh;
   background: var(--bg-card);
   border-left: 1px solid var(--border);
-  box-shadow: -8px 0 32px rgba(0,0,0,.18);
+  box-shadow: -12px 0 40px rgba(0,0,0,.2);
   z-index: 201;
-  transition: right .28s cubic-bezier(.4,0,.2,1);
+  transition: right .3s cubic-bezier(.4,0,.2,1);
   overflow-y: auto;
-  padding: 24px;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 .loc-drawer.open { right: 0; }
 
-.loc-drawer-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 20px;
+.loc-drawer-header {
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 24px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  z-index: 1;
+}
+.loc-drawer-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
 }
 .loc-drawer-close {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   color: var(--text-muted);
-  padding: 4px;
-  border-radius: 4px;
-  transition: background .15s;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  transition: background .15s, color .15s;
 }
-.loc-drawer-close:hover { background: var(--border); }
+.loc-drawer-close:hover { background: var(--border); color: var(--text); }
 
-@media (max-width: 480px) {
+.loc-drawer-body {
+  padding: 24px;
+  flex: 1;
+}
+
+.loc-drawer-footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  gap: 10px;
+}
+
+@media (max-width: 540px) {
   .loc-drawer { width: 100vw; }
   .properties-grid { grid-template-columns: 1fr; }
 }

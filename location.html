@@ -109,47 +109,49 @@
 
   <!-- Drawer : Ajouter / modifier un bien -->
   <div id="property-drawer" class="loc-drawer">
-    <div class="loc-drawer-title">
-      <span id="property-drawer-title">Nouveau bien</span>
+    <div class="loc-drawer-header">
+      <span class="loc-drawer-title" id="property-drawer-title">Nouveau bien</span>
       <button class="loc-drawer-close" onclick="window._locCloseDrawers()">✕</button>
     </div>
     <form id="property-form" onsubmit="window._locSaveProperty(event)">
-      <div class="form-group">
-        <label class="form-label">Nom du bien *</label>
-        <input type="text" id="prop-name" class="form-input" placeholder="Ex : Appartement Marrakech Centre" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Adresse / localisation</label>
-        <input type="text" id="prop-address" class="form-input" placeholder="Ex : Médina, Marrakech, Maroc">
-      </div>
-      <div class="form-row">
+      <div class="loc-drawer-body">
         <div class="form-group">
-          <label class="form-label">Type</label>
-          <select id="prop-type" class="form-input">
-            <option value="airbnb">Airbnb</option>
-            <option value="booking">Booking</option>
-            <option value="long-term">Location longue durée</option>
-            <option value="seasonal">Saisonnier</option>
-            <option value="other">Autre</option>
-          </select>
+          <label class="form-label">Nom du bien *</label>
+          <input type="text" id="prop-name" class="form-input" placeholder="Ex : Appartement Marrakech Centre" required>
         </div>
         <div class="form-group">
-          <label class="form-label">Couleur</label>
-          <input type="color" id="prop-color" class="form-input" value="#f97316" style="height:38px;padding:2px 4px;cursor:pointer">
+          <label class="form-label">Adresse / localisation</label>
+          <input type="text" id="prop-address" class="form-input" placeholder="Ex : Médina, Marrakech, Maroc">
         </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Type</label>
+            <select id="prop-type" class="form-input">
+              <option value="airbnb">Airbnb</option>
+              <option value="booking">Booking</option>
+              <option value="long-term">Location longue durée</option>
+              <option value="seasonal">Saisonnier</option>
+              <option value="other">Autre</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Couleur d'identification</label>
+            <input type="color" id="prop-color" class="form-input" value="#f97316" style="height:38px;padding:2px 4px;cursor:pointer">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <textarea id="prop-notes" class="form-input" rows="3" placeholder="Informations complémentaires…"></textarea>
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;padding:8px 0">
+            <input type="checkbox" id="prop-active" checked>
+            Bien actif
+          </label>
+        </div>
+        <input type="hidden" id="prop-id">
       </div>
-      <div class="form-group">
-        <label class="form-label">Notes</label>
-        <textarea id="prop-notes" class="form-input" rows="3" placeholder="Informations complémentaires…"></textarea>
-      </div>
-      <div class="form-group">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem">
-          <input type="checkbox" id="prop-active" checked>
-          Bien actif
-        </label>
-      </div>
-      <input type="hidden" id="prop-id">
-      <div style="display:flex;gap:10px;margin-top:20px">
+      <div class="loc-drawer-footer">
         <button type="submit" class="btn btn-primary" style="flex:1">Enregistrer</button>
         <button type="button" class="btn btn-ghost" onclick="window._locCloseDrawers()">Annuler</button>
       </div>
@@ -158,57 +160,59 @@
 
   <!-- Drawer : Ajouter / modifier un revenu -->
   <div id="income-drawer" class="loc-drawer">
-    <div class="loc-drawer-title">
-      <span id="income-drawer-title">Nouveau revenu</span>
+    <div class="loc-drawer-header">
+      <span class="loc-drawer-title" id="income-drawer-title">Nouveau revenu</span>
       <button class="loc-drawer-close" onclick="window._locCloseDrawers()">✕</button>
     </div>
     <form id="income-form" onsubmit="window._locSaveIncome(event)">
-      <div class="form-group">
-        <label class="form-label">Bien *</label>
-        <select id="inc-property" class="form-input" required></select>
-      </div>
-      <div class="form-row">
+      <div class="loc-drawer-body">
         <div class="form-group">
-          <label class="form-label">Mois *</label>
-          <input type="month" id="inc-month" class="form-input" required>
+          <label class="form-label">Bien *</label>
+          <select id="inc-property" class="form-input" required></select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Mois *</label>
+            <input type="month" id="inc-month" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Montant (€) *</label>
+            <input type="number" id="inc-amount" class="form-input" min="0" step="0.01" required placeholder="0.00">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Plateforme</label>
+            <input type="text" id="inc-platform" class="form-input" placeholder="Ex : Airbnb, Booking…" list="platform-list">
+            <datalist id="platform-list">
+              <option value="Airbnb">
+              <option value="Booking.com">
+              <option value="Vrbo">
+              <option value="Abritel">
+              <option value="Direct">
+              <option value="Autre">
+            </datalist>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nuits louées</label>
+            <input type="number" id="inc-nights" class="form-input" min="0" step="1" placeholder="—">
+          </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Montant (€) *</label>
-          <input type="number" id="inc-amount" class="form-input" min="0" step="0.01" required placeholder="0.00">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Plateforme</label>
-          <input type="text" id="inc-platform" class="form-input" placeholder="Ex : Airbnb, Booking…" list="platform-list">
-          <datalist id="platform-list">
-            <option value="Airbnb">
-            <option value="Booking.com">
-            <option value="Vrbo">
-            <option value="Abritel">
-            <option value="Direct">
-            <option value="Autre">
-          </datalist>
+          <label class="form-label">Statut du paiement</label>
+          <select id="inc-status" class="form-input">
+            <option value="received">✅ Reçu</option>
+            <option value="pending">⏳ En attente</option>
+            <option value="partial">⚠ Partiel</option>
+          </select>
         </div>
         <div class="form-group">
-          <label class="form-label">Nuits louées</label>
-          <input type="number" id="inc-nights" class="form-input" min="0" step="1" placeholder="0">
+          <label class="form-label">Notes</label>
+          <textarea id="inc-notes" class="form-input" rows="2" placeholder="Remarques…"></textarea>
         </div>
+        <input type="hidden" id="inc-id">
       </div>
-      <div class="form-group">
-        <label class="form-label">Statut</label>
-        <select id="inc-status" class="form-input">
-          <option value="received">Reçu</option>
-          <option value="pending">En attente</option>
-          <option value="partial">Partiel</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Notes</label>
-        <textarea id="inc-notes" class="form-input" rows="2" placeholder="Remarques…"></textarea>
-      </div>
-      <input type="hidden" id="inc-id">
-      <div style="display:flex;gap:10px;margin-top:20px">
+      <div class="loc-drawer-footer">
         <button type="submit" class="btn btn-primary" style="flex:1">Enregistrer</button>
         <button type="button" class="btn btn-ghost" onclick="window._locCloseDrawers()">Annuler</button>
       </div>

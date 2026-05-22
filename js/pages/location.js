@@ -165,6 +165,7 @@ function _renderIncomes() {
 // ── Drawer Bien ──────────────────────────────────────────────
 
 function _openPropertyDrawer(id) {
+  _locCloseDrawers();
   const prop = id ? Data.getPropertyById(id) : null;
   document.getElementById('property-drawer-title').textContent = prop ? 'Modifier le bien' : 'Nouveau bien';
   document.getElementById('prop-id').value       = prop?.id || '';
@@ -201,6 +202,7 @@ function _locSaveProperty(e) {
 // ── Drawer Revenu ────────────────────────────────────────────
 
 function _openIncomeDrawer(id) {
+  _locCloseDrawers();
   const income = id ? Data.getRentalIncomeById(id) : null;
 
   // Remplir la liste des biens
