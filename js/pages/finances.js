@@ -619,13 +619,13 @@ function renderPieChart() {
     missions = missions.filter(m => m.companyId === _companyId);
   }
 
-  // Calcul CA par école
+  // Calcul CA par école cliente uniquement (on exclut les sociétés propres = pôles)
   const bySchool = {};
   missions.forEach(m => {
     const co = coMap[m.companyId];
-    if (!co) return;
+    if (!co || co.role === 'own') return; // ignorer les pôles eux-mêmes
     const key = m.companyId;
-    if (!bySchool[key]) bySchool[key] = { name: co.name, total: 0 };
+    if (!bySchool[key]) bySchool[key] = { name: co.name, total: 0, color: co.color };
     bySchool[key].total += (m.duration||0) * (m.billingRate||0);
   });
 
@@ -646,7 +646,7 @@ function renderPieChart() {
       labels: sorted.map(e => e.name),
       datasets: [{
         data: sorted.map(e => e.total),
-        backgroundColor: sorted.map((_, i) => COLORS[i % COLORS.length]),
+        backgroundColor: sorted.map((e, i) => e.color || COLORS[i % COLORS.length]),
         borderWidth: 2,
         borderColor: '#fff',
       }]
