@@ -117,9 +117,9 @@ function render() {
   const providers = {}; Data.getProviders().forEach(p => providers[p.id] = p);
   const [y, m]    = _yearMonth.split('-');
 
-  // Filtre pôle par poleId de l'école, avec fallback billingRate
-  let doneMissions    = stats.done;
-  let plannedMissions = stats.planned;
+  // Exclure les missions personnelles (missionType='personal') des stats financières
+  let doneMissions    = stats.done.filter(m => m.missionType !== 'personal');
+  let plannedMissions = stats.planned.filter(m => m.missionType !== 'personal');
   if (_poleId) {
     const allCos = {}; Data.getCompanies().forEach(c => allCos[c.id] = c);
     const pole = Data.getCompanyById(_poleId);
@@ -140,15 +140,17 @@ function render() {
   document.getElementById('report-title').textContent = reportLabel;
   document.getElementById('report-title-summary').textContent = reportLabel;
 
-  // KPIs — réalisé + prévu
+  // KPIs — réalisé + prévu (cohérence totale : CA, Charges et Marge sur la même base)
   const doneRevenue    = doneMissions.reduce((s,m) => s + (m.duration||0)*(m.billingRate||0), 0);
   const plannedRevenue = plannedMissions.reduce((s,m) => s + (m.duration||0)*(m.billingRate||0), 0);
   const totalRevenue   = Math.round((doneRevenue + plannedRevenue) * 100) / 100;
-  const totalCosts     = doneMissions.reduce((s,m) => {
+  const _calcCosts     = list => list.reduce((s,m) => {
     const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
     return pids.length ? s + (m.duration||0)*(m.providerRate||0) : s;
   }, 0);
-  const netMargin      = Math.round((doneRevenue - totalCosts) * 100) / 100;
+  // Charges = réalisé + prévu (cohérent avec CA qui inclut les deux)
+  const totalCosts     = Math.round((_calcCosts(doneMissions) + _calcCosts(plannedMissions)) * 100) / 100;
+  const netMargin      = Math.round((totalRevenue - totalCosts) * 100) / 100;
   const hoursDone      = doneMissions.reduce((s,m) => s + (m.duration||0), 0);
   const hoursPlanned   = plannedMissions.reduce((s,m) => s + (m.duration||0), 0);
   const unpaidM        = doneMissions.filter(m => m.paymentStatus !== 'paid');
@@ -161,7 +163,10 @@ function render() {
   document.getElementById('fin-hours-planned').textContent = Utils.formatDuration(hoursPlanned);
 
   const marginCard = document.getElementById('fin-margin-card');
-  marginCard.className = 'kpi-card kpi-large ' + (netMargin >= 0 ? 'kpi-positive' : 'kpi-negative');
+  // 0 = neutre (gris), >0 = vert, <0 = rouge
+  marginCard.className = 'kpi-card kpi-large' + (netMargin > 0 ? ' kpi-positive' : netMargin < 0 ? ' kpi-negative' : '');
+  const _marginIcon = marginCard.querySelector('.kpi-icon');
+  if (_marginIcon) _marginIcon.className = 'kpi-icon ' + (netMargin > 0 ? 'kpi-green' : netMargin < 0 ? 'kpi-red' : 'kpi-gray');
 
   const unpaidCard = document.getElementById('fin-unpaid-card');
   document.getElementById('fin-unpaid').textContent       = Utils.formatMoney(unpaidAmt);
@@ -237,7 +242,7 @@ function render() {
   // Missions réalisées — masquées si "aucune école"
   const doneSectionEl = document.getElementById('section-done-missions');
   if (doneSectionEl) doneSectionEl.style.display = _companyId === '__none__' ? 'none' : '';
-  document.getElementById('done-section-title').textContent = `Missions réalisées (${doneMissions.length})`;
+  document.getElementById('done-section-title').textContent = `Missions réalisées / passées (${doneMissions.length})`;
   document.getElementById('tbody-done').innerHTML = doneMissions.length === 0
     ? '<tr><td colspan="7" class="empty-state-cell">Aucune mission réalisée sur cette période.</td></tr>'
     : doneMissions.map(m => {
@@ -245,12 +250,13 @@ function render() {
       const col = co ? co.color : '#94a3b8';
       const rev = (m.duration||0) * (m.billingRate||0);
       const PAY = { unpaid:'<span class="badge badge-danger">Non payé</span>', invoiced:'<span class="badge badge-invoiced">Facturé</span>', paid:'<span class="badge badge-success">Payé</span>' };
+      const rateLabel = m.missionType === 'forfait' ? '<span style="font-size:0.75rem;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1px 7px">Forfait</span>' : `${Utils.formatMoney(m.billingRate)}/h`;
       return `<tr class="table-row" onclick="Modals.openMission('${m.id}',null,()=>render())">
         <td>${Utils.formatDate(m.date)}</td>
         <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(m.title)}</td>
         <td>${co ? Utils.escapeHtml(co.name) : '—'}</td>
         <td>${Utils.formatDuration(m.duration)}</td>
-        <td class="cell-money">${Utils.formatMoney(m.billingRate)}/h</td>
+        <td class="cell-money">${rateLabel}</td>
         <td class="cell-money">${Utils.formatMoney(rev)}</td>
         <td>${PAY[m.paymentStatus]||m.paymentStatus}</td>
       </tr>`;
@@ -276,7 +282,7 @@ function renderAnnual() {
   const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
   const ownCos = Data.getOwnCompanies();
 
-  let all = Data.getMissions().filter(m => m.date && m.date >= dateStart && m.date <= dateEnd && m.status !== 'cancelled');
+  let all = Data.getMissions().filter(m => m.date && m.date >= dateStart && m.date <= dateEnd && m.status !== 'cancelled' && m.missionType !== 'personal');
 
   // Filtre pôle
   if (_poleId) {
@@ -352,8 +358,9 @@ function renderProviderCosts() {
   let tmC=0,tmR=0,tmI=0, tyC=0,tyR=0,tyI=0;
   const rows = _providerIds.map(pid => {
     const p = provMap[pid]; if (!p) return '';
-    const mM = monthM.filter(m => m.providerId === pid);
-    const mY = yearM.filter(m => m.providerId === pid);
+    const hasPid = (m, pid) => (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])).includes(pid);
+    const mM = monthM.filter(m => hasPid(m, pid));
+    const mY = yearM.filter(m => hasPid(m, pid));
     const mc = mM.reduce((s,m)=>s+(m.duration||0)*(m.providerRate||0),0);
     const mr = mM.reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0);
     const yc = mY.reduce((s,m)=>s+(m.duration||0)*(m.providerRate||0),0);
@@ -398,7 +405,7 @@ function renderChart() {
 
   const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
   const ownCos = Data.getOwnCompanies();
-  const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled' && m.date);
+  const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled' && m.date && m.missionType !== 'personal');
 
   // Construire les labels (périodes)
   let labels = [];
@@ -556,7 +563,7 @@ function renderChart() {
 
 function renderPieChart() {
   const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
-  const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled' && m.date);
+  const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled' && m.date && m.missionType !== 'personal');
 
   // Filtre pôle si actif
   const poleFilterFn = m => {

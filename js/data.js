@@ -634,8 +634,18 @@ const Data = {
     if (filters.missionType) missions = missions.filter(m => m.missionType === filters.missionType);
     if (filters.status)     missions = missions.filter(m => m.status === filters.status);
 
-    const done      = missions.filter(m => m.status === 'done');
-    const planned   = missions.filter(m => m.status === 'planned');
+    // Auto-done : sans filtre de statut explicite, les missions 'planned' dont la
+    // date est passée sont traitées comme réalisées (le statut Firebase n'est pas modifié).
+    const today    = Utils.today();
+    const effDone  = !filters.status
+      ? m => m.status === 'done' || (m.status === 'planned' && m.date && m.date < today)
+      : m => m.status === 'done';
+    const done      = missions.filter(effDone);
+    const planned   = missions.filter(m =>
+      !filters.status
+        ? (m.status === 'planned' && (!m.date || m.date >= today))
+        : m.status === 'planned'
+    );
     const cancelled = missions.filter(m => m.status === 'cancelled');
 
     const totalHoursDone    = done.reduce((s, m) => s + (m.duration || 0), 0);
