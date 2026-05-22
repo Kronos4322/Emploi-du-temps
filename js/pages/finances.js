@@ -454,37 +454,24 @@ function renderChart() {
     };
 
     if (split === 'poles') {
-      ownCos.forEach((pole, i) => datasets.push(makePoleDataset(pole, i)));
-      // Dataset Total (somme de tous les pôles)
       if (ownCos.length > 1) {
-        const totalData = labels.map(lbl =>
-          Math.round(ownCos.reduce((sum, pole) => {
-            const ms = missions.filter(m => {
-              if (missionKey(m) !== lbl) return false;
-              const school = coMap[m.companyId];
-              return school?.poleId === pole.id;
-            });
-            return sum + ms.reduce((s, m) => s + (m.duration||0) * (m.billingRate||0), 0);
-          }, 0) * 100) / 100
-        );
-        datasets.push({
-          label: 'Total',
-          data: totalData,
-          backgroundColor: '#1e293b99',
-          borderColor: '#1e293b',
-          borderWidth: 2,
-          fill: ctype === 'line',
-          type: ctype === 'bar' ? 'line' : undefined,
-          pointRadius: ctype === 'bar' ? 4 : 3,
-          tension: 0.3,
-          order: -1,
-        });
-
-        // Moyenne horizontale : somme brute Artémis + Astéria sur toute la plage active (zéros inclus)
+        // Barre unique Total = Artémis + Astéria (toutes missions brutes)
         const allMonthlyRev = labels.map(lbl =>
           Math.round(allMissions.filter(m => missionKey(m) === lbl)
             .reduce((s, m) => s + (m.duration||0) * (m.billingRate||0), 0) * 100) / 100
         );
+        datasets.push({
+          label: 'Total (Artémis + Astéria)',
+          data: allMonthlyRev,
+          backgroundColor: '#8b5cf699',
+          borderColor: '#8b5cf6',
+          borderWidth: 2,
+          fill: ctype === 'line',
+          pointRadius: ctype === 'line' ? 3 : 0,
+          tension: 0.3,
+        });
+
+        // Moyenne horizontale sur toute la plage active (zéros inclus)
         const firstNonZero = allMonthlyRev.findIndex(v => v > 0);
         const lastNonZero  = allMonthlyRev.reduce((last, v, i) => v > 0 ? i : last, -1);
         const activeValues = firstNonZero >= 0 ? allMonthlyRev.slice(firstNonZero, lastNonZero + 1) : [];
@@ -502,10 +489,13 @@ function renderChart() {
             tension: 0,
             fill: false,
             type: 'line',
-            order: -2,
+            order: -1,
             spanGaps: false,
           });
         }
+      } else {
+        // Un seul pôle : affichage classique
+        ownCos.forEach((pole, i) => datasets.push(makePoleDataset(pole, i)));
       }
     } else if (split === 'schools') {
       const schools = Data.getClientSchools().filter(co => {
