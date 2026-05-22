@@ -80,15 +80,15 @@ const Data = {
       const localTs = parseInt(localStorage.getItem('_edt_ts') || '0');
       if (_fbLastTs > localTs) {
         // Firebase plus récent → TOUJOURS l'utiliser (suppressions incluses)
-        // Détecter les sociétés sans rôle avant migration pour repousser ensuite
-        const hadMissingRoles = (fbData.companies || []).some(c => !c.role);
+        // Détecter ce qui nécessitera un push après migration
+        const needsMigration = (fbData.companies || []).some(c => !c.role) || !fbData._poleAssignmentsFixed22;
         this._db = fbData;
         this._migrate();
         localStorage.setItem(DB_KEY, JSON.stringify(this._db));
         localStorage.setItem('_edt_ts', String(_fbLastTs));
         _reRenderPage();
-        // Si la migration a dû assigner des rôles manquants, persister dans Firebase
-        if (hadMissingRoles) this._pushToFirebase();
+        // Persister dans Firebase si la migration a changé quelque chose
+        if (needsMigration) this._pushToFirebase();
       } else if (localTs > _fbLastTs) {
         // Local plus récent → on pousse vers Firebase
         this._pushToFirebase();
@@ -218,7 +218,7 @@ const Data = {
 
     // Migration one-shot : ré-attribuer les missions pôle → société cliente
     // Crée les sociétés clientes si elles n'existent pas encore
-    if (!this._db._poleAssignmentsFixed) {
+    if (!this._db._poleAssignmentsFixed2) {
       const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
       const findCo = partial => this._db.companies.find(c => norm(c.name).includes(norm(partial)));
       const now = Date.now();
@@ -255,7 +255,7 @@ const Data = {
           return m;
         });
       }
-      this._db._poleAssignmentsFixed = true;
+      this._db._poleAssignmentsFixed2 = true;
     }
   },
 
