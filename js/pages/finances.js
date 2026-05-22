@@ -480,13 +480,17 @@ function renderChart() {
           order: -1,
         });
 
-        // Moyenne horizontale sur toute la plage active (premier → dernier mois non-zéro, zéros inclus)
-        const firstNonZero = totalData.findIndex(v => v > 0);
-        const lastNonZero  = totalData.reduce((last, v, i) => v > 0 ? i : last, -1);
-        const activeValues = firstNonZero >= 0 ? totalData.slice(firstNonZero, lastNonZero + 1) : [];
+        // Moyenne horizontale : somme brute Artémis + Astéria sur toute la plage active (zéros inclus)
+        const allMonthlyRev = labels.map(lbl =>
+          Math.round(allMissions.filter(m => missionKey(m) === lbl)
+            .reduce((s, m) => s + (m.duration||0) * (m.billingRate||0), 0) * 100) / 100
+        );
+        const firstNonZero = allMonthlyRev.findIndex(v => v > 0);
+        const lastNonZero  = allMonthlyRev.reduce((last, v, i) => v > 0 ? i : last, -1);
+        const activeValues = firstNonZero >= 0 ? allMonthlyRev.slice(firstNonZero, lastNonZero + 1) : [];
         if (activeValues.length > 0) {
           const avg = Math.round(activeValues.reduce((s, v) => s + v, 0) / activeValues.length * 100) / 100;
-          const avgData = totalData.map((_, i) => (i >= firstNonZero && i <= lastNonZero) ? avg : null);
+          const avgData = allMonthlyRev.map((_, i) => (i >= firstNonZero && i <= lastNonZero) ? avg : null);
           datasets.push({
             label: `Moyenne mensuelle (${Utils.formatMoney(avg)})`,
             data: avgData,
