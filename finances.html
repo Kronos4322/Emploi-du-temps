@@ -17,6 +17,10 @@
     details.fin-section > summary::after { content:'▲'; font-size:0.7rem; color:var(--text-muted); transition:transform .2s; }
     details.fin-section:not([open]) > summary::after { content:'▼'; }
     details.fin-section { margin-bottom:20px; }
+    .month-nav { display:flex; align-items:center; gap:4px; }
+    .month-nav-btn { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:6px 10px; cursor:pointer; font-size:0.95rem; line-height:1; color:var(--text); transition:background .15s; }
+    .month-nav-btn:hover { background:var(--primary-light); border-color:var(--primary); color:var(--primary); }
+    @media print { .chart-controls, #btn-export-csv, #btn-print { display: none !important; } }
   </style>
 </head>
 <body>
@@ -34,7 +38,11 @@
 
       <!-- Filtres -->
       <div class="filters-bar" style="flex-wrap:wrap;gap:8px">
-        <select id="filter-month"   class="form-input filter-select"></select>
+        <div class="month-nav">
+          <button class="month-nav-btn" id="btn-prev-month" title="Mois précédent">‹</button>
+          <select id="filter-month" class="form-input filter-select"></select>
+          <button class="month-nav-btn" id="btn-next-month" title="Mois suivant">›</button>
+        </div>
         <select id="filter-pole"    class="form-input filter-select"></select>
         <select id="filter-company" class="form-input filter-select"></select>
         <div id="filter-provider-checks" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);min-height:38px"></div>
@@ -167,7 +175,7 @@
       <!-- 3. Graphique temporel -->
       <details class="fin-section" open>
         <summary>Évolution temporelle</summary>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <div class="chart-controls" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
           <select id="chart-group" class="form-input filter-select" style="width:auto">
             <option value="month">Par mois</option>
             <option value="year">Par année scolaire</option>
@@ -269,10 +277,10 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="js/utils.js?v=10"></script>
-  <script src="js/data.js?v=12"></script>
+  <script src="js/data.js?v=13"></script>
   <script src="js/modals.js?v=12"></script>
   <script src="js/nav.js?v=10"></script>
-  <script src="js/pages/finances.js?v=8"></script>
+  <script src="js/pages/finances.js?v=9"></script>
 </body>
 </html>
 

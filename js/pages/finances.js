@@ -26,8 +26,22 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('filter-year').addEventListener('change',    e => { _schoolYear = e.target.value; renderAnnual(); });
   ['chart-group','chart-split','chart-type'].forEach(id =>
     document.getElementById(id).addEventListener('change', renderChart));
-  document.getElementById('btn-export-csv').addEventListener('click', () => Data.exportToCsv(_yearMonth));
+  document.getElementById('btn-export-csv').addEventListener('click', () => Data.exportToCsv(_yearMonth, { poleId: _poleId, companyId: _companyId }));
   document.getElementById('btn-print').addEventListener('click', () => window.print());
+  document.getElementById('btn-prev-month').addEventListener('click', () => {
+    const [y, m] = _yearMonth.split('-');
+    const d = new Date(+y, +m - 2, 1);
+    _yearMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    document.getElementById('filter-month').value = _yearMonth;
+    render(); renderRentalSection();
+  });
+  document.getElementById('btn-next-month').addEventListener('click', () => {
+    const [y, m] = _yearMonth.split('-');
+    const d = new Date(+y, +m, 1);
+    _yearMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    document.getElementById('filter-month').value = _yearMonth;
+    render(); renderRentalSection();
+  });
 });
 
 function buildCompanyFilter() {
@@ -39,7 +53,7 @@ function buildCompanyFilter() {
   });
   const el = document.getElementById('filter-company');
   const prev = _companyId;
-  el.innerHTML = '<option value="">Toutes les écoles</option><option value="__none__">— Aucune école —</option>' +
+  el.innerHTML = '<option value="">Toutes les écoles</option><option value="__none__">Sans école associée</option>' +
     clientCos.map(c => `<option value="${c.id}" ${c.id===prev?'selected':''}>${Utils.escapeHtml(c.name)}</option>`).join('');
   // Reset si l'école sélectionnée n'appartient plus au pôle
   if (prev && prev !== '__none__' && !clientCos.find(c => c.id === prev)) {
@@ -90,7 +104,7 @@ function buildFilters() {
       '<span style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap">Prestataires :</span>' +
       '<button style="font-size:0.75rem;padding:2px 8px;border-radius:12px;border:1px solid var(--border);cursor:pointer;background:var(--primary);color:#fff" onclick="window._allProvs()">Tous</button>' +
       '<button style="font-size:0.75rem;padding:2px 8px;border-radius:12px;border:1px solid var(--border);cursor:pointer" onclick="window._noneProvs()">Aucun</button>' +
-      Data.getProviders().map(p => `
+      Data.getActiveProviders().map(p => `
         <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.82rem;white-space:nowrap">
           <input type="checkbox" value="${p.id}" ${_providerIds.includes(p.id)?'checked':''} onchange="window._onProvCheck()">
           ${Utils.escapeHtml(p.lastName + ' ' + p.firstName)}
@@ -103,7 +117,7 @@ function buildFilters() {
     renderChart();
   };
   window._allProvs = () => {
-    _providerIds = Data.getProviders().map(p => p.id);
+    _providerIds = Data.getActiveProviders().map(p => p.id);
     renderProvChecks(); renderProviderCosts(); renderChart();
   };
   window._noneProvs = () => {
@@ -118,19 +132,20 @@ function render() {
   const providers = {}; Data.getProviders().forEach(p => providers[p.id] = p);
   const [y, m]    = _yearMonth.split('-');
 
+  // Filtre pôle — défini tôt pour réutilisation (annulées, cancelled, etc.)
+  const filterByPole = m => {
+    if (!_poleId) return true;
+    const co = companies[m.companyId];
+    if (!co) return false;
+    if (co.role === 'own') return co.id === _poleId;
+    if (co.poleId) return co.poleId === _poleId;
+    return false;
+  };
+
   // Exclure les missions personnelles (missionType='personal') des stats financières
   let doneMissions    = stats.done.filter(m => m.missionType !== 'personal');
   let plannedMissions = stats.planned.filter(m => m.missionType !== 'personal');
   if (_poleId) {
-    const allCos = {}; Data.getCompanies().forEach(c => allCos[c.id] = c);
-    const pole = Data.getCompanyById(_poleId);
-    const filterByPole = m => {
-      const co = allCos[m.companyId];
-      if (!co) return false;
-      if (co.role === 'own') return co.id === _poleId;
-      if (co.poleId) return co.poleId === _poleId;
-      return false; // société sans poleId → exclure du filtre par pôle
-    };
     doneMissions    = doneMissions.filter(filterByPole);
     plannedMissions = plannedMissions.filter(filterByPole);
   }
@@ -154,7 +169,7 @@ function render() {
   const netMargin      = Math.round((totalRevenue - totalCosts) * 100) / 100;
   const hoursDone      = doneMissions.reduce((s,m) => s + (m.duration||0), 0);
   const hoursPlanned   = plannedMissions.reduce((s,m) => s + (m.duration||0), 0);
-  const unpaidM        = doneMissions.filter(m => m.paymentStatus !== 'paid');
+  const unpaidM        = doneMissions.filter(m => m.paymentStatus !== 'paid' && m.status === 'done');
   const unpaidAmt      = unpaidM.reduce((s,m) => s + (m.duration||0)*(m.billingRate||0), 0);
 
   document.getElementById('fin-revenue').textContent       = Utils.formatMoney(totalRevenue);
@@ -175,38 +190,40 @@ function render() {
   unpaidCard.className = unpaidAmt > 0 ? 'kpi-card kpi-alert-card' : 'kpi-card kpi-success-card';
 
   // Répartition par école — filtrée par pôle si sélectionné
-  const allCosMap2 = companies;
   const clientSchools = Data.getClientSchools().filter(co => {
     if (!_poleId) return true;
     if (co.poleId) return co.poleId === _poleId;
-    return false; // société sans poleId → exclure du filtre par pôle
+    return false;
   });
   const allByCompany  = {};
   clientSchools.forEach(co => { allByCompany[co.id] = { hours: 0, revenue: 0, done: 0, planned: 0 }; });
+  // Bucket pour missions sans école associée
+  allByCompany['__no_school__'] = { hours: 0, revenue: 0, done: 0, planned: 0 };
   doneMissions.forEach(m => {
-    if (allByCompany[m.companyId]) {
-      allByCompany[m.companyId].hours   += m.duration || 0;
-      allByCompany[m.companyId].revenue += (m.duration||0) * (m.billingRate||0);
-      allByCompany[m.companyId].done++;
-    }
+    const key = allByCompany[m.companyId] ? m.companyId : '__no_school__';
+    allByCompany[key].hours   += m.duration || 0;
+    allByCompany[key].revenue += (m.duration||0) * (m.billingRate||0);
+    allByCompany[key].done++;
   });
   plannedMissions.forEach(m => {
-    if (allByCompany[m.companyId]) {
-      allByCompany[m.companyId].hours   += m.duration || 0;
-      allByCompany[m.companyId].revenue += (m.duration||0) * (m.billingRate||0);
-      allByCompany[m.companyId].planned++;
-    }
+    const key = allByCompany[m.companyId] ? m.companyId : '__no_school__';
+    allByCompany[key].hours   += m.duration || 0;
+    allByCompany[key].revenue += (m.duration||0) * (m.billingRate||0);
+    allByCompany[key].planned++;
   });
   const byCompanyEntries = Object.entries(allByCompany).filter(([,d]) => d.done + d.planned > 0)
     .sort((a, b) => b[1].revenue - a[1].revenue);
+  // Part% calculée sur le total affiché (cohérent avec les lignes visibles)
+  const displayedRevenue = byCompanyEntries.reduce((s, [, d]) => s + d.revenue, 0);
   const sectionCompany   = document.getElementById('section-by-company');
   sectionCompany.style.display = (_companyId === '__none__' || byCompanyEntries.length === 0) ? 'none' : '';
   document.getElementById('tbody-by-company').innerHTML = byCompanyEntries.map(([cid, d]) => {
-    const co  = companies[cid];
+    const co  = cid === '__no_school__' ? null : companies[cid];
     const col = co ? co.color : '#94a3b8';
-    const pct = totalRevenue > 0 ? Math.round(d.revenue / totalRevenue * 100) : 0;
+    const pct = displayedRevenue > 0 ? Math.round(d.revenue / displayedRevenue * 100) : 0;
+    const name = cid === '__no_school__' ? '<em style="color:var(--text-muted)">Sans école associée</em>' : Utils.escapeHtml(co?.name || '—');
     return `<tr>
-      <td><span class="school-dot" style="background:${col}"></span> ${co ? Utils.escapeHtml(co.name) : '—'}</td>
+      <td><span class="school-dot" style="background:${col}"></span> ${name}</td>
       <td class="cell-center">${d.done}${d.planned > 0 ? ` <span style="color:var(--text-muted);font-size:0.8rem">(+${d.planned} prévu)</span>` : ''}</td>
       <td class="cell-center">${Utils.formatDuration(d.hours)}</td>
       <td class="cell-money">${Utils.formatMoney(d.revenue)}</td>
@@ -240,7 +257,8 @@ function render() {
     </tr>`;
   }).join('');
 
-  // Missions réalisées — masquées si "aucune école"
+  // Missions réalisées — masquées si "aucune école", triées par date desc
+  doneMissions.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const doneSectionEl = document.getElementById('section-done-missions');
   if (doneSectionEl) doneSectionEl.style.display = _companyId === '__none__' ? 'none' : '';
   document.getElementById('done-section-title').textContent = `Missions réalisées / passées (${doneMissions.length})`;
@@ -250,11 +268,13 @@ function render() {
       const co  = companies[m.companyId || m.schoolId];
       const col = co ? co.color : '#94a3b8';
       const rev = (m.duration||0) * (m.billingRate||0);
-      const PAY = { unpaid:'<span class="badge badge-danger">Non payé</span>', invoiced:'<span class="badge badge-invoiced">Facturé</span>', paid:'<span class="badge badge-success">Payé</span>' };
-      const rateLabel = m.missionType === 'forfait' ? '<span style="font-size:0.75rem;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1px 7px">Forfait</span>' : `${Utils.formatMoney(m.billingRate)}/h`;
+      const isAutoDone = m.status === 'planned'; // auto-done : passé mais pas marqué done
+      const PAY = { unpaid:'<span class="badge badge-danger">Non payé</span>', invoiced:'<span class="badge badge-invoiced">Facturé (non payé)</span>', paid:'<span class="badge badge-success">Payé</span>' };
+      const rateLabel = m.missionType === 'forfait' ? '<span style="font-size:0.75rem;color:var(--text-muted);background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1px 7px">Forfait</span>' : `${Utils.formatMoney(m.billingRate)}/h`;
+      const autoBadge = isAutoDone ? ' <span style="font-size:0.7rem;background:var(--warning-light);color:var(--warning);border:1px solid var(--warning);border-radius:10px;padding:1px 6px">Auto</span>' : '';
       return `<tr class="table-row" onclick="Modals.openMission('${m.id}',null,()=>render())">
         <td>${Utils.formatDate(m.date)}</td>
-        <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(m.title)}</td>
+        <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(m.title)}${autoBadge}</td>
         <td>${co ? Utils.escapeHtml(co.name) : '—'}</td>
         <td>${Utils.formatDuration(m.duration)}</td>
         <td class="cell-money">${rateLabel}</td>
@@ -263,11 +283,15 @@ function render() {
       </tr>`;
     }).join('');
 
-  // Annulées
+  // Annulées — filtrées par pôle/école comme les autres missions
+  let cancelledMissions = stats.cancelled.filter(m => m.missionType !== 'personal');
+  if (_poleId) cancelledMissions = cancelledMissions.filter(filterByPole);
+  if (_companyId && _companyId !== '__none__') cancelledMissions = cancelledMissions.filter(m => m.companyId === _companyId);
+  if (_companyId === '__none__') cancelledMissions = [];
   const cancelSection = document.getElementById('section-cancelled');
-  cancelSection.style.display = stats.cancelled.length > 0 ? '' : 'none';
-  document.getElementById('cancelled-title').textContent = `Missions annulées (${stats.cancelled.length})`;
-  document.getElementById('cancelled-list').innerHTML = stats.cancelled.map(m =>
+  cancelSection.style.display = cancelledMissions.length > 0 ? '' : 'none';
+  document.getElementById('cancelled-title').textContent = `Missions annulées (${cancelledMissions.length})`;
+  document.getElementById('cancelled-list').innerHTML = cancelledMissions.map(m =>
     `<div class="cancelled-row" onclick="Modals.openMission('${m.id}',null,()=>render())">
       <span>${Utils.formatDate(m.date)}</span>
       <span>${Utils.escapeHtml(m.title)}</span>
@@ -351,7 +375,17 @@ function renderProviderCosts() {
 
   const [sy, ey]  = _schoolYear.split('-');
   const dateStart = `${sy}-09-01`, dateEnd = `${ey}-08-31`;
-  const allM      = Data.getMissions().filter(m => m.status !== 'cancelled');
+  // Filtre pôle pour la section prestataires
+  const _pcCoMap = {}; Data.getCompanies().forEach(c => _pcCoMap[c.id] = c);
+  const _pcPoleFilter = m => {
+    if (!_poleId) return true;
+    const co = _pcCoMap[m.companyId];
+    if (!co) return false;
+    if (co.role === 'own') return co.id === _poleId;
+    if (co.poleId) return co.poleId === _poleId;
+    return false;
+  };
+  const allM      = Data.getMissions().filter(m => m.status !== 'cancelled' && _pcPoleFilter(m));
   const monthM    = allM.filter(m => m.date && m.date.startsWith(_yearMonth));
   const yearM     = allM.filter(m => m.date && m.date >= dateStart && m.date <= dateEnd);
   const provMap   = {}; Data.getProviders().forEach(p => provMap[p.id] = p);
@@ -465,9 +499,9 @@ function renderChart() {
 
     if (split === 'poles') {
       if (ownCos.length > 1) {
-        // Barre unique Total = Artémis + Astéria (toutes missions brutes)
+        // Barre unique Total — respecte le filtre pôle actif (missions déjà filtrées)
         const allMonthlyRev = labels.map(lbl =>
-          Math.round(allMissions.filter(m => missionKey(m) === lbl)
+          Math.round(missions.filter(m => missionKey(m) === lbl)
             .reduce((s, m) => s + (m.duration||0) * (m.billingRate||0), 0) * 100) / 100
         );
         datasets.push({
@@ -530,7 +564,10 @@ function renderChart() {
 
   // Datasets prestataires sélectionnés — filtrés aussi par pôle
   if (_providerIds.length > 0) {
-    const allProvM = allMissions.filter(m => _providerIds.includes(m.providerId) && poleFilterFn(m));
+    const allProvM = allMissions.filter(m => {
+      const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+      return pids.some(pid => _providerIds.includes(pid)) && poleFilterFn(m);
+    });
     const costData = labels.map(lbl => Math.round(allProvM.filter(m=>missionKey(m)===lbl).reduce((s,m)=>s+(m.duration||0)*(m.providerRate||0),0)*100)/100);
     const revData  = labels.map(lbl => Math.round(allProvM.filter(m=>missionKey(m)===lbl).reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0)*100)/100);
     datasets.push({ label: 'Sorties prestataires', data: costData, backgroundColor: '#ef444460', borderColor: '#ef4444', borderWidth:2, borderDash:[5,3], fill:false });
@@ -575,9 +612,11 @@ function renderPieChart() {
     if (co.poleId) return co.poleId === _poleId;
     return false;
   };
-  const missions = allMissions.filter(poleFilterFn);
-  if (_companyId && _companyId !== '__none__') {
-    // filtre école actif → pas utile en camembert, on ignore
+  let missions = allMissions.filter(poleFilterFn);
+  if (_companyId === '__none__') {
+    missions = [];
+  } else if (_companyId) {
+    missions = missions.filter(m => m.companyId === _companyId);
   }
 
   // Calcul CA par école

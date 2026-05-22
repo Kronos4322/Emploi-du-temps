@@ -869,8 +869,23 @@ const Data = {
     }
   },
 
-  exportToCsv(yearMonth) {
-    const missions  = yearMonth ? this.getMissionsByMonth(yearMonth) : this.getMissionsSorted();
+  exportToCsv(yearMonth, options = {}) {
+    let missions  = yearMonth ? this.getMissionsByMonth(yearMonth) : this.getMissionsSorted();
+    const { poleId, companyId } = options;
+    if (poleId || companyId) {
+      const coMap = {}; this.getCompanies().forEach(c => coMap[c.id] = c);
+      if (poleId) {
+        missions = missions.filter(m => {
+          const co = coMap[m.companyId];
+          if (!co) return false;
+          if (co.role === 'own') return co.id === poleId;
+          if (co.poleId) return co.poleId === poleId;
+          return false;
+        });
+      }
+      if (companyId === '__none__') missions = [];
+      else if (companyId) missions = missions.filter(m => m.companyId === companyId);
+    }
     const companies = {}; this.getCompanies().forEach(c => companies[c.id] = c.name);
     const providers = {}; this.getProviders().forEach(p => providers[p.id] = `${p.firstName} ${p.lastName}`);
 
