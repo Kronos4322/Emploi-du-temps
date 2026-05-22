@@ -215,6 +215,35 @@ const Data = {
       }
       return c;
     });
+
+    // Migration one-shot : ré-attribuer les missions rattachées directement aux pôles
+    // vers leur vraie société cliente (cours particuliers / géopolitique)
+    if (!this._db._poleAssignmentsFixed) {
+      const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+      const findCo = partial => this._db.companies.find(c => norm(c.name).includes(norm(partial)));
+
+      // Pôles sources (own companies)
+      const artemis   = this._db.companies.find(c => c.role==='own' && norm(c.name).includes('artem'));
+      const asteria   = this._db.companies.find(c => c.role==='own' && norm(c.name).includes('aster'));
+      // Sociétés clientes cibles
+      const courspart = findCo('cours particuliers');
+      const geopolit  = findCo('geopolit') || findCo('geopolitique');
+
+      const mapping = {};
+      if (artemis && courspart && artemis.id !== courspart.id) mapping[artemis.id] = courspart.id;
+      if (asteria && geopolit  && asteria.id !== geopolit.id)  mapping[asteria.id]  = geopolit.id;
+
+      if (Object.keys(mapping).length > 0) {
+        let fixed = 0;
+        this._db.missions = (this._db.missions||[]).map(m => {
+          if (mapping[m.companyId]) { fixed++; return { ...m, companyId: mapping[m.companyId], updatedAt: Date.now() }; }
+          return m;
+        });
+        if (fixed > 0) this._db._poleAssignmentsFixed = true;
+      } else {
+        // Les sociétés cibles n'ont pas été trouvées → on ne marque pas pour retenter au prochain chargement
+      }
+    }
   },
 
   _save() {
