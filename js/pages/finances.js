@@ -619,11 +619,13 @@ function renderPieChart() {
     missions = missions.filter(m => m.companyId === _companyId);
   }
 
-  // Calcul CA par école cliente uniquement (on exclut les sociétés propres = pôles)
+  // Calcul CA par école cliente uniquement — liste blanche explicite via getClientSchools()
+  const clientIds = new Set(Data.getClientSchools().map(c => c.id));
   const bySchool = {};
   missions.forEach(m => {
+    if (!clientIds.has(m.companyId)) return; // ignorer tout ce qui n'est pas une école cliente
     const co = coMap[m.companyId];
-    if (!co || co.role === 'own') return; // ignorer les pôles eux-mêmes
+    if (!co) return;
     const key = m.companyId;
     if (!bySchool[key]) bySchool[key] = { name: co.name, total: 0, color: co.color };
     bySchool[key].total += (m.duration||0) * (m.billingRate||0);
