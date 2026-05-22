@@ -648,9 +648,9 @@ function renderRentalSection() {
   document.getElementById('rental-pending').textContent = Utils.formatMoney(pending);
 
   const STATUS = {
-    received: '<span class="badge badge-success">Reçu</span>',
-    pending:  '<span class="badge badge-invoiced">En attente</span>',
-    partial:  '<span class="badge badge-danger">Partiel</span>',
+    received: '<span class="badge badge-success">✓ Reçu</span>',
+    pending:  '<span class="badge badge-warning">⏳ En attente</span>',
+    partial:  '<span class="badge badge-danger">⚠ Partiel</span>',
   };
   document.getElementById('rental-tbody').innerHTML = incomes.map(r => {
     const prop = propMap[r.propertyId];

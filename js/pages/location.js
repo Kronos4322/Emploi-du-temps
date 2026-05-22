@@ -29,21 +29,34 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Filtres ──────────────────────────────────────────────────
 
 function _buildMonthFilter() {
-  const now  = new Date();
-  const end  = new Date(now.getFullYear(), now.getMonth() + 6, 1);
-  const months = [];
+  const now     = new Date();
+  const currentYm = Utils.currentYearMonth();
+  // On ne propose que le mois courant + 1 mois suivant au max (revenus déjà connus ou imminents)
+  const end     = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const months  = [];
   const incomes = Data.getRentalIncomes();
-  const first   = incomes.map(r => r.yearMonth).sort()[0];
-  const stopYm  = first || `${now.getFullYear() - 1}-01`;
+  // Remonter jusqu'au premier revenu enregistré ou 24 mois en arrière
+  const allYms  = incomes.map(r => r.yearMonth).filter(Boolean).sort();
+  const first   = allYms[0];
+  const stopYm  = first
+    ? (first < currentYm ? first : currentYm)  // ne pas aller avant le premier revenu
+    : `${now.getFullYear() - 2}-${String(now.getMonth() + 1).padStart(2, '0')}`;  // 24 mois en arrière max
   for (let d = new Date(end); ; d.setMonth(d.getMonth() - 1)) {
     const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     months.push(ym);
     if (ym <= stopYm) break;
   }
+  // S'assurer que le mois courant figure toujours dans la liste
+  if (!months.includes(currentYm)) months.push(currentYm);
+  // S'assurer que _locMonth figure dans la liste (s'il vient d'un revenu sauvegardé)
+  if (!months.includes(_locMonth)) months.push(_locMonth);
+  months.sort((a, b) => b.localeCompare(a)); // décroissant
   const el = document.getElementById('loc-filter-month');
   el.innerHTML = months.map(ym => {
     const [y, m] = ym.split('-');
-    return `<option value="${ym}" ${ym === _locMonth ? 'selected' : ''}>${Utils.MONTHS_LONG[+m - 1]} ${y}</option>`;
+    const isFuture = ym > currentYm;
+    const label = `${Utils.MONTHS_LONG[+m - 1]} ${y}${isFuture ? ' (prévu)' : ''}`;
+    return `<option value="${ym}" ${ym === _locMonth ? 'selected' : ''}>${label}</option>`;
   }).join('');
 }
 
@@ -69,13 +82,17 @@ function _renderKpis() {
   const allIncomes   = Data.getRentalIncomes();
   const monthIncomes = allIncomes.filter(r => r.yearMonth === _locMonth);
   const monthTotal   = monthIncomes.reduce((s, r) => s + (r.amount || 0), 0);
+  // Montant en attente = non reçu (pending ou partial) pour le mois sélectionné
   const pending      = monthIncomes.filter(r => r.status !== 'received').reduce((s, r) => s + (r.amount || 0), 0);
 
-  // Revenus 12 derniers mois
-  const now = new Date();
-  const cutoff = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-  const cutYm  = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}`;
-  const yearTotal = allIncomes.filter(r => r.yearMonth >= cutYm).reduce((s, r) => s + (r.amount || 0), 0);
+  // Revenus 12 derniers mois — uniquement les mois passés et le mois courant (pas le futur)
+  const now        = new Date();
+  const currentYm  = Utils.currentYearMonth();
+  const cutoff     = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const cutYm      = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}`;
+  const yearTotal  = allIncomes
+    .filter(r => r.yearMonth >= cutYm && r.yearMonth <= currentYm)
+    .reduce((s, r) => s + (r.amount || 0), 0);
 
   document.getElementById('loc-kpi-total').textContent   = Utils.formatMoney(monthTotal);
   document.getElementById('loc-kpi-year').textContent    = Utils.formatMoney(yearTotal);
@@ -83,7 +100,7 @@ function _renderKpis() {
   document.getElementById('loc-kpi-pending').textContent = Utils.formatMoney(pending);
 
   const pendingCard = document.getElementById('loc-kpi-pending-card');
-  if (pendingCard) pendingCard.className = pending > 0 ? 'kpi-card kpi-alert-card' : 'kpi-card kpi-success-card';
+  if (pendingCard) pendingCard.className = pending > 0 ? 'kpi-card kpi-alert-card' : 'kpi-card';
 }
 
 function _renderProperties() {
@@ -133,9 +150,9 @@ function _renderIncomes() {
   const total   = incomes.reduce((s, r) => s + (r.amount || 0), 0);
 
   const STATUS = {
-    received: '<span class="badge badge-success">Reçu</span>',
-    pending:  '<span class="badge badge-invoiced">En attente</span>',
-    partial:  '<span class="badge badge-danger">Partiel</span>',
+    received: '<span class="badge badge-success">✓ Reçu</span>',
+    pending:  '<span class="badge badge-warning">⏳ En attente</span>',
+    partial:  '<span class="badge badge-danger">⚠ Partiel</span>',
   };
 
   const tbody = document.getElementById('incomes-tbody');
@@ -153,8 +170,8 @@ function _renderIncomes() {
           <td>${STATUS[r.status] || r.status || ''}</td>
           <td style="font-size:0.8rem;color:var(--text-muted)">${Utils.escapeHtml(r.notes || '')}</td>
           <td class="cell-center" style="white-space:nowrap">
-            <button class="btn btn-ghost btn-xs" onclick="window._locOpenIncomeDrawer('${r.id}')">✏</button>
-            <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="window._locDeleteIncome('${r.id}')">🗑</button>
+            <button class="btn btn-ghost btn-xs" onclick="window._locOpenIncomeDrawer('${r.id}')">Modifier</button>
+            <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="window._locDeleteIncome('${r.id}')">Suppr.</button>
           </td>
         </tr>`;
       }).join('');
@@ -245,10 +262,9 @@ function _locSaveIncome(e) {
   };
   Data.saveRentalIncome(income);
   _locCloseDrawers();
-  // Mettre le filtre mois sur le mois de l'entrée créée
+  // Naviguer vers le mois du revenu sauvegardé pour que l'utilisateur voie son entrée
   _locMonth = income.yearMonth;
-  document.getElementById('loc-filter-month').value = _locMonth;
-  _buildMonthFilter();
+  _buildMonthFilter(); // reconstruit la liste (inclut le mois du revenu si nouveau)
   _renderPage();
 }
 
