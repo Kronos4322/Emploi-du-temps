@@ -392,7 +392,9 @@ let _chartInstance = null;
 function renderChart() {
   const group = document.getElementById('chart-group').value;   // 'month' | 'year'
   const split = document.getElementById('chart-split').value;   // 'poles' | 'schools'
-  const ctype = document.getElementById('chart-type').value;    // 'bar' | 'line'
+  const ctype = document.getElementById('chart-type').value;    // 'bar' | 'line' | 'pie'
+
+  if (ctype === 'pie') { renderPieChart(); return; }
 
   const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
   const ownCos = Data.getOwnCompanies();
@@ -548,6 +550,71 @@ function renderChart() {
         label: ctx => `${ctx.dataset.label}: ${Utils.formatMoney(ctx.parsed.y)}`
       }}},
       scales: { y: { ticks: { callback: v => Utils.formatMoney(v) }, beginAtZero: true } }
+    }
+  });
+}
+
+function renderPieChart() {
+  const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
+  const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled' && m.date);
+
+  // Filtre pôle si actif
+  const poleFilterFn = m => {
+    if (!_poleId) return true;
+    const co = coMap[m.companyId];
+    if (!co) return false;
+    if (co.role === 'own') return co.id === _poleId;
+    if (co.poleId) return co.poleId === _poleId;
+    return false;
+  };
+  const missions = allMissions.filter(poleFilterFn);
+  if (_companyId && _companyId !== '__none__') {
+    // filtre école actif → pas utile en camembert, on ignore
+  }
+
+  // Calcul CA par école
+  const bySchool = {};
+  missions.forEach(m => {
+    const co = coMap[m.companyId];
+    if (!co) return;
+    const key = m.companyId;
+    if (!bySchool[key]) bySchool[key] = { name: co.name, total: 0 };
+    bySchool[key].total += (m.duration||0) * (m.billingRate||0);
+  });
+
+  // Tri décroissant
+  const sorted = Object.values(bySchool)
+    .map(e => ({ ...e, total: Math.round(e.total * 100) / 100 }))
+    .filter(e => e.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  const grandTotal = sorted.reduce((s, e) => s + e.total, 0);
+  const COLORS = ['#8b5cf6','#3b82f6','#10b981','#f97316','#ef4444','#06b6d4','#f59e0b','#84cc16','#ec4899','#14b8a6','#a855f7','#64748b','#f43f5e','#0ea5e9','#22c55e'];
+
+  const ctx = document.getElementById('fin-chart').getContext('2d');
+  if (_chartInstance) _chartInstance.destroy();
+  _chartInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: sorted.map(e => e.name),
+      datasets: [{
+        data: sorted.map(e => e.total),
+        backgroundColor: sorted.map((_, i) => COLORS[i % COLORS.length]),
+        borderWidth: 2,
+        borderColor: '#fff',
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'right', labels: { font: { size: 12 }, padding: 14 } },
+        tooltip: { callbacks: {
+          label: ctx => {
+            const pct = ((ctx.parsed / grandTotal) * 100).toFixed(1);
+            return ` ${ctx.label} : ${Utils.formatMoney(ctx.parsed)} (${pct}%)`;
+          }
+        }},
+      }
     }
   });
 }
