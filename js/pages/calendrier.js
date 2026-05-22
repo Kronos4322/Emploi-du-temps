@@ -167,6 +167,23 @@ function shiftMonth(iso, delta) {
 
 function renderCalendar() {
   document.getElementById('cal-title').textContent = getTitle();
+
+  // Badge revenu mensuel (seulement en vue mois)
+  const revEl = document.getElementById('cal-revenue');
+  if (revEl) {
+    if (_view === 'month') {
+      const ym = _date.slice(0, 7); // "2027-03"
+      const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled' && m.date);
+      const monthRev = allMissions
+        .filter(m => m.date.slice(0, 7) === ym)
+        .reduce((s, m) => s + (m.duration || 0) * (m.billingRate || 0), 0);
+      revEl.textContent = monthRev > 0 ? Utils.formatMoney(Math.round(monthRev * 100) / 100) : '';
+      revEl.style.display = monthRev > 0 ? '' : 'none';
+    } else {
+      revEl.style.display = 'none';
+    }
+  }
+
   const body = document.getElementById('calendar-body');
   if (_view === 'day')   body.innerHTML = renderDay(_date);
   if (_view === 'week')  body.innerHTML = renderWeek();

@@ -79,7 +79,10 @@
           <button class="btn btn-ghost btn-today" id="cal-today">Aujourd'hui</button>
           <button class="btn btn-ghost btn-icon" id="cal-next" title="Suivant">›</button>
         </div>
-        <div class="cal-title" id="cal-title">—</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="cal-title" id="cal-title">—</div>
+          <div id="cal-revenue" style="font-size:0.85rem;font-weight:600;color:#8b5cf6;background:#8b5cf615;border:1px solid #8b5cf630;border-radius:20px;padding:3px 12px;white-space:nowrap"></div>
+        </div>
         <div class="cal-view-switcher">
           <button class="btn btn-ghost" id="view-day"   data-view="day">Jour</button>
           <button class="btn btn-primary" id="view-week" data-view="week">Semaine</button>
