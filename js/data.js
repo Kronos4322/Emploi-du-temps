@@ -80,11 +80,15 @@ const Data = {
       const localTs = parseInt(localStorage.getItem('_edt_ts') || '0');
       if (_fbLastTs > localTs) {
         // Firebase plus récent → TOUJOURS l'utiliser (suppressions incluses)
+        // Détecter les sociétés sans rôle avant migration pour repousser ensuite
+        const hadMissingRoles = (fbData.companies || []).some(c => !c.role);
         this._db = fbData;
         this._migrate();
         localStorage.setItem(DB_KEY, JSON.stringify(this._db));
         localStorage.setItem('_edt_ts', String(_fbLastTs));
         _reRenderPage();
+        // Si la migration a dû assigner des rôles manquants, persister dans Firebase
+        if (hadMissingRoles) this._pushToFirebase();
       } else if (localTs > _fbLastTs) {
         // Local plus récent → on pousse vers Firebase
         this._pushToFirebase();
@@ -201,9 +205,9 @@ const Data = {
     // Garantir le champ role sur chaque société
     this._db.companies = this._db.companies.map(c => {
       if (!c.role) {
-        // Une société avec poleId est forcément un client (elle est rattachée à une société propre)
-        if (c.poleId) c.role = 'client';
-        else c.role = (c.type === 'enseignement') ? 'client' : 'own';
+        // Seul critère fiable : poleId présent → client, sinon → own
+        // (ne pas se baser sur 'type' : un pôle peut aussi avoir type='enseignement')
+        c.role = c.poleId ? 'client' : 'own';
       }
       // hasTraining: pour les sociétés own existantes, activer si des étudiants y sont rattachés
       if (c.role === 'own' && c.hasTraining === undefined) {
