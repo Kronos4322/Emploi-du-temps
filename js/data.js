@@ -162,7 +162,9 @@ const Data = {
         currency: 'EUR',
         firstDayOfWeek: 1,
         responsableName: '', // nom du responsable pédagogique (utilisé dans les formulaires Qualiopi)
-      }
+      },
+      properties: [],      // appartements / biens locatifs
+      rentalIncomes: [],   // revenus locatifs mensuels
     };
   },
 
@@ -193,6 +195,8 @@ const Data = {
     if (!this._db.subjects)           this._db.subjects = [];
     if (!this._db.subjectCategories)  this._db.subjectCategories = [];
     if (!this._db.settings)      this._db.settings = this._emptyDb().settings;
+    if (!this._db.properties)    this._db.properties = [];
+    if (!this._db.rentalIncomes) this._db.rentalIncomes = [];
 
     // Garantir le champ role sur chaque société
     this._db.companies = this._db.companies.map(c => {
@@ -584,6 +588,66 @@ const Data = {
   deleteSubjectCategory(id) {
     this._db.subjectCategories = (this._db.subjectCategories||[]).filter(c => c.id !== id);
     this._db.subjects = (this._db.subjects||[]).map(s => s.categoryId===id ? {...s, categoryId:null} : s);
+    this._save();
+  },
+
+  // ── Biens locatifs ───────────────────────────────────────────
+
+  getProperties() {
+    return [...(this._db.properties||[])].sort((a, b) => a.name.localeCompare(b.name));
+  },
+  getActiveProperties() {
+    return this.getProperties().filter(p => p.active !== false);
+  },
+  getPropertyById(id) {
+    return (this._db.properties||[]).find(p => p.id === id) || null;
+  },
+  saveProperty(property) {
+    if (!this._db.properties) this._db.properties = [];
+    const idx = this._db.properties.findIndex(p => p.id === property.id);
+    if (idx >= 0) {
+      this._db.properties[idx] = { ...property, updatedAt: Date.now() };
+    } else {
+      this._db.properties.push({ ...property, id: property.id || Utils.uuid(), createdAt: Date.now(), updatedAt: Date.now() });
+    }
+    this._save();
+  },
+  deleteProperty(id) {
+    if (!this._db.properties) return { success: true };
+    this._db.properties = this._db.properties.filter(p => p.id !== id);
+    this._db.rentalIncomes = (this._db.rentalIncomes||[]).filter(r => r.propertyId !== id);
+    this._save();
+    return { success: true };
+  },
+
+  // ── Revenus locatifs ─────────────────────────────────────────
+
+  getRentalIncomes() {
+    return [...(this._db.rentalIncomes||[])].sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
+  },
+  getRentalIncomeById(id) {
+    return (this._db.rentalIncomes||[]).find(r => r.id === id) || null;
+  },
+  getRentalIncomesByMonth(yearMonth) {
+    return (this._db.rentalIncomes||[]).filter(r => r.yearMonth === yearMonth);
+  },
+  getRentalIncomesByProperty(propertyId) {
+    return (this._db.rentalIncomes||[]).filter(r => r.propertyId === propertyId)
+      .sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
+  },
+  saveRentalIncome(income) {
+    if (!this._db.rentalIncomes) this._db.rentalIncomes = [];
+    const idx = this._db.rentalIncomes.findIndex(r => r.id === income.id);
+    if (idx >= 0) {
+      this._db.rentalIncomes[idx] = { ...income, updatedAt: Date.now() };
+    } else {
+      this._db.rentalIncomes.push({ ...income, id: income.id || Utils.uuid(), createdAt: Date.now(), updatedAt: Date.now() });
+    }
+    this._save();
+  },
+  deleteRentalIncome(id) {
+    if (!this._db.rentalIncomes) return;
+    this._db.rentalIncomes = this._db.rentalIncomes.filter(r => r.id !== id);
     this._save();
   },
 

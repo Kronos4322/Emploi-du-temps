@@ -16,10 +16,11 @@ document.addEventListener('DOMContentLoaded', () => {
   render();
   renderAnnual();
   renderChart();
+  renderRentalSection();
   // section prestataires masquée jusqu'à sélection
 
   buildCompanyFilter();
-  document.getElementById('filter-month').addEventListener('change',   e => { _yearMonth = e.target.value; render(); });
+  document.getElementById('filter-month').addEventListener('change',   e => { _yearMonth = e.target.value; render(); renderRentalSection(); });
   document.getElementById('filter-company').addEventListener('change', e => { _companyId = e.target.value; render(); renderChart(); });
   document.getElementById('filter-pole').addEventListener('change',    e => { _poleId = e.target.value; buildCompanyFilter(); render(); renderAnnual(); renderChart(); });
   document.getElementById('filter-year').addEventListener('change',    e => { _schoolYear = e.target.value; renderAnnual(); });
@@ -624,4 +625,45 @@ function renderPieChart() {
       }
     }
   });
+}
+
+function renderRentalSection() {
+  const section = document.getElementById('section-rental');
+  if (!section) return;
+
+  const incomes = Data.getRentalIncomesByMonth(_yearMonth);
+  if (incomes.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  const propMap = {}; Data.getProperties().forEach(p => propMap[p.id] = p);
+  const [y, m] = _yearMonth.split('-');
+  document.getElementById('rental-month-label').textContent = `${Utils.MONTHS_LONG[+m-1]} ${y}`;
+
+  const total   = incomes.reduce((s, r) => s + (r.amount || 0), 0);
+  const pending = incomes.filter(r => r.status !== 'received').reduce((s, r) => s + (r.amount || 0), 0);
+  const propIds = [...new Set(incomes.map(r => r.propertyId).filter(Boolean))];
+
+  document.getElementById('rental-total').textContent   = Utils.formatMoney(total);
+  document.getElementById('rental-count').textContent   = propIds.length;
+  document.getElementById('rental-pending').textContent = Utils.formatMoney(pending);
+
+  const STATUS = {
+    received: '<span class="badge badge-success">Reçu</span>',
+    pending:  '<span class="badge badge-invoiced">En attente</span>',
+    partial:  '<span class="badge badge-danger">Partiel</span>',
+  };
+  document.getElementById('rental-tbody').innerHTML = incomes.map(r => {
+    const prop = propMap[r.propertyId];
+    const col  = prop?.color || '#94a3b8';
+    return `<tr>
+      <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(prop?.name || '—')}</td>
+      <td>${Utils.escapeHtml(r.platform || '—')}</td>
+      <td class="cell-center">${r.nightsRented || '—'}</td>
+      <td class="cell-money">${Utils.formatMoney(r.amount || 0)}</td>
+      <td>${STATUS[r.status] || r.status || ''}</td>
+      <td class="cell-center"><a href="location.html" style="font-size:0.8rem;color:var(--primary)">Voir</a></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('rental-tfoot-total').innerHTML = `<strong>${Utils.formatMoney(total)}</strong>`;
 }

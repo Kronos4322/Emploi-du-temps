@@ -212,6 +212,55 @@
         </div>
       </details>
 
+      <!-- 5. Revenus locatifs -->
+      <details class="fin-section" id="section-rental" style="display:none">
+        <summary>🏠 Revenus locatifs — <span id="rental-month-label">—</span></summary>
+        <div class="kpi-grid" style="margin-bottom:16px">
+          <div class="kpi-card">
+            <div class="kpi-icon kpi-green">🏠</div>
+            <div class="kpi-content">
+              <div class="kpi-value" id="rental-total">—</div>
+              <div class="kpi-label">Revenus locatifs</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon kpi-blue">🏘</div>
+            <div class="kpi-content">
+              <div class="kpi-value" id="rental-count">—</div>
+              <div class="kpi-label">Propriétés actives</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon kpi-orange">⚠</div>
+            <div class="kpi-content">
+              <div class="kpi-value" id="rental-pending">—</div>
+              <div class="kpi-label">En attente</div>
+            </div>
+          </div>
+        </div>
+        <div class="report-table-wrapper">
+          <table class="data-table">
+            <thead><tr>
+              <th>Propriété</th>
+              <th>Plateforme</th>
+              <th class="cell-center">Nuits</th>
+              <th class="cell-money">Revenu</th>
+              <th>Statut</th>
+              <th class="cell-center">Actions</th>
+            </tr></thead>
+            <tbody id="rental-tbody"></tbody>
+            <tfoot><tr class="table-total">
+              <td colspan="3"><strong>Total</strong></td>
+              <td class="cell-money" id="rental-tfoot-total"><strong>—</strong></td>
+              <td colspan="2"></td>
+            </tr></tfoot>
+          </table>
+        </div>
+        <div style="margin-top:10px">
+          <a href="location.html" class="btn btn-ghost btn-sm">→ Gérer les propriétés et revenus</a>
+        </div>
+      </details>
+
       <!-- Hidden report title for JS compat -->
       <h2 id="report-title" style="display:none">—</h2>
 
@@ -220,10 +269,10 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="js/utils.js?v=10"></script>
-  <script src="js/data.js?v=11"></script>
+  <script src="js/data.js?v=12"></script>
   <script src="js/modals.js?v=12"></script>
   <script src="js/nav.js?v=10"></script>
-  <script src="js/pages/finances.js?v=7"></script>
+  <script src="js/pages/finances.js?v=8"></script>
 </body>
 </html>
 

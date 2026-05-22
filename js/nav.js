@@ -51,6 +51,8 @@
       html += makeLink(`facturation.html?pole=${co.id}`, '💶', 'Facturation');
       html += makeLink(`finances.html?pole=${co.id}`,    '📊', 'Finances');
     });
+    html += section('Revenus personnels');
+    html += makeLink('location.html', '🏠', 'Location');
     return html;
   }
 
