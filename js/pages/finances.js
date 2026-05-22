@@ -479,6 +479,30 @@ function renderChart() {
           tension: 0.3,
           order: -1,
         });
+
+        // Moyenne glissante 3 mois sur le Total
+        const lastNonZero = totalData.reduce((last, v, i) => v > 0 ? i : last, -1);
+        const W = group === 'month' ? 3 : 2; // fenêtre : 3 mois ou 2 années scolaires
+        const maData = totalData.map((_, i) => {
+          if (i > lastNonZero) return null;
+          const slice = totalData.slice(Math.max(0, i - W + 1), i + 1).filter(v => v > 0);
+          if (slice.length === 0) return null;
+          return Math.round(slice.reduce((s, v) => s + v, 0) / slice.length * 100) / 100;
+        });
+        datasets.push({
+          label: `Moyenne (${W} mois)`,
+          data: maData,
+          borderColor: '#f97316',
+          borderWidth: 2,
+          borderDash: [6, 4],
+          backgroundColor: 'transparent',
+          pointRadius: 0,
+          tension: 0.4,
+          fill: false,
+          type: 'line',
+          order: -2,
+          spanGaps: false,
+        });
       }
     } else if (split === 'schools') {
       const schools = Data.getClientSchools().filter(co => {
