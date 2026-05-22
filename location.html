@@ -176,12 +176,6 @@
             <input type="month" id="inc-month" class="form-input" required>
           </div>
           <div class="form-group">
-            <label class="form-label">Montant (€) *</label>
-            <input type="number" id="inc-amount" class="form-input" min="0" step="0.01" required placeholder="0.00">
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
             <label class="form-label">Plateforme</label>
             <input type="text" id="inc-platform" class="form-input" placeholder="Ex : Airbnb, Booking…" list="platform-list">
             <datalist id="platform-list">
@@ -193,9 +187,27 @@
               <option value="Autre">
             </datalist>
           </div>
+        </div>
+        <div class="form-row">
           <div class="form-group">
             <label class="form-label">Nuits louées</label>
-            <input type="number" id="inc-nights" class="form-input" min="0" step="1" placeholder="—">
+            <input type="number" id="inc-nights" class="form-input" min="0" step="1" placeholder="0" oninput="window._locCalcTotal()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tarif par nuit (€)</label>
+            <input type="number" id="inc-rate" class="form-input" min="0" step="0.01" placeholder="0.00" oninput="window._locCalcTotal()">
+          </div>
+        </div>
+        <!-- Total calculé automatiquement -->
+        <div class="form-group">
+          <label class="form-label" style="display:flex;align-items:center;justify-content:space-between">
+            <span>Montant total encaissé (€) *</span>
+            <span id="inc-calc-hint" style="font-size:0.78rem;color:var(--text-muted);font-weight:400"></span>
+          </label>
+          <input type="number" id="inc-amount" class="form-input" min="0" step="0.01" required placeholder="0.00"
+            style="font-weight:600;font-size:1rem">
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px">
+            Rempli automatiquement si vous indiquez nuits × tarif. Modifiable manuellement.
           </div>
         </div>
         <div class="form-group">
@@ -223,6 +235,6 @@
   <script src="js/data.js?v=12"></script>
   <script src="js/modals.js?v=12"></script>
   <script src="js/nav.js?v=10"></script>
-  <script src="js/pages/location.js?v=1"></script>
+  <script src="js/pages/location.js?v=2"></script>
 </body>
 </html>

@@ -165,7 +165,7 @@ function _renderIncomes() {
         return `<tr>
           <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(prop?.name || '—')}</td>
           <td>${Utils.escapeHtml(r.platform || '—')}</td>
-          <td class="cell-center">${r.nightsRented != null ? r.nightsRented : '—'}</td>
+          <td class="cell-center">${r.nightsRented != null ? `${r.nightsRented}${r.ratePerNight != null ? ` × ${Utils.formatMoney(r.ratePerNight)}` : ''}` : '—'}</td>
           <td class="cell-money">${Utils.formatMoney(r.amount || 0)}</td>
           <td>${STATUS[r.status] || r.status || ''}</td>
           <td style="font-size:0.8rem;color:var(--text-muted)">${Utils.escapeHtml(r.notes || '')}</td>
@@ -232,33 +232,51 @@ function _openIncomeDrawer(id) {
   }
 
   document.getElementById('income-drawer-title').textContent = income ? 'Modifier le revenu' : 'Nouveau revenu';
-  document.getElementById('inc-id').value       = income?.id || '';
-  document.getElementById('inc-property').value = income?.propertyId || props[0]?.id || '';
-  document.getElementById('inc-month').value    = income?.yearMonth || _locMonth;
-  document.getElementById('inc-amount').value   = income?.amount != null ? income.amount : '';
-  document.getElementById('inc-platform').value = income?.platform || '';
-  document.getElementById('inc-nights').value   = income?.nightsRented != null ? income.nightsRented : '';
-  document.getElementById('inc-status').value   = income?.status || 'received';
-  document.getElementById('inc-notes').value    = income?.notes || '';
+  document.getElementById('inc-id').value         = income?.id || '';
+  document.getElementById('inc-property').value   = income?.propertyId || props[0]?.id || '';
+  document.getElementById('inc-month').value      = income?.yearMonth || _locMonth;
+  document.getElementById('inc-amount').value     = income?.amount != null ? income.amount : '';
+  document.getElementById('inc-platform').value   = income?.platform || '';
+  document.getElementById('inc-nights').value     = income?.nightsRented != null ? income.nightsRented : '';
+  document.getElementById('inc-rate').value       = income?.ratePerNight != null ? income.ratePerNight : '';
+  document.getElementById('inc-status').value     = income?.status || 'received';
+  document.getElementById('inc-notes').value      = income?.notes || '';
+  document.getElementById('inc-calc-hint').textContent = '';
+  _locCalcTotal();
 
   document.getElementById('income-drawer').classList.add('open');
   document.getElementById('loc-overlay').classList.add('open');
   setTimeout(() => document.getElementById('inc-amount').focus(), 50);
 }
 
+function _locCalcTotal() {
+  const nights = parseFloat(document.getElementById('inc-nights').value);
+  const rate   = parseFloat(document.getElementById('inc-rate').value);
+  const hint   = document.getElementById('inc-calc-hint');
+  if (!isNaN(nights) && !isNaN(rate) && nights > 0 && rate > 0) {
+    const total = Math.round(nights * rate * 100) / 100;
+    document.getElementById('inc-amount').value = total;
+    if (hint) hint.textContent = `${nights} nuits × ${rate} € = ${total} €`;
+  } else {
+    if (hint) hint.textContent = '';
+  }
+}
+
 function _locSaveIncome(e) {
   e.preventDefault();
   const id = document.getElementById('inc-id').value;
   const nightsVal = document.getElementById('inc-nights').value;
+  const rateVal   = document.getElementById('inc-rate').value;
   const income = {
-    id:           id || Utils.uuid(),
-    propertyId:   document.getElementById('inc-property').value,
-    yearMonth:    document.getElementById('inc-month').value,
-    amount:       parseFloat(document.getElementById('inc-amount').value) || 0,
-    platform:     document.getElementById('inc-platform').value.trim(),
-    nightsRented: nightsVal !== '' ? parseInt(nightsVal, 10) : null,
-    status:       document.getElementById('inc-status').value,
-    notes:        document.getElementById('inc-notes').value.trim(),
+    id:            id || Utils.uuid(),
+    propertyId:    document.getElementById('inc-property').value,
+    yearMonth:     document.getElementById('inc-month').value,
+    amount:        parseFloat(document.getElementById('inc-amount').value) || 0,
+    platform:      document.getElementById('inc-platform').value.trim(),
+    nightsRented:  nightsVal !== '' ? parseInt(nightsVal, 10) : null,
+    ratePerNight:  rateVal   !== '' ? parseFloat(rateVal)     : null,
+    status:        document.getElementById('inc-status').value,
+    notes:         document.getElementById('inc-notes').value.trim(),
   };
   Data.saveRentalIncome(income);
   _locCloseDrawers();
@@ -306,6 +324,7 @@ function _locAddIncomeForProp(propertyId) {
 }
 
 // Expositions globales (onclick dans le HTML)
+window._locCalcTotal          = _locCalcTotal;
 window._locCloseDrawers       = _locCloseDrawers;
 window._locOpenPropertyDrawer = _openPropertyDrawer;
 window._locOpenIncomeDrawer   = _openIncomeDrawer;
