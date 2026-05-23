@@ -81,7 +81,7 @@ const Data = {
       if (_fbLastTs > localTs) {
         // Firebase plus récent → TOUJOURS l'utiliser (suppressions incluses)
         // Détecter ce qui nécessitera un push après migration
-        const needsMigration = (fbData.companies || []).some(c => !c.role) || !fbData._poleAssignmentsFixed22;
+        const needsMigration = (fbData.companies || []).some(c => !c.role) || !fbData._poleAssignmentsFixed3;
         this._db = fbData;
         this._migrate();
         localStorage.setItem(DB_KEY, JSON.stringify(this._db));
@@ -216,38 +216,47 @@ const Data = {
       return c;
     });
 
-    // Migration one-shot : ré-attribuer les missions pôle → société cliente
-    // Crée les sociétés clientes si elles n'existent pas encore
-    if (!this._db._poleAssignmentsFixed2) {
+    // Migration one-shot : corriger les rôles des pôles + réattribuer leurs missions
+    if (!this._db._poleAssignmentsFixed3) {
       const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
       const findCo = partial => this._db.companies.find(c => norm(c.name).includes(norm(partial)));
       const now = Date.now();
 
-      // Pôles sources
-      const artemis = this._db.companies.find(c => c.role==='own' && norm(c.name).includes('artem'));
-      const asteria = this._db.companies.find(c => c.role==='own' && norm(c.name).includes('aster'));
+      // Trouver les pôles par nom (sans condition sur role — peut être 'client' dans Firebase)
+      const artemis = findCo('artem');
+      const asteria = findCo('aster');
+
+      // Forcer role='own' sur ces sociétés (elles sont des pôles, pas des clients)
+      this._db.companies = this._db.companies.map(c => {
+        if (artemis && c.id === artemis.id) return { ...c, role: 'own' };
+        if (asteria && c.id === asteria.id) return { ...c, role: 'own' };
+        return c;
+      });
+      // Mettre à jour les références locales après correction
+      const artemisFixed = this._db.companies.find(c => artemis && c.id === artemis.id);
+      const asteriaFixed = this._db.companies.find(c => asteria && c.id === asteria.id);
 
       // Société cible Artémis : "Cours particuliers" — créée si absente
       let courspart = findCo('cours particuliers');
-      if (!courspart && artemis) {
+      if (!courspart && artemisFixed) {
         courspart = { id: 'co-cours-part', name: 'Cours particuliers', role: 'client',
-          poleId: artemis.id, color: '#f97316', type: 'enseignement',
+          poleId: artemisFixed.id, color: '#f97316', type: 'enseignement',
           createdAt: now, updatedAt: now };
         this._db.companies.push(courspart);
       }
 
       // Société cible Astéria : "Formations géopolitiques" — créée si absente
       let geopolit = findCo('geopolit') || findCo('geopolitique');
-      if (!geopolit && asteria) {
+      if (!geopolit && asteriaFixed) {
         geopolit = { id: 'co-formations-geo', name: 'Formations géopolitiques', role: 'client',
-          poleId: asteria.id, color: '#0891b2', type: 'enseignement',
+          poleId: asteriaFixed.id, color: '#0891b2', type: 'enseignement',
           createdAt: now, updatedAt: now };
         this._db.companies.push(geopolit);
       }
 
       const mapping = {};
-      if (artemis && courspart && artemis.id !== courspart.id) mapping[artemis.id] = courspart.id;
-      if (asteria && geopolit  && asteria.id !== geopolit.id)  mapping[asteria.id]  = geopolit.id;
+      if (artemisFixed && courspart && artemisFixed.id !== courspart.id) mapping[artemisFixed.id] = courspart.id;
+      if (asteriaFixed && geopolit  && asteriaFixed.id !== geopolit.id)  mapping[asteriaFixed.id]  = geopolit.id;
 
       if (Object.keys(mapping).length > 0) {
         this._db.missions = (this._db.missions||[]).map(m => {
@@ -255,7 +264,7 @@ const Data = {
           return m;
         });
       }
-      this._db._poleAssignmentsFixed2 = true;
+      this._db._poleAssignmentsFixed3 = true;
     }
   },
 
