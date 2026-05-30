@@ -85,18 +85,17 @@ const Data = {
         const needsMigration = (fbData.companies || []).some(c => !c.role) || !fbData._poleAssignmentsFixed3;
         this._db = fbData;
         this._migrate();
-        // ── Fusionner les doublons APRÈS chargement Firebase ────────
-        const mergeChanged = this._mergeProvidersByKeyword(
-          'evol', 'EVOL AGENCY',
-          '21 MONTÉE DE COLLONGES, 42170 Saint-Just-Saint-Rambert'
-        );
-        const ts2 = mergeChanged ? Date.now() : _fbLastTs;
-        if (mergeChanged) this._db._updatedAt = ts2;
+        // ── Appliquer TOUTES les données canoniques APRÈS chargement Firebase ────────
+        // (EVOL merge, ASTÉRIA banking, USAC adresse, etc.)
+        // skipSave=true : on gère la persistance ici, pas dans _applyModelDefaults
+        const canonChanged = this._applyModelDefaults(true);
+        const ts2 = canonChanged ? Date.now() : _fbLastTs;
+        if (canonChanged) this._db._updatedAt = ts2;
         localStorage.setItem(DB_KEY, JSON.stringify(this._db));
         localStorage.setItem('_edt_ts', String(ts2));
         _reRenderPage();
-        // Repousser vers Firebase si migration ou fusion
-        if (needsMigration || mergeChanged) this._pushToFirebase();
+        // Repousser vers Firebase si migration ou données canoniques appliquées
+        if (needsMigration || canonChanged) this._pushToFirebase();
       } else if (localTs > _fbLastTs) {
         // Local plus récent → on pousse vers Firebase
         this._pushToFirebase();
@@ -285,7 +284,8 @@ const Data = {
   },
 
   // ── Données modèle EVOL — pré-remplissage automatique ────────
-  _applyModelDefaults() {
+  // skipSave=true : ne pas appeler _save() (l'appelant gère lui-même la persistance)
+  _applyModelDefaults(skipSave = false) {
     let changed = false;
     const s = this._db.settings || {};
 
@@ -318,34 +318,37 @@ const Data = {
       if (coChanged) { c.updatedAt = Date.now(); changed = true; }
     });
 
-    // Infos bancaires ASTÉRIA — compte différent d'Artémis, stocké sur la fiche société
+    // Infos bancaires ASTÉRIA — toujours forcées (valeurs canoniques)
+    const _ASTER_IBAN = 'FR76 1450 6042 1000 9111 2162 016';
     (this._db.companies || []).forEach(c => {
       if (c.role !== 'own') return;
       if (!(c.name || '').toLowerCase().includes('aster')) return;
       const _n = Date.now();
       let coChanged = false;
-      if (!c.siret)       { c.siret       = '92192154000016';                    coChanged = true; }
-      if (!c.iban)        { c.iban        = 'FR76 1450 6042 1000 9111 2162 016'; coChanged = true; }
-      if (!c.bic)         { c.bic         = 'AGRIFRPP845';                       coChanged = true; }
-      if (!c.codebanque)  { c.codebanque  = '14506';                             coChanged = true; }
-      if (!c.codeguichet) { c.codeguichet = '4210';                              coChanged = true; }
-      if (!c.clerib)      { c.clerib      = '16';                                coChanged = true; }
-      if (!c.numcompte)   { c.numcompte   = '911 121 620';                       coChanged = true; }
-      if (!c.bankname)    { c.bankname    = 'CR Loire Haute Loire — Saint-Étienne Bellevue'; coChanged = true; }
+      const _f = (k, v) => { if (c[k] !== v) { c[k] = v; coChanged = true; } };
+      _f('siret',       '92192154000016');
+      _f('iban',        _ASTER_IBAN);
+      _f('bic',         'AGRIFRPP845');
+      _f('codebanque',  '14506');
+      _f('codeguichet', '4210');
+      _f('clerib',      '16');
+      _f('numcompte',   '911 121 620');
+      _f('bankname',    'CR Loire Haute Loire — Saint-Étienne Bellevue');
       if (coChanged) { c.updatedAt = _n; changed = true; }
     });
 
-    // Infos de facturation USAC France Lyon (client, keyword "usac" ou "ursac")
+    // Infos de facturation USAC France Lyon — toujours forcées (valeurs canoniques)
     (this._db.companies || []).forEach(c => {
       if (c.role === 'own') return;
       const n = (c.name || '').toLowerCase();
       if (!n.includes('usac') && !n.includes('ursac')) return;
       const _n = Date.now();
       let coChanged = false;
-      if (c.name !== 'USAC France Lyon')                  { c.name    = 'USAC France Lyon';                          coChanged = true; }
-      if (!c.address) { c.address = 'UCLy, 10 place des Archives, 69002 Lyon';   coChanged = true; }
-      if (!c.phone)   { c.phone   = '04 72 32 67 15';                             coChanged = true; }
-      if (!c.siret)   { c.siret   = '81018796300022';                             coChanged = true; }
+      const _f = (k, v) => { if (c[k] !== v) { c[k] = v; coChanged = true; } };
+      _f('name',    'USAC France Lyon');
+      _f('address', 'UCLy, 10 place des Archives, 69002 Lyon');
+      _f('phone',   '04 72 32 67 15');
+      _f('siret',   '81018796300022');
       if (coChanged) { c.updatedAt = _n; changed = true; }
     });
 
@@ -355,7 +358,8 @@ const Data = {
       changed = true;
     }
 
-    if (changed) this._save();
+    if (changed && !skipSave) this._save();
+    return changed;
   },
 
   // ── Fusion de prestataires en double (même nom, IDs différents) ─
