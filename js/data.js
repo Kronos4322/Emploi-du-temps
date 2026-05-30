@@ -335,6 +335,7 @@ const Data = {
       _f('numcompte',   '911 121 620');
       _f('bankname',    'CR Loire Haute Loire — Saint-Étienne Bellevue');
       if (coChanged) { c.updatedAt = _n; changed = true; }
+      console.log('[Canonical] ASTÉRIA ('+c.id+') iban='+c.iban+' clerib='+c.clerib);
     });
 
     // Infos de facturation USAC France Lyon — toujours forcées (valeurs canoniques)
@@ -350,7 +351,14 @@ const Data = {
       _f('phone',   '04 72 32 67 15');
       _f('siret',   '81018796300022');
       if (coChanged) { c.updatedAt = _n; changed = true; }
+      console.log('[Canonical] USAC ('+c.id+') name='+c.name+' address='+c.address+' siret='+c.siret);
     });
+
+    // Log de synthèse pour diagnostic
+    const _asterCo = (this._db.companies||[]).find(c => c.role==='own' && (c.name||'').toLowerCase().includes('aster'));
+    const _usacCo  = (this._db.companies||[]).find(c => c.role!=='own' && ((c.name||'').toLowerCase().includes('usac')||(c.name||'').toLowerCase().includes('ursac')));
+    if (!_asterCo) console.warn('[Canonical] ⚠️ Aucune société ASTÉRIA (role=own) trouvée en base !');
+    if (!_usacCo)  console.warn('[Canonical] ⚠️ Aucune société USAC/URSAC trouvée en base !');
 
     // Fusion des doublons EVOL AGENCY → un seul prestataire canonique
     if (this._mergeProvidersByKeyword('evol', 'EVOL AGENCY',
