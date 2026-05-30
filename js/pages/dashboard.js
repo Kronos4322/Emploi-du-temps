@@ -707,3 +707,317 @@ window._generatePlanning = function() {
   w.document.write(html);
   w.document.close();
 };
+
+// ══════════════════════════════════════════════════════════════════
+// GÉNÉRATION DE FACTURE
+// ══════════════════════════════════════════════════════════════════
+
+window._showInvoiceExport = function() {
+  const missions = Data.getMissions().filter(m => m.status !== 'cancelled');
+  const months   = [...new Set(missions.map(m => m.date?.substring(0,7)).filter(Boolean))].sort().reverse();
+  if (!months.length) { Utils.toast('Aucune mission trouvée.', 'info'); return; }
+
+  const providers = Data.getProviders().slice().sort((a,b) =>
+    (a.structure||a.lastName).localeCompare(b.structure||b.lastName));
+  const settings  = Data.getSettings();
+
+  const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const monthLabel = m => { const [y,mo] = m.split('-'); return `${MONTHS_FR[+mo-1]} ${y}`; };
+
+  // Délai par défaut depuis les settings
+  const defaultDelay = settings.invoicePaymentDelay || '45 jours';
+  const delayOptions = ['30 jours','45 jours','60 jours','À réception']
+    .map(d => `<option value="${d}" ${d===defaultDelay?'selected':''}>${d}</option>`).join('');
+
+  const missingInfo = !settings.siret || !settings.iban;
+
+  Modals._open(`
+    <div class="modal-header">
+      <h3>📋 Préparer une facture</h3>
+      <button class="modal-close" onclick="Modals.close()">✕</button>
+    </div>
+    <div class="modal-body modal-body-scroll" style="padding:24px;display:flex;flex-direction:column;gap:16px">
+
+      ${missingInfo ? `<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;font-size:0.85rem;color:#92400e;display:flex;gap:8px;align-items:center">
+        <span>⚠️</span>
+        <span>SIRET / IBAN non configurés — la facture générée sera incomplète.
+        <a href="parametres.html" style="color:#92400e;font-weight:700;text-decoration:underline">Configurer →</a></span>
+      </div>` : ''}
+
+      <div class="form-grid">
+        <div class="form-group form-col-2">
+          <label>Mois de facturation</label>
+          <select id="inv-month" class="form-input">
+            ${months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group form-col-2">
+          <label>Facturer à (destinataire)</label>
+          <select id="inv-prov" class="form-input">
+            ${providers.map(p => `<option value="${p.id}">${Utils.escapeHtml(p.structure||p.lastName+' '+p.firstName)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        <div class="form-group" style="margin:0">
+          <label>N° facture</label>
+          <input type="number" id="inv-num" class="form-input" placeholder="47" min="1">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Date de facture</label>
+          <input type="date" id="inv-date" class="form-input" value="${Utils.today()}">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Délai de paiement</label>
+          <select id="inv-delay" class="form-input">${delayOptions}</select>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin:0">
+        <label>Référence client <span style="color:var(--text-muted);font-size:0.8rem">(optionnel)</span></label>
+        <input type="text" id="inv-ref" class="form-input" placeholder="ex: EVOL0611052025">
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="Modals.close()">Annuler</button>
+      <button class="btn btn-primary" onclick="window._generateInvoice()">📋 Générer la facture</button>
+    </div>
+  `);
+};
+
+window._generateInvoice = function() {
+  const month  = document.getElementById('inv-month')?.value;
+  const provId = document.getElementById('inv-prov')?.value;
+  const invNum = document.getElementById('inv-num')?.value.trim();
+  const invDate= document.getElementById('inv-date')?.value;
+  const delay  = document.getElementById('inv-delay')?.value;
+  const ref    = document.getElementById('inv-ref')?.value.trim();
+
+  if (!month || !provId) { Utils.toast('Champs requis manquants.', 'error'); return; }
+
+  const [iy,im,id2] = (invDate||Utils.today()).split('-');
+  const invDateFr = `${id2}/${im}/${iy}`;
+
+  const MONTHS_FR   = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const MONTHS_SH   = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
+  const [y, mo]     = month.split('-');
+  const monthName   = `${MONTHS_FR[+mo-1]} ${y}`;
+
+  const provider = Data.getProviders().find(p => p.id === provId);
+  if (!provider) { Utils.toast('Prestataire introuvable.', 'error'); return; }
+
+  const ownCos   = Data.getOwnCompanies();
+  const coMap    = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
+  const settings = Data.getSettings();
+
+  // Infos de notre société (1er pôle own)
+  const ourCo    = ownCos[0];
+  const ourName  = ourCo?.name || settings.responsableName || 'Artémis Prépa';
+  const ourAddr  = ourCo?.address || '';
+  const ourPhone = ourCo?.phone || '';
+  const ourEmail = ourCo?.email || '';
+  const siret    = settings.siret || '';
+  const iban     = settings.iban  || '';
+  const bic      = settings.bic   || '';
+
+  // Filtre missions : mois + prestataire (non annulées)
+  let missions = Data.getMissions().filter(m => {
+    if (!m.date || !m.date.startsWith(month)) return false;
+    if (m.status === 'cancelled') return false;
+    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+    return pids.includes(provId);
+  });
+  missions.sort((a,b) => (a.date+(a.startTime||'')).localeCompare(b.date+(b.startTime||'')));
+
+  if (!missions.length) {
+    Utils.toast('Aucune mission pour ce prestataire sur ce mois.', 'info');
+    return;
+  }
+
+  // Totaux
+  const totalH  = missions.reduce((s,m) => s+(m.duration||0), 0);
+  const totalHT = missions.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
+
+  // Lignes du tableau
+  const rows = missions.map(m => {
+    const co    = coMap[m.companyId];
+    const d     = new Date(m.date + 'T00:00:00');
+    const day   = String(d.getDate()).padStart(2,'0') + ' ' + MONTHS_SH[d.getMonth()];
+    const title = m.title || '';
+    const school = co?.name || '';
+    const qty   = m.duration || 0;
+    const pu    = m.billingRate || 0;
+    const total = qty * pu;
+    const qtyStr = qty % 1 === 0 ? qty.toFixed(2).replace('.',',') : String(qty).replace('.',',');
+    return `<tr>
+      <td class="col-date">${day}</td>
+      <td class="col-qty">${qtyStr}</td>
+      <td class="col-desc">${Utils.escapeHtml(title)}${school?`<br><span class="school-name">${Utils.escapeHtml(school)}</span>`:''}</td>
+      <td class="col-pu">${pu.toFixed(2).replace('.',',')} €</td>
+      <td class="col-tot">${Utils.formatMoney(total)}</td>
+    </tr>`;
+  }).join('');
+
+  // Adresse prestataire multi-lignes
+  const provName = provider.structure || `${provider.lastName} ${provider.firstName}`;
+  const provAddr = provider.address || '';
+  const provContact = [provider.email, provider.phone].filter(Boolean).join(' — ');
+
+  // Infos "De" multi-lignes
+  const ourLines = [ourAddr, ourPhone && ourEmail ? `${ourEmail} — ${ourPhone}` : (ourEmail||ourPhone), siret ? `SIRET : ${siret}` : ''].filter(Boolean);
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Facture${invNum?' #'+invNum:''} — ${ourName} — ${monthName}</title>
+  <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Segoe UI',Arial,sans-serif; font-size:11pt; color:#1e293b; background:#fff; padding:18mm 16mm; }
+
+    /* Barre d'impression */
+    .no-print { background:#3b82f6; color:#fff; padding:10px 18px; border-radius:8px; margin-bottom:22px;
+                display:flex; align-items:center; justify-content:space-between; }
+    .no-print button { background:#fff; color:#3b82f6; border:none; border-radius:6px; padding:6px 16px; font-weight:700; cursor:pointer; }
+
+    /* En-tête */
+    .inv-header { display:flex; justify-content:space-between; align-items:flex-start;
+                  border-bottom:3px solid #1e293b; padding-bottom:18px; margin-bottom:26px; }
+    .inv-from .company-name { font-size:17pt; font-weight:800; letter-spacing:-0.5px; margin-bottom:6px; }
+    .inv-from .company-info { font-size:9pt; color:#64748b; line-height:1.8; }
+    .inv-meta { text-align:right; }
+    .inv-word { font-size:26pt; font-weight:800; color:#3b82f6; letter-spacing:-1px; }
+    .inv-num  { font-size:10.5pt; color:#64748b; margin-top:3px; }
+    .inv-dates{ font-size:9pt; color:#475569; margin-top:10px; line-height:1.7; }
+
+    /* Parties */
+    .inv-parties { display:flex; gap:20px; margin-bottom:22px; }
+    .party { flex:1; background:#f8fafc; border-radius:8px; padding:14px 16px; }
+    .party-tag  { font-size:7.5pt; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.12em; margin-bottom:5px; }
+    .party-name { font-size:11.5pt; font-weight:700; margin-bottom:4px; }
+    .party-info { font-size:9pt; color:#64748b; line-height:1.7; }
+
+    /* Ref */
+    .inv-ref { background:#eff6ff; border-left:3px solid #3b82f6; padding:8px 14px; margin-bottom:22px;
+               font-size:9.5pt; color:#1e40af; }
+
+    /* Tableau */
+    table { width:100%; border-collapse:collapse; }
+    thead th { background:#1e293b; color:#fff; padding:9px 12px; font-size:8.5pt;
+               font-weight:700; text-transform:uppercase; letter-spacing:0.07em; text-align:left; }
+    thead th.r { text-align:right; }
+    tbody td { padding:9px 12px; border-bottom:1px solid #f1f5f9; vertical-align:middle; font-size:10pt; }
+    tbody tr:nth-child(even) td { background:#fafbfc; }
+
+    .col-date { width:70px; font-weight:600; white-space:nowrap; }
+    .col-qty  { width:65px; text-align:right; }
+    .col-desc { }
+    .col-pu   { width:85px; text-align:right; }
+    .col-tot  { width:95px; text-align:right; font-weight:700; }
+    .school-name { font-size:8.5pt; color:#64748b; }
+
+    /* Pied de tableau */
+    tfoot td { padding:9px 12px; }
+    .tf-sep td { border-top:2px solid #e2e8f0; padding-top:10px; }
+    .tf-tva   { font-size:8pt; color:#94a3b8; font-style:italic; }
+    .tf-ttc td { background:#1e293b; color:#fff; font-weight:700; border-radius:0 0 6px 6px; }
+    .tf-ttc .col-tot { font-size:14pt; }
+    .tf-label { text-align:right; color:#64748b; font-size:9.5pt; }
+    .tf-label-w { color:#aaa; font-size:9pt; }
+
+    /* Pied de page */
+    .inv-footer { margin-top:28px; padding-top:14px; border-top:1px solid #e2e8f0;
+                  font-size:8.5pt; color:#94a3b8; line-height:1.8; }
+
+    @media print {
+      body { padding:12mm 10mm; font-size:10pt; }
+      .no-print { display:none !important; }
+      tr { break-inside:avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="no-print">
+  <span>📋 Facture${invNum?' #'+invNum:''} — ${Utils.escapeHtml(ourName)} — ${monthName}</span>
+  <button onclick="window.print()">🖨 Imprimer / Sauvegarder PDF</button>
+</div>
+
+<div class="inv-header">
+  <div class="inv-from">
+    <div class="company-name">${Utils.escapeHtml(ourName)}</div>
+    <div class="company-info">${ourLines.join('<br>')}</div>
+  </div>
+  <div class="inv-meta">
+    <div class="inv-word">FACTURE</div>
+    ${invNum ? `<div class="inv-num">N° de facture : ${invNum}</div>` : ''}
+    <div class="inv-dates">
+      Date : <strong>${invDateFr}</strong><br>
+      ${ref ? `Réf client : <strong>${ref}</strong><br>` : ''}
+      Délai : ${delay || '45 jours'} après réception
+    </div>
+  </div>
+</div>
+
+<div class="inv-parties">
+  <div class="party">
+    <div class="party-tag">De</div>
+    <div class="party-name">${Utils.escapeHtml(ourName)}</div>
+    <div class="party-info">${ourAddr ? Utils.escapeHtml(ourAddr)+'<br>' : ''}${siret ? 'SIRET : '+siret : ''}</div>
+  </div>
+  <div class="party">
+    <div class="party-tag">Facturer à</div>
+    <div class="party-name">${Utils.escapeHtml(provName)}</div>
+    <div class="party-info">${provAddr ? Utils.escapeHtml(provAddr)+'<br>' : ''}${provContact ? Utils.escapeHtml(provContact) : ''}</div>
+  </div>
+</div>
+
+<p style="font-size:9pt;color:#94a3b8;margin-bottom:10px;text-align:right">
+  TVA non applicable — article 293 B du CGI
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th class="col-date">Date</th>
+      <th class="col-qty r">Qté (h)</th>
+      <th class="col-desc">Description</th>
+      <th class="col-pu r">P.U. HT</th>
+      <th class="col-tot r">Total HT</th>
+    </tr>
+  </thead>
+  <tbody>${rows}</tbody>
+  <tfoot>
+    <tr class="tf-sep">
+      <td colspan="3" class="tf-tva">Total : ${Utils.formatDuration(totalH)} heures</td>
+      <td class="tf-label">Sous-total HT</td>
+      <td class="col-tot">${Utils.formatMoney(totalHT)}</td>
+    </tr>
+    <tr>
+      <td colspan="3"></td>
+      <td class="tf-label">Exonération TVA</td>
+      <td class="col-tot" style="color:#94a3b8">—</td>
+    </tr>
+    <tr class="tf-ttc">
+      <td colspan="3"></td>
+      <td class="tf-label-w">TOTAL TTC À PAYER</td>
+      <td class="col-tot">${Utils.formatMoney(totalHT)}</td>
+    </tr>
+  </tfoot>
+</table>
+
+${iban ? `<div class="inv-footer">
+  RIB : IBAN ${iban}${bic ? ' &nbsp;—&nbsp; BIC '+bic : ''}<br>
+  ${[ourPhone,ourEmail].filter(Boolean).join(' — ')}
+</div>` : ''}
+
+</body>
+</html>`;
+
+  Modals.close();
+  const w = window.open('', '_blank', 'width=900,height=750');
+  w.document.write(html);
+  w.document.close();
+};

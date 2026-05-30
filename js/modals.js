@@ -749,6 +749,10 @@ const Modals = {
             <label>Email</label>
             <input type="email" id="pf-email" class="form-input" value="${Utils.escapeHtml(p.email || '')}" placeholder="email@example.com">
           </div>
+          <div class="form-group form-col-2">
+            <label>Adresse postale <span style="color:var(--text-muted);font-size:0.8rem">(pour les factures)</span></label>
+            <input type="text" id="pf-address" class="form-input" value="${Utils.escapeHtml(p.address || '')}" placeholder="21 Montée de Collonges, 42170 Saint-Just-Saint-Rambert">
+          </div>
           <div class="form-group">
             <label>Rattachement secondaire</label>
             <select id="pf-linked-type" class="form-input" onchange="
@@ -815,8 +819,9 @@ const Modals = {
         rateCollege: parseFloat(document.getElementById('pf-rate-college').value) || 0,
         rateLycee:   parseFloat(document.getElementById('pf-rate-lycee').value) || 0,
         rateSup:     parseFloat(document.getElementById('pf-rate-sup').value) || 0,
-        phone:  document.getElementById('pf-phone').value.trim(),
-        email:  document.getElementById('pf-email').value.trim(),
+        phone:   document.getElementById('pf-phone').value.trim(),
+        email:   document.getElementById('pf-email').value.trim(),
+        address: document.getElementById('pf-address').value.trim(),
         notes:    document.getElementById('pf-notes').value.trim(),
         isAgency: document.getElementById('pf-is-agency').checked,
         active:   document.getElementById('pf-active').value === 'true',

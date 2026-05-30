@@ -166,6 +166,10 @@ const Data = {
         currency: 'EUR',
         firstDayOfWeek: 1,
         responsableName: '', // nom du responsable pédagogique (utilisé dans les formulaires Qualiopi)
+        siret: '',           // SIRET affiché sur les factures
+        iban:  '',           // IBAN pour le pied de facture
+        bic:   '',           // BIC/SWIFT
+        invoicePaymentDelay: '45 jours', // délai de paiement par défaut
       },
       properties: [],      // appartements / biens locatifs
       rentalIncomes: [],   // revenus locatifs mensuels

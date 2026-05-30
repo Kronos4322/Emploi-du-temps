@@ -46,6 +46,39 @@
           </div>
         </div>
 
+        <!-- Informations de facturation -->
+        <div class="card">
+          <div class="card-header"><h2 class="card-title">📋 Informations de facturation</h2></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-group form-col-2">
+                <label for="set-siret">N° SIRET</label>
+                <input type="text" id="set-siret" class="form-input" placeholder="92192154000016">
+              </div>
+              <div class="form-group form-col-2">
+                <label for="set-payment-delay">Délai de paiement par défaut</label>
+                <select id="set-payment-delay" class="form-input">
+                  <option value="30 jours">30 jours</option>
+                  <option value="45 jours">45 jours</option>
+                  <option value="60 jours">60 jours</option>
+                  <option value="À réception">À réception</option>
+                </select>
+              </div>
+              <div class="form-group form-col-2">
+                <label for="set-iban">IBAN</label>
+                <input type="text" id="set-iban" class="form-input" placeholder="FR76 1450 6042 1000 ...">
+              </div>
+              <div class="form-group form-col-2">
+                <label for="set-bic">BIC / SWIFT</label>
+                <input type="text" id="set-bic" class="form-input" placeholder="AGRIFRPP845">
+              </div>
+            </div>
+            <div class="settings-actions" style="margin-top:14px">
+              <button class="btn btn-primary" id="btn-save-invoice-settings">Enregistrer</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Sauvegarde & Export -->
         <div class="card">
           <div class="card-header"><h2 class="card-title">Sauvegarde &amp; Export</h2></div>

@@ -21,6 +21,26 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('Paramètres enregistrés.');
   });
 
+  // Informations de facturation
+  const siretInput = document.getElementById('set-siret');
+  const ibanInput  = document.getElementById('set-iban');
+  const bicInput   = document.getElementById('set-bic');
+  const delayInput = document.getElementById('set-payment-delay');
+  if (settings.siret) siretInput.value = settings.siret;
+  if (settings.iban)  ibanInput.value  = settings.iban;
+  if (settings.bic)   bicInput.value   = settings.bic;
+  if (settings.invoicePaymentDelay) delayInput.value = settings.invoicePaymentDelay;
+
+  document.getElementById('btn-save-invoice-settings').addEventListener('click', () => {
+    if (Data.saveSettings) Data.saveSettings({
+      siret: siretInput.value.trim(),
+      iban:  ibanInput.value.trim(),
+      bic:   bicInput.value.trim(),
+      invoicePaymentDelay: delayInput.value,
+    });
+    showToast('Informations de facturation enregistrées.');
+  });
+
   // Export JSON
   document.getElementById('btn-export-json').addEventListener('click', () => {
     const raw  = localStorage.getItem('emploi_du_temps_db') || '{}';
