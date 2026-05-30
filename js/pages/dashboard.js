@@ -747,8 +747,95 @@ window._updateInvDest = function() {
   sel.innerHTML =
     (pOpts ? '<optgroup label="Agences / Prestataires">'+pOpts+'</optgroup>' : '') +
     (cOpts ? '<optgroup label="Sociétés clientes">'+cOpts+'</optgroup>'      : '');
-  // Restaurer la sélection si possible
   if (prev) { for (const o of sel.options) { if (o.value === prev) { sel.value = prev; break; } } }
+  window._updateInvPreview();
+};
+
+// ── Fonction centrale de filtrage des missions pour la facture ──────────────
+// Cherche par ID (exact) ET par nom de prestataire (résistant aux doublons de sync).
+window._getInvMissions = function(month, destRaw) {
+  if (!month || !destRaw) return [];
+  const sep     = '::';
+  const sepIdx  = destRaw.indexOf(sep);
+  if (sepIdx < 0) return [];
+  const destType = destRaw.substring(0, sepIdx);
+  const destId   = destRaw.substring(sepIdx + sep.length);
+
+  // Nom canonique de l'entité sélectionnée
+  let destName = '';
+  if (destType === 'prov') {
+    const p = Data.getProviders().find(p => p.id === destId);
+    destName = p ? (p.structure || p.lastName+' '+p.firstName) : '';
+  } else {
+    const c = Data.getCompanies().find(c => c.id === destId);
+    destName = c ? c.name : '';
+  }
+  if (!destName) return [];
+
+  // Mots-clés significatifs (≥4 lettres)
+  const _kws = n => new Set(
+    n.toLowerCase().replace(/[^a-z0-9]/g,' ').split(/\s+/).filter(w => w.length >= 4)
+  );
+  const selKws = _kws(destName);
+
+  // Tous les IDs prestataires dont le nom partage un mot-clé
+  const allProvIds = new Set();
+  Data.getProviders().forEach(p => {
+    const n = p.structure || p.lastName+' '+p.firstName;
+    if ([..._kws(n)].some(w => selKws.has(w))) allProvIds.add(p.id);
+  });
+  // Toujours inclure l'ID sélectionné
+  if (destType === 'prov') allProvIds.add(destId);
+
+  // Tous les IDs sociétés dont le nom partage un mot-clé
+  const allCoIds = new Set();
+  Data.getCompanies().filter(c => c.role !== 'own').forEach(c => {
+    if ([..._kws(c.name)].some(w => selKws.has(w))) allCoIds.add(c.id);
+  });
+  if (destType === 'co') allCoIds.add(destId);
+
+  const missions = Data.getMissions().filter(m => {
+    if (!m.date?.startsWith(month)) return false;
+    if (m.status === 'cancelled') return false;
+    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+    return pids.some(pid => allProvIds.has(pid)) || allCoIds.has(m.companyId);
+  });
+  missions.sort((a,b) => (a.date+(a.startTime||'')).localeCompare(b.date+(b.startTime||'')));
+  return missions;
+};
+
+// Aperçu en direct des missions dans le modal
+window._updateInvPreview = function() {
+  const box   = document.getElementById('inv-preview'); if (!box) return;
+  const month = document.getElementById('inv-month')?.value || '';
+  const dest  = document.getElementById('inv-dest')?.value  || '';
+  if (!month || !dest) { box.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">Sélectionnez un destinataire…</p>'; return; }
+
+  const missions = window._getInvMissions(month, dest);
+  if (!missions.length) {
+    box.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">Aucune mission trouvée pour ce mois.</p>';
+    return;
+  }
+  const totalH   = missions.reduce((s,m) => s+(m.duration||0), 0);
+  const totalHT  = missions.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
+  const coMap    = {}; Data.getCompanies().forEach(c => coMap[c.id]=c);
+  const MSHO     = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
+
+  const rows = missions.map(m => {
+    const d   = new Date(m.date+'T00:00:00');
+    const day = String(d.getDate()).padStart(2,'0')+' '+MSHO[d.getMonth()];
+    const co  = coMap[m.companyId]?.name || '';
+    const ht  = (m.duration||0)*(m.billingRate||0);
+    return '<div style="display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.82rem">' +
+      '<span><strong>'+day+'</strong> — '+Utils.escapeHtml(m.title||'Sans titre')+(co?' <span style="color:var(--text-muted)">('+Utils.escapeHtml(co)+')</span>':'')+'</span>' +
+      '<span style="white-space:nowrap;margin-left:12px;font-weight:600">'+Utils.formatDuration(m.duration||0)+' · '+Utils.formatMoney(ht)+'</span>' +
+    '</div>';
+  }).join('');
+
+  box.innerHTML =
+    '<div style="font-size:0.8rem;font-weight:700;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">'+
+      missions.length+' mission'+(missions.length>1?'s':'')+' · '+Utils.formatDuration(totalH)+' · '+Utils.formatMoney(totalHT)+
+    '</div>' + rows;
 };
 
 window._showInvoiceExport = function() {
@@ -797,11 +884,17 @@ window._showInvoiceExport = function() {
           '</select></div>' +
       '</div>' +
       '<div class="form-group" style="margin:0">' +
-        '<label>Facturer à <span style="color:var(--text-muted);font-size:0.8rem">(toutes les entités similaires sont regroupées automatiquement)</span></label>' +
-        '<select id="inv-dest" class="form-input">' +
+        '<label>Facturer à</label>' +
+        '<select id="inv-dest" class="form-input" onchange="window._updateInvPreview()">' +
           (provOpts ? '<optgroup label="Agences / Prestataires">'+provOpts+'</optgroup>' : '') +
           (coOpts   ? '<optgroup label="Sociétés clientes">'+coOpts+'</optgroup>' : '') +
         '</select>' +
+      '</div>' +
+      '<div style="margin:0">' +
+        '<div style="font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:6px">Missions incluses</div>' +
+        '<div id="inv-preview" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:10px 14px;background:var(--bg)">' +
+          '<p style="color:var(--text-muted);font-size:0.85rem">Sélectionnez un destinataire…</p>' +
+        '</div>' +
       '</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">' +
         '<div class="form-group" style="margin:0"><label>N° facture</label>' +
@@ -819,6 +912,8 @@ window._showInvoiceExport = function() {
       '<button class="btn btn-primary" onclick="window._generateInvoice()">📋 Générer la facture</button>' +
     '</div>'
   );
+  // Initialiser l'aperçu après ouverture du modal
+  setTimeout(() => window._updateInvPreview(), 50);
 };
 
 window._generateInvoice = function() {
@@ -864,7 +959,7 @@ window._generateInvoice = function() {
   const numcompte  = settings.numcompte  || '';
   const bankname   = settings.bankname   || '';
 
-  // Destinataire
+  // Destinataire : infos d'affichage
   let destName = '', destAddr = '', destContact = '';
   if (destType === 'prov') {
     const p = Data.getProviders().find(p => p.id === destId);
@@ -883,54 +978,21 @@ window._generateInvoice = function() {
   }
   if (!destName) { Utils.toast('Destinataire introuvable.', 'error'); return; }
 
-  // ── Regroupement automatique par nom similaire ──────────────────────────────
-  // Extrait les mots-clés significatifs (≥4 lettres) du nom sélectionné.
-  // Toute entité partageant au moins un de ces mots est considérée comme la même.
-  const _kws = n => new Set(
-    n.toLowerCase().replace(/[^a-z0-9]/g,' ').split(/\s+/).filter(w => w.length >= 4)
-  );
-  const selKws = _kws(destName);
-
-  const allProvIds = new Set();
-  const allCoIds   = new Set();
-
-  // Toujours inclure l'entité sélectionnée
-  if (destType === 'prov') allProvIds.add(destId);
-  else                     allCoIds.add(destId);
-
-  // Chercher d'autres entités au nom similaire
-  Data.getProviders().forEach(p => {
-    if (p.id === destId) return;
-    const kws = _kws(p.structure || p.lastName+' '+p.firstName);
-    if ([...kws].some(w => selKws.has(w))) allProvIds.add(p.id);
-  });
-  Data.getCompanies().filter(c => c.role !== 'own').forEach(c => {
-    if (c.id === destId) return;
-    const kws = _kws(c.name);
-    if ([...kws].some(w => selKws.has(w))) allCoIds.add(c.id);
-  });
-
-  // Noms des entités fusionnées (pour note dans la facture)
-  const mergedExtras = [
-    ...Data.getProviders().filter(p => allProvIds.has(p.id) && p.id !== destId)
-      .map(p => p.structure || p.lastName+' '+p.firstName),
-    ...Data.getCompanies().filter(c => allCoIds.has(c.id) && c.id !== destId)
-      .map(c => c.name),
-  ];
-
-  // Filtre missions (toutes entités regroupées)
-  let missions = Data.getMissions().filter(m => {
-    if (!m.date || !m.date.startsWith(month)) return false;
-    if (m.status === 'cancelled') return false;
-    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
-    return pids.some(pid => allProvIds.has(pid)) || allCoIds.has(m.companyId);
-  });
-  missions.sort((a,b) => (a.date+(a.startTime||'')).localeCompare(b.date+(b.startTime||'')));
+  // Filtrage via la fonction centrale (même logique que l'aperçu)
+  let missions = window._getInvMissions(month, destRaw);
 
   if (!missions.length) {
     Utils.toast('Aucune mission pour ce destinataire sur ce mois.', 'info');
     return;
   }
+
+  // Entités fusionnées pour note dans la facture
+  const _kws2 = n => new Set(n.toLowerCase().replace(/[^a-z0-9]/g,' ').split(/\s+/).filter(w=>w.length>=4));
+  const selKws2 = _kws2(destName);
+  const mergedExtras = [
+    ...Data.getProviders().filter(p => p.id !== destId && [..._kws2(p.structure||p.lastName+' '+p.firstName)].some(w=>selKws2.has(w))).map(p=>p.structure||p.lastName+' '+p.firstName),
+    ...Data.getCompanies().filter(c => c.role!=='own' && c.id!==destId && [..._kws2(c.name)].some(w=>selKws2.has(w))).map(c=>c.name),
+  ];
 
   const totalH  = missions.reduce((s,m) => s+(m.duration||0), 0);
   const totalHT = missions.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
