@@ -312,18 +312,65 @@ const Data = {
       if (coChanged) { c.updatedAt = Date.now(); changed = true; }
     });
 
-    // Adresse EVOL AGENCY : remplir si vide
-    (this._db.providers || []).forEach(p => {
-      const struct = (p.structure || p.lastName || '').toLowerCase();
-      if (!struct.includes('evol')) return;
-      if (!p.address) {
-        p.address = '21 MONTÉE DE COLLONGES, 42170 Saint-Just-Saint-Rambert';
-        p.updatedAt = Date.now();
-        changed = true;
-      }
-    });
+    // Fusion des doublons EVOL AGENCY → un seul prestataire canonique
+    if (this._mergeProvidersByKeyword('evol', 'EVOL AGENCY',
+          '21 MONTÉE DE COLLONGES, 42170 Saint-Just-Saint-Rambert')) {
+      changed = true;
+    }
 
     if (changed) this._save();
+  },
+
+  // ── Fusion de prestataires en double (même nom, IDs différents) ─
+  // keyword   : mot-clé (lowercase) présent dans le nom des doublons
+  // masterName: structure canonique du prestataire maître
+  // masterAddr: adresse à appliquer si absente
+  _mergeProvidersByKeyword(keyword, masterName, masterAddr) {
+    const providers = this._db.providers || [];
+    const matches = providers.filter(p =>
+      (p.structure || p.lastName || '').toLowerCase().includes(keyword)
+    );
+    if (matches.length <= 1) {
+      // Même avec 1 seul, corriger le nom et l'adresse si nécessaire
+      if (matches.length === 1) {
+        let c = false;
+        if (matches[0].structure !== masterName) { matches[0].structure = masterName; c = true; }
+        if (!matches[0].address) { matches[0].address = masterAddr; c = true; }
+        if (c) matches[0].updatedAt = Date.now();
+        return c;
+      }
+      return false;
+    }
+
+    // Choisir le maître : préférer celui déjà nommé masterName, sinon le premier
+    let master = matches.find(p =>
+      (p.structure || '').toUpperCase() === masterName.toUpperCase()
+    ) || matches[0];
+
+    // Normaliser le maître
+    master.structure = masterName;
+    if (!master.address) master.address = masterAddr;
+    master.updatedAt = Date.now();
+
+    const dupIds = matches.filter(p => p.id !== master.id).map(p => p.id);
+
+    // Réaffecter toutes les missions qui pointaient vers un doublon
+    (this._db.missions || []).forEach(m => {
+      let mChanged = false;
+      // Nouveau format : providerIds[]
+      if (Array.isArray(m.providerIds) && m.providerIds.length) {
+        const updated = [...new Set(m.providerIds.map(pid => dupIds.includes(pid) ? master.id : pid))];
+        if (updated.join() !== m.providerIds.join()) { m.providerIds = updated; mChanged = true; }
+      }
+      // Ancien format : providerId (string)
+      if (m.providerId && dupIds.includes(m.providerId)) { m.providerId = master.id; mChanged = true; }
+      if (mChanged) m.updatedAt = Date.now();
+    });
+
+    // Supprimer les doublons de la liste
+    this._db.providers = providers.filter(p => !dupIds.includes(p.id));
+    console.log('[Data] Fusion prestataires "'+keyword+'" : '+dupIds.length+' doublon(s) supprimé(s) → '+masterName);
+    return true;
   },
 
   _save() {
