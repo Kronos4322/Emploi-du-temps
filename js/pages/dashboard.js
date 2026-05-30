@@ -712,152 +712,119 @@ window._generatePlanning = function() {
 // GÉNÉRATION DE FACTURE
 // ══════════════════════════════════════════════════════════════════
 
-window._selectInvoiceEmetteur = function(id) {
-  document.getElementById('inv-emetteur').value = id;
-  Data.getOwnCompanies().forEach(c => {
-    const btn = document.getElementById('inv-emit-' + c.id);
-    if (!btn) return;
-    const active = c.id === id;
-    btn.style.background = active ? c.color : 'transparent';
-    btn.style.color      = active ? '#fff'  : c.color;
-    btn.style.borderColor = c.color;
-  });
-};
-
 window._showInvoiceExport = function() {
-  const missions = Data.getMissions().filter(m => m.status !== 'cancelled');
-  const months   = [...new Set(missions.map(m => m.date?.substring(0,7)).filter(Boolean))].sort().reverse();
+  const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled');
+  const months = [...new Set(allMissions.map(m => m.date?.substring(0,7)).filter(Boolean))].sort().reverse();
   if (!months.length) { Utils.toast('Aucune mission trouvée.', 'info'); return; }
 
-  const ownCos   = Data.getOwnCompanies();
+  const ownCos    = Data.getOwnCompanies();
   const providers = Data.getProviders().slice().sort((a,b) =>
     (a.structure||a.lastName).localeCompare(b.structure||b.lastName));
+  const clientCos = Data.getCompanies().filter(c => c.role !== 'own')
+    .sort((a,b) => a.name.localeCompare(b.name));
   const settings  = Data.getSettings();
 
-  const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-  const monthLabel = m => { const [y,mo] = m.split('-'); return `${MONTHS_FR[+mo-1]} ${y}`; };
+  const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin',
+                     'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const monthLabel = m => { const [y,mo] = m.split('-'); return MONTHS_FR[+mo-1]+' '+y; };
 
-  // Délai par défaut depuis les settings
   const defaultDelay = settings.invoicePaymentDelay || '45 jours';
-  const delayOptions = ['30 jours','45 jours','60 jours','À réception']
-    .map(d => `<option value="${d}" ${d===defaultDelay?'selected':''}>${d}</option>`).join('');
+  const delayOpts = ['30 jours','45 jours','60 jours','À réception']
+    .map(d => '<option value="'+d+'"'+(d===defaultDelay?' selected':'')+'>'+d+'</option>').join('');
 
-  const missingInfo = !settings.siret || !settings.iban;
+  // Pôle actif → pré-sélectionner l'émetteur
+  const defaultEmId = (_dashPole && ownCos.find(c=>c.id===_dashPole)) ? _dashPole : (ownCos[0]?.id||'');
+  const emOpts = ownCos.map(c =>
+    '<option value="'+c.id+'"'+(c.id===defaultEmId?' selected':'')+'>'+Utils.escapeHtml(c.name)+'</option>'
+  ).join('');
 
-  // Pôle actif dans le dashboard → pré-sélectionner la société
-  const defaultEmetteurId = (_dashPole && ownCos.find(c => c.id === _dashPole))
-    ? _dashPole : (ownCos[0]?.id || '');
-
-  // Pilules sociétés émettrices
-  const emetteurPills = ownCos.map((c, i) => {
-    const active = c.id === defaultEmetteurId;
-    return `<button type="button" id="inv-emit-${c.id}"
-      onclick="window._selectInvoiceEmetteur('${c.id}')"
-      style="padding:7px 18px;border-radius:20px;border:2px solid ${c.color};
-             background:${active ? c.color : 'transparent'};
-             color:${active ? '#fff' : c.color};
-             font-weight:700;cursor:pointer;font-size:0.9rem;transition:all 0.15s">
-      ${Utils.escapeHtml(c.name)}
-    </button>`;
+  // "Facturer à" = prestataires + sociétés clientes (optgroups)
+  const provOpts = providers.map(p => {
+    const lbl = Utils.escapeHtml(p.structure || p.lastName+' '+p.firstName);
+    return '<option value="prov::'+p.id+'">'+lbl+'</option>';
   }).join('');
+  const coOpts = clientCos.map(c =>
+    '<option value="co::'+c.id+'">'+Utils.escapeHtml(c.name)+'</option>'
+  ).join('');
 
-  Modals._open(`
-    <div class="modal-header">
-      <h3>📋 Préparer une facture</h3>
-      <button class="modal-close" onclick="Modals.close()">✕</button>
-    </div>
-    <div class="modal-body modal-body-scroll" style="padding:24px;display:flex;flex-direction:column;gap:16px">
+  const warn = (!settings.siret||!settings.iban)
+    ? '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;font-size:0.85rem;color:#92400e;display:flex;gap:8px;align-items:flex-start"><span>⚠️</span><span>SIRET / IBAN non configurés — <a href="parametres.html" style="color:#92400e;font-weight:700;text-decoration:underline">Paramètres → Informations de facturation →</a></span></div>'
+    : '';
 
-      ${missingInfo ? `<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;font-size:0.85rem;color:#92400e;display:flex;gap:8px;align-items:center">
-        <span>⚠️</span>
-        <span>SIRET / IBAN non configurés — la facture sera incomplète.
-        <a href="parametres.html" style="color:#92400e;font-weight:700;text-decoration:underline">Configurer →</a></span>
-      </div>` : ''}
-
-      <!-- Société émettrice -->
-      <div>
-        <div style="font-size:0.82rem;font-weight:600;color:var(--text-muted);margin-bottom:8px">Société émettrice</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${emetteurPills}
-        </div>
-        <input type="hidden" id="inv-emetteur" value="${defaultEmetteurId}">
-      </div>
-
-      <div class="form-grid">
-        <div class="form-group form-col-2">
-          <label>Mois de facturation</label>
-          <select id="inv-month" class="form-input">
-            ${months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('')}
-          </select>
-        </div>
-        <div class="form-group form-col-2">
-          <label>Facturer à (destinataire)</label>
-          <select id="inv-prov" class="form-input">
-            ${providers.map(p => `<option value="${p.id}">${Utils.escapeHtml(p.structure||p.lastName+' '+p.firstName)}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-        <div class="form-group" style="margin:0">
-          <label>N° facture</label>
-          <input type="number" id="inv-num" class="form-input" placeholder="47" min="1">
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>Date de facture</label>
-          <input type="date" id="inv-date" class="form-input" value="${Utils.today()}">
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>Délai de paiement</label>
-          <select id="inv-delay" class="form-input">${delayOptions}</select>
-        </div>
-      </div>
-
-      <div class="form-group" style="margin:0">
-        <label>Référence client <span style="color:var(--text-muted);font-size:0.8rem">(optionnel)</span></label>
-        <input type="text" id="inv-ref" class="form-input" placeholder="ex: EVOL0611052025">
-      </div>
-
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="Modals.close()">Annuler</button>
-      <button class="btn btn-primary" onclick="window._generateInvoice()">📋 Générer la facture</button>
-    </div>
-  `);
+  Modals._open(
+    '<div class="modal-header">' +
+      '<h3>📋 Préparer une facture</h3>' +
+      '<button class="modal-close" onclick="Modals.close()">✕</button>' +
+    '</div>' +
+    '<div class="modal-body modal-body-scroll" style="padding:24px;display:flex;flex-direction:column;gap:16px">' +
+      warn +
+      '<div class="form-grid">' +
+        '<div class="form-group form-col-2"><label>Société émettrice</label>' +
+          '<select id="inv-emetteur" class="form-input">'+emOpts+'</select></div>' +
+        '<div class="form-group form-col-2"><label>Mois de facturation</label>' +
+          '<select id="inv-month" class="form-input">'+
+            months.map(m=>'<option value="'+m+'">'+monthLabel(m)+'</option>').join('')+
+          '</select></div>' +
+      '</div>' +
+      '<div class="form-group" style="margin:0"><label>Facturer à (destinataire)</label>' +
+        '<select id="inv-dest" class="form-input">' +
+          (provOpts ? '<optgroup label="Agences / Prestataires">'+provOpts+'</optgroup>' : '') +
+          (coOpts   ? '<optgroup label="Sociétés clientes">'+coOpts+'</optgroup>' : '') +
+        '</select>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">' +
+        '<div class="form-group" style="margin:0"><label>N° facture</label>' +
+          '<input type="number" id="inv-num" class="form-input" placeholder="47" min="1"></div>' +
+        '<div class="form-group" style="margin:0"><label>Date de facture</label>' +
+          '<input type="date" id="inv-date" class="form-input" value="'+Utils.today()+'"></div>' +
+        '<div class="form-group" style="margin:0"><label>Délai de paiement</label>' +
+          '<select id="inv-delay" class="form-input">'+delayOpts+'</select></div>' +
+      '</div>' +
+      '<div class="form-group" style="margin:0"><label>Référence client <span style="color:var(--text-muted);font-size:0.8rem">(optionnel)</span></label>' +
+        '<input type="text" id="inv-ref" class="form-input" placeholder="ex: EVOL0611052025"></div>' +
+    '</div>' +
+    '<div class="modal-footer">' +
+      '<button class="btn btn-ghost" onclick="Modals.close()">Annuler</button>' +
+      '<button class="btn btn-primary" onclick="window._generateInvoice()">📋 Générer la facture</button>' +
+    '</div>'
+  );
 };
 
 window._generateInvoice = function() {
-  const month  = document.getElementById('inv-month')?.value;
-  const provId = document.getElementById('inv-prov')?.value;
-  const invNum = document.getElementById('inv-num')?.value.trim();
-  const invDate= document.getElementById('inv-date')?.value;
-  const delay  = document.getElementById('inv-delay')?.value;
-  const ref    = document.getElementById('inv-ref')?.value.trim();
-
-  if (!month || !provId) { Utils.toast('Champs requis manquants.', 'error'); return; }
-
-  const [iy,im,id2] = (invDate||Utils.today()).split('-');
-  const invDateFr = `${id2}/${im}/${iy}`;
-
-  const MONTHS_FR   = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-  const MONTHS_SH   = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
-  const [y, mo]     = month.split('-');
-  const monthName   = `${MONTHS_FR[+mo-1]} ${y}`;
-
-  const provider = Data.getProviders().find(p => p.id === provId);
-  if (!provider) { Utils.toast('Prestataire introuvable.', 'error'); return; }
-
   const emetteurId = document.getElementById('inv-emetteur')?.value || '';
-  const ownCos   = Data.getOwnCompanies();
-  const coMap    = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
+  const month      = document.getElementById('inv-month')?.value || '';
+  const destRaw    = document.getElementById('inv-dest')?.value || '';
+  const invNum     = document.getElementById('inv-num')?.value.trim() || '';
+  const invDate    = document.getElementById('inv-date')?.value || Utils.today();
+  const delay      = document.getElementById('inv-delay')?.value || '45 jours';
+  const ref        = document.getElementById('inv-ref')?.value.trim() || '';
+
+  if (!month || !destRaw) { Utils.toast('Champs requis manquants.', 'error'); return; }
+
+  const sep = '::';
+  const sepIdx = destRaw.indexOf(sep);
+  const destType = destRaw.substring(0, sepIdx);   // 'prov' ou 'co'
+  const destId   = destRaw.substring(sepIdx + sep.length);
+
+  const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin',
+                     'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const MONTHS_SH = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
+  const [y, mo]   = month.split('-');
+  const monthName = MONTHS_FR[+mo-1]+' '+y;
+
+  const [iy,im,id2] = invDate.split('-');
+  const invDateFr   = id2+'/'+im+'/'+iy;
+
+  const ownCos  = Data.getOwnCompanies();
+  const coMap   = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
   const settings = Data.getSettings();
 
-  // Infos de la société émettrice sélectionnée
-  const ourCo    = ownCos.find(c => c.id === emetteurId) || ownCos[0];
-  const ourName  = ourCo?.name || settings.responsableName || 'Artémis Prépa';
-  const ourAddr  = ourCo?.address || '';
-  const ourPhone = ourCo?.phone || '';
-  const ourEmail = ourCo?.email || '';
+  // Émetteur
+  const ourCo   = ownCos.find(c => c.id === emetteurId) || ownCos[0];
+  const ourName = ourCo?.name || settings.responsableName || '';
+  const ourAddr = ourCo?.address || '';
+  const ourPhone= ourCo?.phone  || '';
+  const ourEmail= ourCo?.email  || '';
   const siret      = settings.siret      || '';
   const iban       = settings.iban       || '';
   const bic        = settings.bic        || '';
@@ -866,51 +833,68 @@ window._generateInvoice = function() {
   const numcompte  = settings.numcompte  || '';
   const bankname   = settings.bankname   || '';
 
-  // Filtre missions : mois + prestataire (non annulées)
+  // Destinataire
+  let destName = '', destAddr = '', destContact = '';
+  if (destType === 'prov') {
+    const p = Data.getProviders().find(p => p.id === destId);
+    if (p) {
+      destName    = p.structure || p.lastName+' '+p.firstName;
+      destAddr    = p.address   || '';
+      destContact = [p.email, p.phone].filter(Boolean).join(' — ');
+    }
+  } else {
+    const c = Data.getCompanies().find(c => c.id === destId);
+    if (c) {
+      destName    = c.name;
+      destAddr    = c.address  || '';
+      destContact = [c.email, c.phone].filter(Boolean).join(' — ');
+    }
+  }
+  if (!destName) { Utils.toast('Destinataire introuvable.', 'error'); return; }
+
+  // Filtre missions
   let missions = Data.getMissions().filter(m => {
     if (!m.date || !m.date.startsWith(month)) return false;
     if (m.status === 'cancelled') return false;
-    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
-    return pids.includes(provId);
+    if (destType === 'prov') {
+      const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+      return pids.includes(destId);
+    } else {
+      return m.companyId === destId;
+    }
   });
   missions.sort((a,b) => (a.date+(a.startTime||'')).localeCompare(b.date+(b.startTime||'')));
 
   if (!missions.length) {
-    Utils.toast('Aucune mission pour ce prestataire sur ce mois.', 'info');
+    Utils.toast('Aucune mission pour ce destinataire sur ce mois.', 'info');
     return;
   }
 
-  // Totaux
   const totalH  = missions.reduce((s,m) => s+(m.duration||0), 0);
   const totalHT = missions.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
 
-  // Lignes du tableau
   const rows = missions.map(m => {
     const co    = coMap[m.companyId];
-    const d     = new Date(m.date + 'T00:00:00');
-    const day   = String(d.getDate()).padStart(2,'0') + ' ' + MONTHS_SH[d.getMonth()];
+    const d     = new Date(m.date+'T00:00:00');
+    const day   = String(d.getDate()).padStart(2,'0')+' '+MONTHS_SH[d.getMonth()];
     const title = m.title || '';
-    const school = co?.name || '';
+    const school= co?.name || '';
     const qty   = m.duration || 0;
     const pu    = m.billingRate || 0;
     const total = qty * pu;
-    const qtyStr = qty % 1 === 0 ? qty.toFixed(2).replace('.',',') : String(qty).replace('.',',');
-    return `<tr>
-      <td class="col-date">${day}</td>
-      <td class="col-qty">${qtyStr}</td>
-      <td class="col-desc">${Utils.escapeHtml(title)}${school?`<br><span class="school-name">${Utils.escapeHtml(school)}</span>`:''}</td>
-      <td class="col-pu">${pu.toFixed(2).replace('.',',')} €</td>
-      <td class="col-tot">${Utils.formatMoney(total)}</td>
-    </tr>`;
+    const qtyStr= qty % 1 === 0 ? qty.toFixed(2).replace('.',',') : String(qty).replace('.',',');
+    return '<tr>' +
+      '<td class="col-date">'+day+'</td>' +
+      '<td class="col-qty">'+qtyStr+'</td>' +
+      '<td class="col-desc">'+Utils.escapeHtml(title)+(school?'<br><span class="school-name">'+Utils.escapeHtml(school)+'</span>':'')+'</td>' +
+      '<td class="col-pu">'+pu.toFixed(2).replace('.',',')+' €</td>' +
+      '<td class="col-tot">'+Utils.formatMoney(total)+'</td>' +
+    '</tr>';
   }).join('');
 
-  // Adresse prestataire multi-lignes
-  const provName = provider.structure || `${provider.lastName} ${provider.firstName}`;
-  const provAddr = provider.address || '';
-  const provContact = [provider.email, provider.phone].filter(Boolean).join(' — ');
-
-  // Infos "De" multi-lignes
-  const ourLines = [ourAddr, ourPhone && ourEmail ? `${ourEmail} — ${ourPhone}` : (ourEmail||ourPhone), siret ? `SIRET : ${siret}` : ''].filter(Boolean);
+  const ourLines = [ourAddr,
+    (ourPhone&&ourEmail) ? ourEmail+' — '+ourPhone : (ourEmail||ourPhone),
+    siret ? 'SIRET : '+siret : ''].filter(Boolean);
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -1013,8 +997,8 @@ window._generateInvoice = function() {
   </div>
   <div class="party">
     <div class="party-tag">Facturer à</div>
-    <div class="party-name">${Utils.escapeHtml(provName)}</div>
-    <div class="party-info">${provAddr ? Utils.escapeHtml(provAddr)+'<br>' : ''}${provContact ? Utils.escapeHtml(provContact) : ''}</div>
+    <div class="party-name">${Utils.escapeHtml(destName)}</div>
+    <div class="party-info">${destAddr ? Utils.escapeHtml(destAddr)+'<br>' : ''}${destContact ? Utils.escapeHtml(destContact) : ''}</div>
   </div>
 </div>
 
