@@ -41,7 +41,9 @@ const Data = {
     } else {
       this._db = this._emptyDb();
     }
-    // 2. Synchronisation Firebase
+    // 2. Appliquer les données du modèle si non configurées
+    this._applyModelDefaults();
+    // 3. Synchronisation Firebase
     this._loadFromFirebase();
     // 3. Polling avec backoff exponentiel (3s → 6s → 12s → … max 60s, reset sur succès)
     let _pollDelay = 3000;
@@ -274,6 +276,54 @@ const Data = {
       }
       this._db._poleAssignmentsFixed3 = true;
     }
+  },
+
+  // ── Données modèle EVOL — pré-remplissage automatique ────────
+  _applyModelDefaults() {
+    let changed = false;
+    const s = this._db.settings || {};
+
+    // Infos de facturation Artémis (issues de la facture modèle EVOL)
+    const defaults = {
+      siret:              '92192154000016',
+      iban:               'FR76 1450 6042 1000 9205 3190 347',
+      bic:                'AGRIFRPP845',
+      codebanque:         '14506',
+      clerib:             '47',
+      numcompte:          '920 531 903 47',
+      bankname:           'CR Loire Haute Loire — Saint-Étienne Bellevue',
+      invoicePaymentDelay:'45 jours',
+    };
+    Object.entries(defaults).forEach(([k,v]) => {
+      if (!s[k]) { s[k] = v; changed = true; }
+    });
+    if (changed) this._db.settings = s;
+
+    // Adresse Artémis : corriger "Chapus" → "Riotord" ou remplir si vide
+    (this._db.companies || []).forEach(c => {
+      if (c.role !== 'own') return;
+      let coChanged = false;
+      if (!c.address || c.address.toLowerCase().includes('chapus')) {
+        c.address = '1 bis chemin des Écureuils, 43220 Riotord';
+        coChanged = true;
+      }
+      if (!c.email) { c.email = 'camille-chapuis@hotmail.fr'; coChanged = true; }
+      if (!c.phone) { c.phone = '06.68.11.59.67';            coChanged = true; }
+      if (coChanged) { c.updatedAt = Date.now(); changed = true; }
+    });
+
+    // Adresse EVOL AGENCY : remplir si vide
+    (this._db.providers || []).forEach(p => {
+      const struct = (p.structure || p.lastName || '').toLowerCase();
+      if (!struct.includes('evol')) return;
+      if (!p.address) {
+        p.address = '21 MONTÉE DE COLLONGES, 42170 Saint-Just-Saint-Rambert';
+        p.updatedAt = Date.now();
+        changed = true;
+      }
+    });
+
+    if (changed) this._save();
   },
 
   _save() {
