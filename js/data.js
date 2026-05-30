@@ -82,15 +82,21 @@ const Data = {
       const localTs = parseInt(localStorage.getItem('_edt_ts') || '0');
       if (_fbLastTs > localTs) {
         // Firebase plus récent → TOUJOURS l'utiliser (suppressions incluses)
-        // Détecter ce qui nécessitera un push après migration
         const needsMigration = (fbData.companies || []).some(c => !c.role) || !fbData._poleAssignmentsFixed3;
         this._db = fbData;
         this._migrate();
+        // ── Fusionner les doublons APRÈS chargement Firebase ────────
+        const mergeChanged = this._mergeProvidersByKeyword(
+          'evol', 'EVOL AGENCY',
+          '21 MONTÉE DE COLLONGES, 42170 Saint-Just-Saint-Rambert'
+        );
+        const ts2 = mergeChanged ? Date.now() : _fbLastTs;
+        if (mergeChanged) this._db._updatedAt = ts2;
         localStorage.setItem(DB_KEY, JSON.stringify(this._db));
-        localStorage.setItem('_edt_ts', String(_fbLastTs));
+        localStorage.setItem('_edt_ts', String(ts2));
         _reRenderPage();
-        // Persister dans Firebase si la migration a changé quelque chose
-        if (needsMigration) this._pushToFirebase();
+        // Repousser vers Firebase si migration ou fusion
+        if (needsMigration || mergeChanged) this._pushToFirebase();
       } else if (localTs > _fbLastTs) {
         // Local plus récent → on pousse vers Firebase
         this._pushToFirebase();
