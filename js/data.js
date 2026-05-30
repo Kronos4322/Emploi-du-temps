@@ -335,6 +335,20 @@ const Data = {
       if (coChanged) { c.updatedAt = _n; changed = true; }
     });
 
+    // Infos de facturation USAC France Lyon (client, keyword "usac" ou "ursac")
+    (this._db.companies || []).forEach(c => {
+      if (c.role === 'own') return;
+      const n = (c.name || '').toLowerCase();
+      if (!n.includes('usac') && !n.includes('ursac')) return;
+      const _n = Date.now();
+      let coChanged = false;
+      if (c.name !== 'USAC France Lyon')                  { c.name    = 'USAC France Lyon';                          coChanged = true; }
+      if (!c.address) { c.address = 'UCLy, 10 place des Archives, 69002 Lyon';   coChanged = true; }
+      if (!c.phone)   { c.phone   = '04 72 32 67 15';                             coChanged = true; }
+      if (!c.siret)   { c.siret   = '81018796300022';                             coChanged = true; }
+      if (coChanged) { c.updatedAt = _n; changed = true; }
+    });
+
     // Fusion des doublons EVOL AGENCY → un seul prestataire canonique
     if (this._mergeProvidersByKeyword('evol', 'EVOL AGENCY',
           '21 MONTÉE DE COLLONGES, 42170 Saint-Just-Saint-Rambert')) {
