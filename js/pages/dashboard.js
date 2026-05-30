@@ -712,17 +712,52 @@ window._generatePlanning = function() {
 // GÉNÉRATION DE FACTURE
 // ══════════════════════════════════════════════════════════════════
 
+// Construit les options du select "Facturer à" avec comptage de missions pour un mois donné
+window._buildInvDestOpts = function(month) {
+  const allM = Data.getMissions().filter(m =>
+    m.status !== 'cancelled' && m.date?.startsWith(month));
+  const cntP = {}, cntC = {};
+  allM.forEach(m => {
+    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+    pids.forEach(pid => { cntP[pid] = (cntP[pid]||0)+1; });
+    if (m.companyId) cntC[m.companyId] = (cntC[m.companyId]||0)+1;
+  });
+  const providers = Data.getProviders().slice().sort((a,b) =>
+    (a.structure||a.lastName).localeCompare(b.structure||b.lastName));
+  const clientCos = Data.getCompanies().filter(c => c.role !== 'own')
+    .sort((a,b) => a.name.localeCompare(b.name));
+  const pOpts = providers.map(p => {
+    const lbl = p.structure || p.lastName+' '+p.firstName;
+    const n = cntP[p.id]||0;
+    return '<option value="prov::'+p.id+'">'+Utils.escapeHtml(lbl)+(n?' ('+n+' mission'+(n>1?'s':'')+')':'')+'</option>';
+  }).join('');
+  const cOpts = clientCos.map(c => {
+    const n = cntC[c.id]||0;
+    return '<option value="co::'+c.id+'">'+Utils.escapeHtml(c.name)+(n?' ('+n+' mission'+(n>1?'s':'')+')':'')+'</option>';
+  }).join('');
+  return { pOpts, cOpts };
+};
+
+// Met à jour la liste "Facturer à" quand le mois change
+window._updateInvDest = function() {
+  const month = document.getElementById('inv-month')?.value; if (!month) return;
+  const sel   = document.getElementById('inv-dest');          if (!sel)   return;
+  const prev  = sel.value;
+  const { pOpts, cOpts } = window._buildInvDestOpts(month);
+  sel.innerHTML =
+    (pOpts ? '<optgroup label="Agences / Prestataires">'+pOpts+'</optgroup>' : '') +
+    (cOpts ? '<optgroup label="Sociétés clientes">'+cOpts+'</optgroup>'      : '');
+  // Restaurer la sélection si possible
+  if (prev) { for (const o of sel.options) { if (o.value === prev) { sel.value = prev; break; } } }
+};
+
 window._showInvoiceExport = function() {
   const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled');
   const months = [...new Set(allMissions.map(m => m.date?.substring(0,7)).filter(Boolean))].sort().reverse();
   if (!months.length) { Utils.toast('Aucune mission trouvée.', 'info'); return; }
 
-  const ownCos    = Data.getOwnCompanies();
-  const providers = Data.getProviders().slice().sort((a,b) =>
-    (a.structure||a.lastName).localeCompare(b.structure||b.lastName));
-  const clientCos = Data.getCompanies().filter(c => c.role !== 'own')
-    .sort((a,b) => a.name.localeCompare(b.name));
-  const settings  = Data.getSettings();
+  const ownCos   = Data.getOwnCompanies();
+  const settings = Data.getSettings();
 
   const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin',
                      'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
@@ -738,14 +773,9 @@ window._showInvoiceExport = function() {
     '<option value="'+c.id+'"'+(c.id===defaultEmId?' selected':'')+'>'+Utils.escapeHtml(c.name)+'</option>'
   ).join('');
 
-  // "Facturer à" = prestataires + sociétés clientes (optgroups)
-  const provOpts = providers.map(p => {
-    const lbl = Utils.escapeHtml(p.structure || p.lastName+' '+p.firstName);
-    return '<option value="prov::'+p.id+'">'+lbl+'</option>';
-  }).join('');
-  const coOpts = clientCos.map(c =>
-    '<option value="co::'+c.id+'">'+Utils.escapeHtml(c.name)+'</option>'
-  ).join('');
+  // "Facturer à" = prestataires + sociétés clientes avec comptage de missions
+  const defaultMonth = months[0] || '';
+  const { pOpts: provOpts, cOpts: coOpts } = window._buildInvDestOpts(defaultMonth);
 
   const warn = (!settings.siret||!settings.iban)
     ? '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;font-size:0.85rem;color:#92400e;display:flex;gap:8px;align-items:flex-start"><span>⚠️</span><span>SIRET / IBAN non configurés — <a href="parametres.html" style="color:#92400e;font-weight:700;text-decoration:underline">Paramètres → Informations de facturation →</a></span></div>'
@@ -762,11 +792,12 @@ window._showInvoiceExport = function() {
         '<div class="form-group form-col-2"><label>Société émettrice</label>' +
           '<select id="inv-emetteur" class="form-input">'+emOpts+'</select></div>' +
         '<div class="form-group form-col-2"><label>Mois de facturation</label>' +
-          '<select id="inv-month" class="form-input">'+
+          '<select id="inv-month" class="form-input" onchange="window._updateInvDest()">'+
             months.map(m=>'<option value="'+m+'">'+monthLabel(m)+'</option>').join('')+
           '</select></div>' +
       '</div>' +
-      '<div class="form-group" style="margin:0"><label>Facturer à (destinataire)</label>' +
+      '<div class="form-group" style="margin:0">' +
+        '<label>Facturer à <span style="color:var(--text-muted);font-size:0.8rem">(toutes les entités similaires sont regroupées automatiquement)</span></label>' +
         '<select id="inv-dest" class="form-input">' +
           (provOpts ? '<optgroup label="Agences / Prestataires">'+provOpts+'</optgroup>' : '') +
           (coOpts   ? '<optgroup label="Sociétés clientes">'+coOpts+'</optgroup>' : '') +
@@ -852,16 +883,47 @@ window._generateInvoice = function() {
   }
   if (!destName) { Utils.toast('Destinataire introuvable.', 'error'); return; }
 
-  // Filtre missions
+  // ── Regroupement automatique par nom similaire ──────────────────────────────
+  // Extrait les mots-clés significatifs (≥4 lettres) du nom sélectionné.
+  // Toute entité partageant au moins un de ces mots est considérée comme la même.
+  const _kws = n => new Set(
+    n.toLowerCase().replace(/[^a-z0-9]/g,' ').split(/\s+/).filter(w => w.length >= 4)
+  );
+  const selKws = _kws(destName);
+
+  const allProvIds = new Set();
+  const allCoIds   = new Set();
+
+  // Toujours inclure l'entité sélectionnée
+  if (destType === 'prov') allProvIds.add(destId);
+  else                     allCoIds.add(destId);
+
+  // Chercher d'autres entités au nom similaire
+  Data.getProviders().forEach(p => {
+    if (p.id === destId) return;
+    const kws = _kws(p.structure || p.lastName+' '+p.firstName);
+    if ([...kws].some(w => selKws.has(w))) allProvIds.add(p.id);
+  });
+  Data.getCompanies().filter(c => c.role !== 'own').forEach(c => {
+    if (c.id === destId) return;
+    const kws = _kws(c.name);
+    if ([...kws].some(w => selKws.has(w))) allCoIds.add(c.id);
+  });
+
+  // Noms des entités fusionnées (pour note dans la facture)
+  const mergedExtras = [
+    ...Data.getProviders().filter(p => allProvIds.has(p.id) && p.id !== destId)
+      .map(p => p.structure || p.lastName+' '+p.firstName),
+    ...Data.getCompanies().filter(c => allCoIds.has(c.id) && c.id !== destId)
+      .map(c => c.name),
+  ];
+
+  // Filtre missions (toutes entités regroupées)
   let missions = Data.getMissions().filter(m => {
     if (!m.date || !m.date.startsWith(month)) return false;
     if (m.status === 'cancelled') return false;
-    if (destType === 'prov') {
-      const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
-      return pids.includes(destId);
-    } else {
-      return m.companyId === destId;
-    }
+    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+    return pids.some(pid => allProvIds.has(pid)) || allCoIds.has(m.companyId);
   });
   missions.sort((a,b) => (a.date+(a.startTime||'')).localeCompare(b.date+(b.startTime||'')));
 
@@ -1001,6 +1063,8 @@ window._generateInvoice = function() {
     <div class="party-info">${destAddr ? Utils.escapeHtml(destAddr)+'<br>' : ''}${destContact ? Utils.escapeHtml(destContact) : ''}</div>
   </div>
 </div>
+
+${mergedExtras.length ? '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px 14px;margin-bottom:18px;font-size:8.5pt;color:#1e40af"><strong>ℹ Regroupement automatique</strong> — missions incluses depuis : '+mergedExtras.map(n=>Utils.escapeHtml(n)).join(', ')+'</div>' : ''}
 
 <table>
   <thead>
