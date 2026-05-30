@@ -338,7 +338,8 @@ const Data = {
       console.log('[Canonical] ASTÉRIA ('+c.id+') iban='+c.iban+' clerib='+c.clerib);
     });
 
-    // Infos de facturation USAC France Lyon — toujours forcées (valeurs canoniques)
+    // Infos de facturation USAC — adresse/tél/SIRET forcés, NOM INCHANGÉ
+    // ⚠️ Ne pas forcer le nom : "Lyon" dans le nom casserait le keyword matching
     (this._db.companies || []).forEach(c => {
       if (c.role === 'own') return;
       const n = (c.name || '').toLowerCase();
@@ -346,7 +347,8 @@ const Data = {
       const _n = Date.now();
       let coChanged = false;
       const _f = (k, v) => { if (c[k] !== v) { c[k] = v; coChanged = true; } };
-      _f('name',    'USAC France Lyon');
+      // Restaurer le vrai nom si on l'avait malencontreusement changé en "USAC France Lyon"
+      if (c.name === 'USAC France Lyon') { c.name = 'USAC - University Studies Abroad Consortium'; coChanged = true; }
       _f('address', 'UCLy, 10 place des Archives, 69002 Lyon');
       _f('phone',   '04 72 32 67 15');
       _f('siret',   '81018796300022');
