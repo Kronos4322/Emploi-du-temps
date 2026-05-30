@@ -169,6 +169,10 @@ const Data = {
         siret: '',           // SIRET affiché sur les factures
         iban:  '',           // IBAN pour le pied de facture
         bic:   '',           // BIC/SWIFT
+        codebanque: '',      // Code banque (5 chiffres)
+        clerib:     '',      // Clé RIB (2 chiffres)
+        numcompte:  '',      // N° de compte
+        bankname:   '',      // Nom de l'établissement bancaire
         invoicePaymentDelay: '45 jours', // délai de paiement par défaut
       },
       properties: [],      // appartements / biens locatifs

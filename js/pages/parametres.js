@@ -31,11 +31,24 @@ document.addEventListener('DOMContentLoaded', () => {
   if (settings.bic)   bicInput.value   = settings.bic;
   if (settings.invoicePaymentDelay) delayInput.value = settings.invoicePaymentDelay;
 
+  const codebanqueInput = document.getElementById('set-codebanque');
+  const cleribInput     = document.getElementById('set-clerib');
+  const numcompteInput  = document.getElementById('set-numcompte');
+  const banknameInput   = document.getElementById('set-bankname');
+  if (settings.codebanque) codebanqueInput.value = settings.codebanque;
+  if (settings.clerib)     cleribInput.value     = settings.clerib;
+  if (settings.numcompte)  numcompteInput.value  = settings.numcompte;
+  if (settings.bankname)   banknameInput.value   = settings.bankname;
+
   document.getElementById('btn-save-invoice-settings').addEventListener('click', () => {
     if (Data.saveSettings) Data.saveSettings({
-      siret: siretInput.value.trim(),
-      iban:  ibanInput.value.trim(),
-      bic:   bicInput.value.trim(),
+      siret:      siretInput.value.trim(),
+      iban:       ibanInput.value.trim(),
+      bic:        bicInput.value.trim(),
+      codebanque: codebanqueInput.value.trim(),
+      clerib:     cleribInput.value.trim(),
+      numcompte:  numcompteInput.value.trim(),
+      bankname:   banknameInput.value.trim(),
       invoicePaymentDelay: delayInput.value,
     });
     showToast('Informations de facturation enregistrées.');

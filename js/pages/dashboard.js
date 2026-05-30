@@ -818,9 +818,13 @@ window._generateInvoice = function() {
   const ourAddr  = ourCo?.address || '';
   const ourPhone = ourCo?.phone || '';
   const ourEmail = ourCo?.email || '';
-  const siret    = settings.siret || '';
-  const iban     = settings.iban  || '';
-  const bic      = settings.bic   || '';
+  const siret      = settings.siret      || '';
+  const iban       = settings.iban       || '';
+  const bic        = settings.bic        || '';
+  const codebanque = settings.codebanque || '';
+  const clerib     = settings.clerib     || '';
+  const numcompte  = settings.numcompte  || '';
+  const bankname   = settings.bankname   || '';
 
   // Filtre missions : mois + prestataire (non annulées)
   let missions = Data.getMissions().filter(m => {
@@ -974,10 +978,6 @@ window._generateInvoice = function() {
   </div>
 </div>
 
-<p style="font-size:9pt;color:#94a3b8;margin-bottom:10px;text-align:right">
-  TVA non applicable — article 293 B du CGI
-</p>
-
 <table>
   <thead>
     <tr>
@@ -1008,10 +1008,17 @@ window._generateInvoice = function() {
   </tfoot>
 </table>
 
-${iban ? `<div class="inv-footer">
-  RIB : IBAN ${iban}${bic ? ' &nbsp;—&nbsp; BIC '+bic : ''}<br>
-  ${[ourPhone,ourEmail].filter(Boolean).join(' — ')}
-</div>` : ''}
+${(iban || codebanque) ? `<div class="inv-footer">
+  <strong>Coordonnées bancaires :</strong><br>
+  ${iban ? 'IBAN : '+iban+'<br>' : ''}
+  ${(codebanque||clerib||numcompte) ? `CODE BANQUE : ${codebanque}&nbsp;&nbsp;—&nbsp;&nbsp;CLÉ RIB : ${clerib}&nbsp;&nbsp;—&nbsp;&nbsp;N° COMPTE : ${numcompte}<br>` : ''}
+  ${bic ? 'BIC : '+bic+'<br>' : ''}
+  ${bankname ? bankname+'<br>' : ''}
+  <br>
+  TVA non applicable — article 293 B du CGI &nbsp;|&nbsp; Délais de paiement : ${delay||'45 jours'} après réception
+</div>` : `<div class="inv-footer">
+  TVA non applicable — article 293 B du CGI &nbsp;|&nbsp; Délais de paiement : ${delay||'45 jours'} après réception
+</div>`}
 
 </body>
 </html>`;
