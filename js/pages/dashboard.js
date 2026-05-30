@@ -752,7 +752,7 @@ window._updateInvDest = function() {
 };
 
 // ── Fonction centrale de filtrage des missions pour la facture ──────────────
-// Cherche par ID (exact) ET par nom de prestataire (résistant aux doublons de sync).
+// Logique : agenda → école (ID direct) ou prestataire (keyword pour doublons EVOL)
 window._getInvMissions = function(month, destRaw) {
   if (!month || !destRaw) return [];
   const sep     = '::';
@@ -761,45 +761,39 @@ window._getInvMissions = function(month, destRaw) {
   const destType = destRaw.substring(0, sepIdx);
   const destId   = destRaw.substring(sepIdx + sep.length);
 
-  // Nom canonique de l'entité sélectionnée
-  let destName = '';
-  if (destType === 'prov') {
-    const p = Data.getProviders().find(p => p.id === destId);
-    destName = p ? (p.structure || p.lastName+' '+p.firstName) : '';
+  let missions = [];
+
+  if (destType === 'co') {
+    // ── École : match direct par companyId ──────────────────────────
+    // L'agenda lie chaque mission à une école précise — pas besoin de keyword.
+    missions = Data.getMissions().filter(m => {
+      if (!m.date?.startsWith(month)) return false;
+      if (m.status === 'cancelled') return false;
+      return m.companyId === destId;
+    });
+
   } else {
-    const c = Data.getCompanies().find(c => c.id === destId);
-    destName = c ? c.name : '';
+    // ── Prestataire : keyword matching (gère les doublons d'ID comme EVOL AGENCY) ──
+    const p = Data.getProviders().find(p => p.id === destId);
+    const destName = p ? (p.structure || p.lastName+' '+p.firstName) : '';
+    if (!destName) return [];
+    const _kws = n => new Set(
+      n.toLowerCase().replace(/[^a-z0-9]/g,' ').split(/\s+/).filter(w => w.length >= 4)
+    );
+    const selKws = _kws(destName);
+    const allProvIds = new Set([destId]);
+    Data.getProviders().forEach(pr => {
+      const n = pr.structure || pr.lastName+' '+pr.firstName;
+      if ([..._kws(n)].some(w => selKws.has(w))) allProvIds.add(pr.id);
+    });
+    missions = Data.getMissions().filter(m => {
+      if (!m.date?.startsWith(month)) return false;
+      if (m.status === 'cancelled') return false;
+      const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+      return pids.some(pid => allProvIds.has(pid));
+    });
   }
-  if (!destName) return [];
 
-  // Mots-clés significatifs (≥4 lettres)
-  const _kws = n => new Set(
-    n.toLowerCase().replace(/[^a-z0-9]/g,' ').split(/\s+/).filter(w => w.length >= 4)
-  );
-  const selKws = _kws(destName);
-
-  // Tous les IDs prestataires dont le nom partage un mot-clé
-  const allProvIds = new Set();
-  Data.getProviders().forEach(p => {
-    const n = p.structure || p.lastName+' '+p.firstName;
-    if ([..._kws(n)].some(w => selKws.has(w))) allProvIds.add(p.id);
-  });
-  // Toujours inclure l'ID sélectionné
-  if (destType === 'prov') allProvIds.add(destId);
-
-  // Tous les IDs sociétés dont le nom partage un mot-clé
-  const allCoIds = new Set();
-  Data.getCompanies().filter(c => c.role !== 'own').forEach(c => {
-    if ([..._kws(c.name)].some(w => selKws.has(w))) allCoIds.add(c.id);
-  });
-  if (destType === 'co') allCoIds.add(destId);
-
-  const missions = Data.getMissions().filter(m => {
-    if (!m.date?.startsWith(month)) return false;
-    if (m.status === 'cancelled') return false;
-    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
-    return pids.some(pid => allProvIds.has(pid)) || allCoIds.has(m.companyId);
-  });
   missions.sort((a,b) => (a.date+(a.startTime||'')).localeCompare(b.date+(b.startTime||'')));
   return missions;
 };
@@ -988,13 +982,14 @@ window._generateInvoice = function() {
     return;
   }
 
-  // Entités fusionnées pour note dans la facture
-  const _kws2 = n => new Set(n.toLowerCase().replace(/[^a-z0-9]/g,' ').split(/\s+/).filter(w=>w.length>=4));
-  const selKws2 = _kws2(destName);
-  const mergedExtras = [
-    ...Data.getProviders().filter(p => p.id !== destId && [..._kws2(p.structure||p.lastName+' '+p.firstName)].some(w=>selKws2.has(w))).map(p=>p.structure||p.lastName+' '+p.firstName),
-    ...Data.getCompanies().filter(c => c.role!=='own' && c.id!==destId && [..._kws2(c.name)].some(w=>selKws2.has(w))).map(c=>c.name),
-  ];
+  // Note de regroupement : uniquement pour les prestataires avec doublons d'ID
+  const mergedExtras = destType === 'prov' ? (() => {
+    const _kws2 = n => new Set(n.toLowerCase().replace(/[^a-z0-9]/g,' ').split(/\s+/).filter(w=>w.length>=4));
+    const selKws2 = _kws2(destName);
+    return Data.getProviders()
+      .filter(p => p.id !== destId && [..._kws2(p.structure||p.lastName+' '+p.firstName)].some(w=>selKws2.has(w)))
+      .map(p => p.structure||p.lastName+' '+p.firstName);
+  })() : [];
 
   const totalH  = missions.reduce((s,m) => s+(m.duration||0), 0);
   const totalHT = missions.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
