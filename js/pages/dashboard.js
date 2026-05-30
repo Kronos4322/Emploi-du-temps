@@ -712,11 +712,24 @@ window._generatePlanning = function() {
 // GÉNÉRATION DE FACTURE
 // ══════════════════════════════════════════════════════════════════
 
+window._selectInvoiceEmetteur = function(id) {
+  document.getElementById('inv-emetteur').value = id;
+  Data.getOwnCompanies().forEach(c => {
+    const btn = document.getElementById('inv-emit-' + c.id);
+    if (!btn) return;
+    const active = c.id === id;
+    btn.style.background = active ? c.color : 'transparent';
+    btn.style.color      = active ? '#fff'  : c.color;
+    btn.style.borderColor = c.color;
+  });
+};
+
 window._showInvoiceExport = function() {
   const missions = Data.getMissions().filter(m => m.status !== 'cancelled');
   const months   = [...new Set(missions.map(m => m.date?.substring(0,7)).filter(Boolean))].sort().reverse();
   if (!months.length) { Utils.toast('Aucune mission trouvée.', 'info'); return; }
 
+  const ownCos   = Data.getOwnCompanies();
   const providers = Data.getProviders().slice().sort((a,b) =>
     (a.structure||a.lastName).localeCompare(b.structure||b.lastName));
   const settings  = Data.getSettings();
@@ -731,6 +744,23 @@ window._showInvoiceExport = function() {
 
   const missingInfo = !settings.siret || !settings.iban;
 
+  // Pôle actif dans le dashboard → pré-sélectionner la société
+  const defaultEmetteurId = (_dashPole && ownCos.find(c => c.id === _dashPole))
+    ? _dashPole : (ownCos[0]?.id || '');
+
+  // Pilules sociétés émettrices
+  const emetteurPills = ownCos.map((c, i) => {
+    const active = c.id === defaultEmetteurId;
+    return `<button type="button" id="inv-emit-${c.id}"
+      onclick="window._selectInvoiceEmetteur('${c.id}')"
+      style="padding:7px 18px;border-radius:20px;border:2px solid ${c.color};
+             background:${active ? c.color : 'transparent'};
+             color:${active ? '#fff' : c.color};
+             font-weight:700;cursor:pointer;font-size:0.9rem;transition:all 0.15s">
+      ${Utils.escapeHtml(c.name)}
+    </button>`;
+  }).join('');
+
   Modals._open(`
     <div class="modal-header">
       <h3>📋 Préparer une facture</h3>
@@ -740,9 +770,18 @@ window._showInvoiceExport = function() {
 
       ${missingInfo ? `<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;font-size:0.85rem;color:#92400e;display:flex;gap:8px;align-items:center">
         <span>⚠️</span>
-        <span>SIRET / IBAN non configurés — la facture générée sera incomplète.
+        <span>SIRET / IBAN non configurés — la facture sera incomplète.
         <a href="parametres.html" style="color:#92400e;font-weight:700;text-decoration:underline">Configurer →</a></span>
       </div>` : ''}
+
+      <!-- Société émettrice -->
+      <div>
+        <div style="font-size:0.82rem;font-weight:600;color:var(--text-muted);margin-bottom:8px">Société émettrice</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${emetteurPills}
+        </div>
+        <input type="hidden" id="inv-emetteur" value="${defaultEmetteurId}">
+      </div>
 
       <div class="form-grid">
         <div class="form-group form-col-2">
@@ -808,12 +847,13 @@ window._generateInvoice = function() {
   const provider = Data.getProviders().find(p => p.id === provId);
   if (!provider) { Utils.toast('Prestataire introuvable.', 'error'); return; }
 
+  const emetteurId = document.getElementById('inv-emetteur')?.value || '';
   const ownCos   = Data.getOwnCompanies();
   const coMap    = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
   const settings = Data.getSettings();
 
-  // Infos de notre société (1er pôle own)
-  const ourCo    = ownCos[0];
+  // Infos de la société émettrice sélectionnée
+  const ourCo    = ownCos.find(c => c.id === emetteurId) || ownCos[0];
   const ourName  = ourCo?.name || settings.responsableName || 'Artémis Prépa';
   const ourAddr  = ourCo?.address || '';
   const ourPhone = ourCo?.phone || '';
