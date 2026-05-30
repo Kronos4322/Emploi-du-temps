@@ -305,7 +305,7 @@ const Data = {
     });
     if (changed) this._db.settings = s;
 
-    // Adresse Artémis : corriger "Chapus" → "Riotord" ou remplir si vide
+    // Adresse / contact communs aux deux pôles (même personne physique)
     (this._db.companies || []).forEach(c => {
       if (c.role !== 'own') return;
       let coChanged = false;
@@ -316,6 +316,23 @@ const Data = {
       if (!c.email) { c.email = 'camille-chapuis@hotmail.fr'; coChanged = true; }
       if (!c.phone) { c.phone = '06.68.11.59.67';            coChanged = true; }
       if (coChanged) { c.updatedAt = Date.now(); changed = true; }
+    });
+
+    // Infos bancaires ASTÉRIA — compte différent d'Artémis, stocké sur la fiche société
+    (this._db.companies || []).forEach(c => {
+      if (c.role !== 'own') return;
+      if (!(c.name || '').toLowerCase().includes('aster')) return;
+      const _n = Date.now();
+      let coChanged = false;
+      if (!c.siret)       { c.siret       = '92192154000016';                    coChanged = true; }
+      if (!c.iban)        { c.iban        = 'FR76 1450 6042 1000 9111 2162 016'; coChanged = true; }
+      if (!c.bic)         { c.bic         = 'AGRIFRPP845';                       coChanged = true; }
+      if (!c.codebanque)  { c.codebanque  = '14506';                             coChanged = true; }
+      if (!c.codeguichet) { c.codeguichet = '4210';                              coChanged = true; }
+      if (!c.clerib)      { c.clerib      = '16';                                coChanged = true; }
+      if (!c.numcompte)   { c.numcompte   = '911 121 620';                       coChanged = true; }
+      if (!c.bankname)    { c.bankname    = 'CR Loire Haute Loire — Saint-Étienne Bellevue'; coChanged = true; }
+      if (coChanged) { c.updatedAt = _n; changed = true; }
     });
 
     // Fusion des doublons EVOL AGENCY → un seul prestataire canonique

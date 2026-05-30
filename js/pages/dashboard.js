@@ -951,13 +951,15 @@ window._generateInvoice = function() {
   const ourAddr = ourCo?.address || '';
   const ourPhone= ourCo?.phone  || '';
   const ourEmail= ourCo?.email  || '';
-  const siret      = settings.siret      || '';
-  const iban       = settings.iban       || '';
-  const bic        = settings.bic        || '';
-  const codebanque = settings.codebanque || '';
-  const clerib     = settings.clerib     || '';
-  const numcompte  = settings.numcompte  || '';
-  const bankname   = settings.bankname   || '';
+  // Coordonnées bancaires : priorité aux champs stockés sur la fiche société (ASTÉRIA),
+  // sinon fallback sur les paramètres globaux (Artémis)
+  const siret      = ourCo?.siret      || settings.siret      || '';
+  const iban       = ourCo?.iban       || settings.iban       || '';
+  const bic        = ourCo?.bic        || settings.bic        || '';
+  const codebanque = ourCo?.codebanque || settings.codebanque || '';
+  const clerib     = ourCo?.clerib     || settings.clerib     || '';
+  const numcompte  = ourCo?.numcompte  || settings.numcompte  || '';
+  const bankname   = ourCo?.bankname   || settings.bankname   || '';
 
   // Destinataire : infos d'affichage
   let destName = '', destAddr = '', destContact = '';

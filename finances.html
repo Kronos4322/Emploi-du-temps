@@ -95,11 +95,19 @@
               <div class="kpi-label" id="fin-unpaid-label">Non payé</div>
             </div>
           </div>
+          <div class="kpi-card" id="fin-rental-kpi-card" style="display:none">
+            <div class="kpi-icon kpi-green">🏠</div>
+            <div class="kpi-content">
+              <div class="kpi-value" id="fin-rental-kpi-val">—</div>
+              <div class="kpi-label">Revenus locatifs</div>
+            </div>
+          </div>
         </div>
 
         <div id="section-by-company">
-          <h3 class="section-title">Répartition par école / client</h3>
-          <div class="report-table-wrapper">
+          <h3 class="section-title" id="section-by-company-title">Répartition par école / client</h3>
+          <!-- Table missions (mode normal) -->
+          <div class="report-table-wrapper" id="missions-by-company-table">
             <table class="data-table">
               <thead><tr>
                 <th>École / Client</th>
@@ -117,6 +125,27 @@
                 <td></td>
               </tr></tfoot>
             </table>
+          </div>
+          <!-- Table par bien (mode Location) -->
+          <div id="rental-by-prop-wrapper" style="display:none">
+            <div class="report-table-wrapper">
+              <table class="data-table">
+                <thead><tr>
+                  <th>Bien</th>
+                  <th>Plateforme(s)</th>
+                  <th class="cell-center">Nuits</th>
+                  <th class="cell-money">Revenu</th>
+                  <th>Part</th>
+                </tr></thead>
+                <tbody id="tbody-by-prop"></tbody>
+                <tfoot><tr class="table-total">
+                  <td colspan="2"><strong>Total</strong></td>
+                  <td class="cell-center" id="total-prop-nights"><strong>—</strong></td>
+                  <td class="cell-money" id="total-prop-revenue"><strong>—</strong></td>
+                  <td></td>
+                </tr></tfoot>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -136,7 +165,8 @@
 
         <div style="margin-top:16px" id="section-done-missions">
           <h3 class="section-title" id="done-section-title">Missions réalisées</h3>
-          <div class="report-table-wrapper">
+          <!-- Table missions (mode normal) -->
+          <div class="report-table-wrapper" id="missions-done-table">
             <table class="data-table">
               <thead><tr>
                 <th>Date</th><th>Titre</th><th>Société</th>
@@ -145,6 +175,23 @@
               </tr></thead>
               <tbody id="tbody-done"></tbody>
             </table>
+          </div>
+          <!-- Table revenus locatifs (mode Location) -->
+          <div id="rental-incomes-wrapper" style="display:none">
+            <div class="report-table-wrapper">
+              <table class="data-table">
+                <thead><tr>
+                  <th>Bien</th><th>Plateforme</th>
+                  <th class="cell-center">Nuits</th>
+                  <th class="cell-money">Montant</th>
+                  <th>Statut</th><th>Notes</th>
+                </tr></thead>
+                <tbody id="tbody-rental-incomes"></tbody>
+              </table>
+            </div>
+            <div style="margin-top:10px">
+              <a href="location.html" class="btn btn-ghost btn-sm">→ Gérer les biens et revenus</a>
+            </div>
           </div>
         </div>
 
@@ -277,7 +324,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="js/utils.js?v=10"></script>
-  <script src="js/data.js?v=15"></script>
+  <script src="js/data.js?v=16"></script>
   <script src="js/modals.js?v=12"></script>
   <script src="js/nav.js?v=10"></script>
   <script src="js/pages/finances.js?v=11"></script>
