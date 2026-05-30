@@ -1010,7 +1010,7 @@ window._generateInvoice = function() {
     return '<tr>' +
       '<td class="col-date">'+day+'</td>' +
       '<td class="col-qty">'+qtyStr+'</td>' +
-      '<td class="col-desc">'+Utils.escapeHtml(title)+(school?'<br><span class="school-name">'+Utils.escapeHtml(school)+'</span>':'')+'</td>' +
+      '<td class="col-desc">'+Utils.escapeHtml(title)+(school?' <span class="school-name">— '+Utils.escapeHtml(school)+'</span>':'')+'</td>' +
       '<td class="col-pu">'+pu.toFixed(2).replace('.',',')+' €</td>' +
       '<td class="col-tot">'+Utils.formatMoney(total)+'</td>' +
     '</tr>';
@@ -1026,66 +1026,67 @@ window._generateInvoice = function() {
   <meta charset="UTF-8">
   <title>Facture${invNum?' #'+invNum:''} — ${ourName} — ${monthName}</title>
   <style>
-    @page { size: A4 portrait; margin: 11mm 12mm; }
+    @page { size: A4 portrait; margin: 10mm; }
     * { box-sizing:border-box; margin:0; padding:0; }
-    body { font-family:'Segoe UI',Arial,sans-serif; font-size:9pt; color:#1e293b; background:#fff;
-           padding:10mm 12mm; width:210mm; min-height:297mm; }
+    body { font-family:'Segoe UI',Arial,sans-serif; font-size:8.5pt; color:#1e293b; background:#fff;
+           padding:8mm 10mm; width:210mm; }
 
-    /* Barre d'impression (masquée à l'impression) */
-    .no-print { background:#3b82f6; color:#fff; padding:8px 14px; border-radius:6px; margin-bottom:14px;
-                display:flex; align-items:center; justify-content:space-between; font-size:8.5pt; }
-    .no-print button { background:#fff; color:#3b82f6; border:none; border-radius:5px; padding:5px 14px; font-weight:700; cursor:pointer; font-size:8.5pt; }
+    /* Barre d'impression */
+    .no-print { background:#3b82f6; color:#fff; padding:7px 12px; border-radius:5px; margin-bottom:10px;
+                display:flex; align-items:center; justify-content:space-between; font-size:8pt; }
+    .no-print button { background:#fff; color:#3b82f6; border:none; border-radius:4px;
+                       padding:4px 12px; font-weight:700; cursor:pointer; font-size:8pt; }
 
     /* En-tête */
     .inv-header { display:flex; justify-content:space-between; align-items:flex-start;
-                  border-bottom:2.5px solid #1e293b; padding-bottom:10px; margin-bottom:12px; }
-    .inv-from .company-name { font-size:14pt; font-weight:800; letter-spacing:-0.3px; margin-bottom:3px; }
-    .inv-from .company-info { font-size:7.5pt; color:#64748b; line-height:1.6; }
+                  border-bottom:2px solid #1e293b; padding-bottom:8px; margin-bottom:9px; }
+    .company-name { font-size:13pt; font-weight:800; letter-spacing:-0.3px; margin-bottom:2px; }
+    .company-info { font-size:7pt; color:#64748b; line-height:1.55; }
     .inv-meta { text-align:right; }
-    .inv-word { font-size:22pt; font-weight:800; color:#3b82f6; letter-spacing:-0.5px; }
-    .inv-num  { font-size:8.5pt; color:#64748b; margin-top:2px; }
-    .inv-dates{ font-size:7.5pt; color:#475569; margin-top:6px; line-height:1.6; }
+    .inv-word { font-size:20pt; font-weight:800; color:#3b82f6; letter-spacing:-0.5px; }
+    .inv-num  { font-size:8pt; color:#64748b; margin-top:1px; }
+    .inv-dates{ font-size:7pt; color:#475569; margin-top:4px; line-height:1.55; }
 
-    /* Parties */
-    .inv-parties { display:flex; gap:12px; margin-bottom:12px; }
-    .party { flex:1; background:#f8fafc; border-radius:6px; padding:8px 12px; }
-    .party-tag  { font-size:6.5pt; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.12em; margin-bottom:3px; }
-    .party-name { font-size:9.5pt; font-weight:700; margin-bottom:2px; }
-    .party-info { font-size:7.5pt; color:#64748b; line-height:1.5; }
+    /* Bloc De / Facturer à */
+    .inv-parties { display:flex; gap:8px; margin-bottom:9px; }
+    .party { flex:1; background:#f8fafc; border-radius:5px; padding:6px 10px; }
+    .party-tag  { font-size:6pt; font-weight:700; color:#94a3b8; text-transform:uppercase;
+                  letter-spacing:0.12em; margin-bottom:2px; }
+    .party-name { font-size:9pt; font-weight:700; margin-bottom:1px; }
+    .party-info { font-size:7pt; color:#64748b; line-height:1.45; }
 
     /* Tableau */
-    table { width:100%; border-collapse:collapse; margin-bottom:0; }
-    thead th { background:#1e293b; color:#fff; padding:6px 9px; font-size:7.5pt;
+    table { width:100%; border-collapse:collapse; }
+    thead th { background:#1e293b; color:#fff; padding:5px 8px; font-size:7pt;
                font-weight:700; text-transform:uppercase; letter-spacing:0.06em; text-align:left; }
     thead th.r { text-align:right; }
-    tbody td { padding:5px 9px; border-bottom:1px solid #f1f5f9; vertical-align:middle; font-size:8.5pt; }
+    tbody td { padding:4px 8px; border-bottom:1px solid #f1f5f9;
+               vertical-align:middle; font-size:8pt; line-height:1.3; }
     tbody tr:nth-child(even) td { background:#fafbfc; }
-
-    .col-date { width:56px; font-weight:600; white-space:nowrap; }
-    .col-qty  { width:52px; text-align:right; }
+    .col-date { width:50px; font-weight:600; white-space:nowrap; }
+    .col-qty  { width:46px; text-align:right; }
     .col-desc { }
-    .col-pu   { width:70px; text-align:right; }
-    .col-tot  { width:76px; text-align:right; font-weight:700; }
-    .school-name { font-size:7pt; color:#64748b; }
+    .col-pu   { width:64px; text-align:right; }
+    .col-tot  { width:70px; text-align:right; font-weight:700; }
+    .school-name { font-size:6.5pt; color:#94a3b8; }
 
     /* Pied de tableau */
-    tfoot td { padding:5px 9px; }
-    .tf-sep td { border-top:1.5px solid #e2e8f0; padding-top:7px; }
-    .tf-tva   { font-size:7pt; color:#94a3b8; font-style:italic; }
+    tfoot td { padding:4px 8px; }
+    .tf-sep td { border-top:1.5px solid #e2e8f0; padding-top:6px; }
+    .tf-tva   { font-size:6.5pt; color:#94a3b8; font-style:italic; }
     .tf-ttc td { background:#1e293b; color:#fff; font-weight:700; }
-    .tf-ttc .col-tot { font-size:11pt; }
-    .tf-label { text-align:right; color:#64748b; font-size:8pt; }
-    .tf-label-w { color:#aaa; font-size:8pt; }
+    .tf-ttc .col-tot { font-size:10.5pt; }
+    .tf-label   { text-align:right; color:#64748b; font-size:7.5pt; }
+    .tf-label-w { color:#aaa; font-size:7.5pt; }
 
     /* Pied de page */
-    .inv-footer { margin-top:12px; padding-top:8px; border-top:1px solid #e2e8f0;
-                  font-size:7.5pt; color:#94a3b8; line-height:1.65; }
+    .inv-footer { margin-top:9px; padding-top:6px; border-top:1px solid #e2e8f0;
+                  font-size:7pt; color:#94a3b8; line-height:1.6; }
 
     @media print {
       body { padding:0; }
       .no-print { display:none !important; }
       tr { break-inside:avoid; }
-      table { page-break-inside:auto; }
     }
   </style>
 </head>
@@ -1103,11 +1104,11 @@ window._generateInvoice = function() {
   </div>
   <div class="inv-meta">
     <div class="inv-word">FACTURE</div>
-    ${invNum ? `<div class="inv-num">N° de facture : ${invNum}</div>` : ''}
+    ${invNum ? '<div class="inv-num">N° '+invNum+'</div>' : ''}
     <div class="inv-dates">
       Date : <strong>${invDateFr}</strong><br>
-      ${ref ? `Réf client : <strong>${ref}</strong><br>` : ''}
-      Délai : ${delay || '45 jours'} après réception
+      ${ref ? 'Réf : <strong>'+ref+'</strong><br>' : ''}
+      Délai : ${delay||'45 jours'}
     </div>
   </div>
 </div>
@@ -1125,13 +1126,11 @@ window._generateInvoice = function() {
   </div>
 </div>
 
-${mergedExtras.length ? '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px 14px;margin-bottom:18px;font-size:8.5pt;color:#1e40af"><strong>ℹ Regroupement automatique</strong> — missions incluses depuis : '+mergedExtras.map(n=>Utils.escapeHtml(n)).join(', ')+'</div>' : ''}
-
 <table>
   <thead>
     <tr>
       <th class="col-date">Date</th>
-      <th class="col-qty r">Qté (h)</th>
+      <th class="col-qty r">Qté&nbsp;(h)</th>
       <th class="col-desc">Description</th>
       <th class="col-pu r">P.U. HT</th>
       <th class="col-tot r">Total HT</th>
@@ -1157,17 +1156,15 @@ ${mergedExtras.length ? '<div style="background:#eff6ff;border:1px solid #bfdbfe
   </tfoot>
 </table>
 
-${(iban || codebanque) ? `<div class="inv-footer">
-  <strong>Coordonnées bancaires :</strong><br>
-  ${iban ? 'IBAN : '+iban+'<br>' : ''}
-  ${(codebanque||clerib||numcompte) ? `CODE BANQUE : ${codebanque}&nbsp;&nbsp;—&nbsp;&nbsp;CLÉ RIB : ${clerib}&nbsp;&nbsp;—&nbsp;&nbsp;N° COMPTE : ${numcompte}<br>` : ''}
-  ${bic ? 'BIC : '+bic+'<br>' : ''}
-  ${bankname ? bankname+'<br>' : ''}
-  <br>
-  TVA non applicable — article 293 B du CGI &nbsp;|&nbsp; Délais de paiement : ${delay||'45 jours'} après réception
-</div>` : `<div class="inv-footer">
-  TVA non applicable — article 293 B du CGI &nbsp;|&nbsp; Délais de paiement : ${delay||'45 jours'} après réception
-</div>`}
+<div class="inv-footer">
+  ${(iban||codebanque) ? '<strong>Coordonnées bancaires :</strong> '+
+    (iban ? 'IBAN : '+iban+' &nbsp;|&nbsp; ' : '')+
+    (bic  ? 'BIC : '+bic+' &nbsp;|&nbsp; ' : '')+
+    ((codebanque||clerib||numcompte) ? 'Code banque : '+codebanque+' — Clé RIB : '+clerib+' — N° compte : '+numcompte+' &nbsp;|&nbsp; ' : '')+
+    (bankname ? bankname+'<br>' : '<br>')
+  : ''}
+  TVA non applicable — art. 293 B CGI &nbsp;|&nbsp; Paiement : ${delay||'45 jours'} après réception
+</div>
 
 </body>
 </html>`;
