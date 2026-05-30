@@ -956,13 +956,14 @@ window._generateInvoice = function() {
   const bankname   = ourCo?.bankname   || settings.bankname   || '';
 
   // Destinataire : infos d'affichage
-  let destName = '', destAddr = '', destContact = '';
+  let destName = '', destAddr = '', destContact = '', destSiret = '';
   if (destType === 'prov') {
     const p = Data.getProviders().find(p => p.id === destId);
     if (p) {
       destName    = p.structure || p.lastName+' '+p.firstName;
       destAddr    = p.address   || '';
       destContact = [p.email, p.phone].filter(Boolean).join(' — ');
+      destSiret   = p.siret    || '';
     }
   } else {
     const c = Data.getCompanies().find(c => c.id === destId);
@@ -970,6 +971,7 @@ window._generateInvoice = function() {
       destName    = c.name;
       destAddr    = c.address  || '';
       destContact = [c.email, c.phone].filter(Boolean).join(' — ');
+      destSiret   = c.siret   || '';
     }
   }
   if (!destName) { Utils.toast('Destinataire introuvable.', 'error'); return; }
@@ -1118,7 +1120,7 @@ window._generateInvoice = function() {
   <div class="party">
     <div class="party-tag">Facturer à</div>
     <div class="party-name">${Utils.escapeHtml(destName)}</div>
-    <div class="party-info">${destAddr ? Utils.escapeHtml(destAddr)+'<br>' : ''}${destContact ? Utils.escapeHtml(destContact) : ''}</div>
+    <div class="party-info">${destAddr ? Utils.escapeHtml(destAddr)+'<br>' : ''}${destContact ? Utils.escapeHtml(destContact)+'<br>' : ''}${destSiret ? 'SIRET : '+Utils.escapeHtml(destSiret) : ''}</div>
   </div>
 </div>
 
