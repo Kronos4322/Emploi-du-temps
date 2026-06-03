@@ -382,9 +382,10 @@ const Data = {
       if (!existing) {
         (this._db.subjects = this._db.subjects || []).push({ ...def, createdAt: Date.now(), updatedAt: Date.now() });
         changed = true;
-      } else if (existing.categoryId !== _CP_CAT_ID) {
+      } else if (existing.categoryId !== _CP_CAT_ID || existing.color !== def.color) {
         existing.categoryId = _CP_CAT_ID;
         existing.category   = 'particuliers';
+        existing.color      = def.color;
         existing.updatedAt  = Date.now();
         changed = true;
       }
