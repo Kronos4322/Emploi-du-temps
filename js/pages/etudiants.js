@@ -222,7 +222,7 @@ function studentsHTML() {
           <div style="font-size:0.8rem;color:var(--success)">${Utils.formatMoney(totR)} facturé</div>
           ${provStats||'<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px">Aucun prestataire</div>'}
           <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px" onclick="event.stopPropagation()">
-            <button class="btn btn-primary btn-sm" data-action="student-detail" data-id="${s.id}">📅 Voir les cours</button>
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();_stuId='${s.id}';_view='student-detail';render()">📅 Voir les cours</button>
             <div style="position:relative;display:inline-block">
               <button class="btn btn-ghost btn-sm" onclick="window._toggleMenu('smenu-${s.id}')">⋯ Exporter CSV</button>
               <div id="smenu-${s.id}" style="display:none;position:absolute;right:0;top:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:200px;padding:4px">
