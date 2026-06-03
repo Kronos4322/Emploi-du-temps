@@ -342,13 +342,15 @@ const Data = {
     });
 
     // Infos bancaires ASTÉRIA — toujours forcées (valeurs canoniques)
+    // ⚠️ On vérifie le nom (pas le rôle) : la migration peut ne pas avoir tourné
     const _ASTER_IBAN = 'FR76 1450 6042 1000 9111 2162 016';
     (this._db.companies || []).forEach(c => {
-      if (c.role !== 'own') return;
       if (!(c.name || '').toLowerCase().includes('aster')) return;
+      // Forcer aussi le rôle si absent
+      if (c.role !== 'own') { c.role = 'own'; changed = true; }
       const _n = Date.now();
       let coChanged = false;
-      const _f = (k, v) => { if (c[k] !== v) { c[k] = v; coChanged = true; } };
+      const _f = (k, v) => { if ((c[k] == null || c[k] === '') || c[k] !== v) { c[k] = v; coChanged = true; } };
       _f('siret',       '92192154000016');
       _f('iban',        _ASTER_IBAN);
       _f('bic',         'AGRIFRPP845');

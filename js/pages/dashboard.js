@@ -998,15 +998,17 @@ window._generateInvoice = function() {
   const ourAddr = ourCo?.address || '';
   const ourPhone= ourCo?.phone  || '';
   const ourEmail= ourCo?.email  || '';
-  // Coordonnées bancaires : priorité aux champs stockés sur la fiche société (ASTÉRIA),
-  // sinon fallback sur les paramètres globaux (Artémis)
-  const siret      = ourCo?.siret      || settings.siret      || '';
-  const iban       = ourCo?.iban       || settings.iban       || '';
-  const bic        = ourCo?.bic        || settings.bic        || '';
-  const codebanque = ourCo?.codebanque || settings.codebanque || '';
-  const clerib     = ourCo?.clerib     || settings.clerib     || '';
-  const numcompte  = ourCo?.numcompte  || settings.numcompte  || '';
-  const bankname   = ourCo?.bankname   || settings.bankname   || '';
+  // Coordonnées bancaires : priorité aux champs de la fiche société (ASTÉRIA),
+  // fallback sur les paramètres globaux (Artémis).
+  // ⚠️ Utiliser !== '' plutôt que || pour éviter le falsy sur chaîne vide
+  const _bk = (coVal, settVal) => (coVal != null && coVal !== '') ? coVal : (settVal || '');
+  const siret      = _bk(ourCo?.siret,      settings.siret);
+  const iban       = _bk(ourCo?.iban,       settings.iban);
+  const bic        = _bk(ourCo?.bic,        settings.bic);
+  const codebanque = _bk(ourCo?.codebanque, settings.codebanque);
+  const clerib     = _bk(ourCo?.clerib,     settings.clerib);
+  const numcompte  = _bk(ourCo?.numcompte,  settings.numcompte);
+  const bankname   = _bk(ourCo?.bankname,   settings.bankname);
 
   // Destinataire : infos d'affichage
   let destName = '', destAddr = '', destContact = '', destSiret = '';
