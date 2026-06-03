@@ -363,6 +363,18 @@ const Data = {
       if (c.defaultBillingRate !== 45) { c.defaultBillingRate = 45; c.updatedAt = Date.now(); changed = true; }
     });
 
+    // Matières "Cours particuliers" — créées si absentes
+    const _cpSubjects = [
+      { id: 'subj-cp-droit-admin',    name: 'Droit administratif', category: 'particuliers' },
+      { id: 'subj-cp-droit-contrats', name: 'Droit des contrats',  category: 'particuliers' },
+    ];
+    _cpSubjects.forEach(def => {
+      if (!(this._db.subjects || []).find(s => s.id === def.id)) {
+        (this._db.subjects = this._db.subjects || []).push({ ...def, createdAt: Date.now(), updatedAt: Date.now() });
+        changed = true;
+      }
+    });
+
     // Log de synthèse pour diagnostic
     const _asterCo = (this._db.companies||[]).find(c => c.role==='own' && (c.name||'').toLowerCase().includes('aster'));
     const _usacCo  = (this._db.companies||[]).find(c => c.role!=='own' && ((c.name||'').toLowerCase().includes('usac')||(c.name||'').toLowerCase().includes('ursac')));
