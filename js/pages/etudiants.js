@@ -443,7 +443,8 @@ function studentDetailHTML() {
         }).join('')}
       </select>
       <button class="btn btn-ghost" data-action="open-student" data-id="${s.id}">✏ Modifier</button>
-      <button class="btn btn-ghost" onclick="_exportStudent('${s.id}','${_stuMonth}')">📥 Exporter CSV</button>
+      <button class="btn btn-ghost" onclick="_exportStudent('${s.id}','${_stuMonth}')">📥 CSV</button>
+      <button class="btn btn-primary" onclick="window._printStudentDetail('${s.id}','${_stuMonth}')">🖨 PDF</button>
     </div>
   </div>
 
@@ -667,6 +668,146 @@ function qDetailHTML() {
     </div>
   </div>`;
 }
+
+// ── Export PDF détail étudiant ───────────────────────────────────
+window._printStudentDetail = function(studentId, month) {
+  const s = Data.getStudentById(studentId); if (!s) return;
+  const provMap = {}; Data.getProviders().forEach(p => provMap[p.id] = p);
+  const subjMap = {}; (Data.getSubjects()||[]).forEach(x => subjMap[x.id] = x);
+  const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin',
+                     'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const PROF_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
+
+  let missions = Data.getMissions()
+    .filter(m => (m.studentIds||[]).includes(s.id) && m.status !== 'cancelled')
+    .sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  if (month) missions = missions.filter(m => (m.date||'').startsWith(month));
+  if (!missions.length) { alert('Aucune séance à exporter.'); return; }
+
+  const totalH    = missions.reduce((a,m) => a+(m.duration||0), 0);
+  const totalHT   = missions.reduce((a,m) => a+(m.duration||0)*(m.billingRate||0), 0);
+  const totalCost = missions.reduce((a,m) => a+(m.duration||0)*(m.providerRate||0), 0);
+  const totalMarge = totalHT - totalCost;
+
+  const provOrder = []; const provSeen = new Set();
+  missions.forEach(m => {
+    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : ['__none__']);
+    pids.forEach(pid => { if (!provSeen.has(pid)) { provSeen.add(pid); provOrder.push(pid); } });
+  });
+  const provColor = {}; provOrder.forEach((pid,i) => { provColor[pid] = PROF_COLORS[i%PROF_COLORS.length]; });
+  const byProv = {};
+  missions.forEach(m => {
+    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : ['__none__']);
+    const key = pids[0]; if (!byProv[key]) byProv[key] = []; byProv[key].push(m);
+  });
+  const courseName = m => {
+    if (m.subjectId && subjMap[m.subjectId]) return subjMap[m.subjectId].name;
+    return m.subject || m.title || '—';
+  };
+  const fmt = n => n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+
+  const monthLabel = month ? (() => { const [y,mi] = month.split('-'); return MONTHS_FR[+mi-1]+' '+y; })() : 'Historique complet';
+
+  const provBlocks = provOrder.map(pid => {
+    const p = provMap[pid]; const pms = byProv[pid]||[]; if(!pms.length) return '';
+    const col = provColor[pid];
+    const pH  = pms.reduce((a,m)=>a+(m.duration||0),0);
+    const pHT = pms.reduce((a,m)=>a+(m.duration||0)*(m.billingRate||0),0);
+    const pC  = pms.reduce((a,m)=>a+(m.duration||0)*(m.providerRate||0),0);
+    const pM  = pHT-pC;
+    const provName = p ? (p.firstName+' '+p.lastName).toUpperCase() : 'INCONNU';
+    const rows = pms.map(m => {
+      const d = new Date((m.date||'')+'T00:00:00');
+      const day = d.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+      const h=m.duration||0, pu=m.billingRate||0, pp=m.providerRate||0;
+      return `<tr>
+        <td>${day}</td><td>${courseName(m)}</td>
+        <td class="r">${h}h</td>
+        <td class="r g">${pu>0?pu.toFixed(2)+' €':'—'}</td>
+        <td class="r r2">${pp>0?pp.toFixed(2)+' €':'—'}</td>
+        <td class="r g">${h*pu>0?fmt(h*pu):'—'}</td>
+        <td class="r r2">${h*pp>0?fmt(h*pp):'—'}</td>
+        <td class="r" style="color:${(pu-pp)*h>=0?'#15803d':'#dc2626'}">${fmt((pu-pp)*h)}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="prof-block">
+      <div class="prof-header" style="background:${col}">
+        <div><strong>${provName}</strong><br><small>${pms.length} séance${pms.length>1?'s':''} · ${pH}h</small></div>
+        <div class="prof-totals">
+          <div><div class="lbl">Facturé</div><div class="val">${fmt(pHT)}</div></div>
+          <div><div class="lbl">Coût prof</div><div class="val">${pC>0?fmt(pC):'—'}</div></div>
+          <div><div class="lbl">Marge</div><div class="val" style="color:${pM>=0?'#bbf7d0':'#fecaca'}">${fmt(pM)}</div></div>
+        </div>
+      </div>
+      <table><thead><tr>
+        <th>DATE</th><th>COURS</th><th class="r">H</th>
+        <th class="r g">€/H FACT.</th><th class="r r2">€/H PROF</th>
+        <th class="r g">FACTURÉ</th><th class="r r2">COÛT</th><th class="r">MARGE</th>
+      </tr></thead><tbody>${rows}</tbody>
+      <tfoot><tr>
+        <td colspan="2"><strong>Total ${provName}</strong></td>
+        <td class="r"><strong>${pH}h</strong></td><td></td><td></td>
+        <td class="r g"><strong>${fmt(pHT)}</strong></td>
+        <td class="r r2"><strong>${pC>0?fmt(pC):'—'}</strong></td>
+        <td class="r" style="color:${pM>=0?'#15803d':'#dc2626'}"><strong>${fmt(pM)}</strong></td>
+      </tr></tfoot></table>
+    </div>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+  <title>Cours — ${s.firstName} ${s.lastName} — ${monthLabel}</title>
+  <style>
+    @page { size: A4 landscape; margin: 10mm 12mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 8.5pt; color: #1e293b; }
+    .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1e293b; padding-bottom: 8px; margin-bottom: 14px; }
+    .header h1 { font-size: 14pt; font-weight: 800; }
+    .header .sub { font-size: 8pt; color: #64748b; margin-top: 2px; }
+    .kpis { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+    .kpi { border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; text-align: center; }
+    .kpi .lbl { font-size: 6.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #64748b; }
+    .kpi .val { font-size: 12pt; font-weight: 800; margin-top: 2px; }
+    .kpi.g .val { color: #15803d; } .kpi.r2 .val { color: #dc2626; } .kpi.m .val { color: #0369a1; }
+    .prof-block { margin-bottom: 12px; border-radius: 6px; overflow: hidden; border: 1px solid #e2e8f0; page-break-inside: avoid; }
+    .prof-header { color: #fff; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; }
+    .prof-header strong { font-size: 9pt; } .prof-header small { font-size: 7.5pt; opacity: .8; }
+    .prof-totals { display: flex; gap: 20px; text-align: right; }
+    .prof-totals .lbl { font-size: 6.5pt; opacity: .75; text-transform: uppercase; letter-spacing:.05em; }
+    .prof-totals .val { font-size: 9.5pt; font-weight: 800; }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: #f8fafc; border-bottom: 1px solid #cbd5e1; }
+    th { padding: 5px 8px; font-size: 6.5pt; font-weight: 700; text-align: left; color: #64748b; letter-spacing: .06em; }
+    td { padding: 5px 8px; font-size: 8pt; border-bottom: 1px solid #f1f5f9; }
+    tfoot td { border-top: 2px solid #cbd5e1; border-bottom: none; background: #f8fafc; font-size: 8.5pt; }
+    .r { text-align: right; } .g { color: #15803d; } .r2 { color: #dc2626; }
+    .total-box { border: 2px solid #1e293b; border-radius: 6px; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+    .total-box .t { display: flex; gap: 24px; }
+    .total-box .item .lbl { font-size: 6.5pt; font-weight: 700; text-transform: uppercase; color: #64748b; }
+    .total-box .item .val { font-size: 13pt; font-weight: 800; margin-top: 2px; }
+  </style></head><body>
+  <div class="header">
+    <div>
+      <h1>${s.firstName.toUpperCase()} ${s.lastName.toUpperCase()}</h1>
+      <div class="sub">${monthLabel} · ${missions.length} séance${missions.length>1?'s':''} · ${totalH}h · ${provOrder.length} intervenant${provOrder.length>1?'s':''}</div>
+    </div>
+    <div style="text-align:right;font-size:7.5pt;color:#64748b">Édité le ${new Date().toLocaleDateString('fr-FR')}</div>
+  </div>
+  ${provBlocks}
+  <div class="total-box">
+    <div style="font-weight:700;font-size:9pt">TOTAL GÉNÉRAL</div>
+    <div class="t">
+      <div class="item"><div class="lbl">Total facturé</div><div class="val" style="color:#15803d">${fmt(totalHT)}</div></div>
+      <div class="item"><div class="lbl">Coût profs</div><div class="val" style="color:#dc2626">${totalCost>0?fmt(totalCost):'—'}</div></div>
+      <div class="item"><div class="lbl">Marge nette</div><div class="val" style="color:${totalMarge>=0?'#15803d':'#dc2626'}">${fmt(totalMarge)}</div></div>
+    </div>
+  </div>
+  <script>window.onload=()=>{ window.print(); window.onafterprint=()=>window.close(); }<\/script>
+  </body></html>`;
+
+  const w = window.open('','_blank','width=1100,height=750');
+  w.document.write(html);
+  w.document.close();
+};
 
 // ── Export phase Qualiopi ────────────────────────────────────────
 window._exportPhase = function(studentId, phaseIdx) {
