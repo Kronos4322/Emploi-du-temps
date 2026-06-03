@@ -104,7 +104,7 @@ const Modals = {
 
     const subjects = Data.getSubjects();
     const _subjLvl = l => l ? ' ('+ ({college:'Collège',lycee:'Lycée',superieur:'Sup'}[l]||l) +')' : '';
-    const _subjOpt = s => `<option value="${s.id}" ${m.subjectId === s.id ? 'selected' : ''}>${Utils.escapeHtml(s.name)}${_subjLvl(s.level)}</option>`;
+    const _subjOpt = s => `<option value="${s.id}" ${m.subjectId === s.id ? 'selected' : ''}>${Utils.escapeHtml(s.name.toUpperCase())}${_subjLvl(s.level)}</option>`;
     const _ecoles  = subjects.filter(s => s.category !== 'particuliers');
     const _parts   = subjects.filter(s => s.category === 'particuliers');
     const subjectOptions = `<option value="">— Aucune matière —</option>` +

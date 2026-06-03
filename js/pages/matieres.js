@@ -94,49 +94,53 @@ function render() {
   const catParticuliers = categories.find(c => c.id === CAT_CP_ID);
   const catsEcoles = categories.filter(c => c.id !== CAT_CP_ID);
 
+  const _sectionSummary = (icon, label, color, count) =>
+    `<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:10px 14px;background:${color}12;border-left:4px solid ${color};border-radius:0 8px 8px 0;user-select:none;margin-bottom:4px">
+      <span style="font-size:0.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${color}">${icon} ${label}</span>
+      <span style="font-size:0.78rem;color:var(--text-muted);margin-left:auto">${count} matière${count>1?'s':''} ▾</span>
+    </summary>`;
+
+  const _catBlock = (cat, color) => {
+    const catSubjects = subjects.filter(s => s.categoryId === cat.id);
+    if (!catSubjects.length) return '';
+    return `<details open style="margin-bottom:16px;margin-left:16px">
+      <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);user-select:none">
+        <span style="font-size:0.95rem;font-weight:700">${Utils.escapeHtml(cat.name)}</span>
+        <span style="font-size:0.78rem;color:var(--text-muted)">(${catSubjects.length})</span>
+      </summary>
+      ${grid(catSubjects)}
+    </details>`;
+  };
+
   // ── Bloc Cours écoles ─────────────────────────────────────────
   const ecolesSubjects = subjects.filter(s => s.categoryId !== CAT_CP_ID);
   if (ecolesSubjects.length > 0) {
-    html += `<div style="border-left:4px solid #3b82f6;padding-left:12px;margin-bottom:6px;margin-top:4px">
-      <span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#3b82f6">🏫 Cours écoles</span>
-    </div>`;
-    catsEcoles.forEach(cat => {
-      const catSubjects = subjects.filter(s => s.categoryId === cat.id);
-      if (!catSubjects.length) return;
-      html += `<details open style="margin-bottom:20px">
-        <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:2px solid var(--border);user-select:none">
-          <span style="font-size:1rem;font-weight:700">${Utils.escapeHtml(cat.name)}</span>
-          <span style="font-size:0.8rem;color:var(--text-muted)">(${catSubjects.length})</span>
-        </summary>
-        ${grid(catSubjects)}
-      </details>`;
-    });
-    // Sans catégorie = cours écoles non classés
+    let inner = catsEcoles.map(cat => _catBlock(cat, '#3b82f6')).join('');
     const uncategorized = subjects.filter(s => !s.categoryId || !catIds.has(s.categoryId));
     if (uncategorized.length > 0) {
       const label = catsEcoles.length > 0 ? 'Autres matières' : 'Toutes les matières';
-      html += `<details open style="margin-bottom:20px">
-        <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:2px solid var(--border);user-select:none">
-          <span style="font-size:1rem;font-weight:700">${label}</span>
-          <span style="font-size:0.8rem;color:var(--text-muted)">(${uncategorized.length})</span>
+      inner += `<details open style="margin-bottom:16px;margin-left:16px">
+        <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);user-select:none">
+          <span style="font-size:0.95rem;font-weight:700">${label}</span>
+          <span style="font-size:0.78rem;color:var(--text-muted)">(${uncategorized.length})</span>
         </summary>
         ${grid(uncategorized)}
       </details>`;
     }
+    html += `<details open style="margin-bottom:24px">
+      ${_sectionSummary('🏫', 'Cours écoles', '#3b82f6', ecolesSubjects.length)}
+      <div style="padding-top:8px">${inner}</div>
+    </details>`;
   }
 
   // ── Bloc Cours particuliers ───────────────────────────────────
   if (catParticuliers) {
     const cpSubjects = subjects.filter(s => s.categoryId === CAT_CP_ID);
-    html += `<div style="border-left:4px solid #7c3aed;padding-left:12px;margin-bottom:6px;margin-top:20px">
-      <span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7c3aed">👤 Cours particuliers</span>
-    </div>
-    <details open style="margin-bottom:20px">
-      <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:2px solid #7c3aed40;user-select:none">
-        <span style="font-size:1rem;font-weight:700">Cours particuliers</span>
-        <span style="font-size:0.8rem;color:var(--text-muted)">(${cpSubjects.length})</span>
-      </summary>
-      ${cpSubjects.length ? grid(cpSubjects) : '<p style="color:var(--text-muted);padding:12px 0;font-size:0.85rem">Aucune matière.</p>'}
+    html += `<details open style="margin-bottom:24px">
+      ${_sectionSummary('👤', 'Cours particuliers', '#7c3aed', cpSubjects.length)}
+      <div style="padding-top:8px;margin-left:16px">
+        ${cpSubjects.length ? grid(cpSubjects) : '<p style="color:var(--text-muted);padding:12px 0;font-size:0.85rem">Aucune matière.</p>'}
+      </div>
     </details>`;
   }
 
