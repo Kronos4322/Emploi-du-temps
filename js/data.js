@@ -395,8 +395,14 @@ const Data = {
 
     // Matières "Cours particuliers" — créées si absentes, rattachées à la catégorie
     const _cpSubjects = [
-      { id: 'subj-cp-droit-admin',    name: 'Droit administratif', category: 'particuliers', categoryId: _CP_CAT_ID, color: '#7c3aed' },
-      { id: 'subj-cp-droit-contrats', name: 'Droit des contrats',  category: 'particuliers', categoryId: _CP_CAT_ID, color: '#7c3aed' },
+      { id: 'subj-cp-droit-admin',    name: 'Droit administratif',  category: 'particuliers', categoryId: _CP_CAT_ID, color: '#7c3aed' },
+      { id: 'subj-cp-droit-contrats', name: 'Droit des contrats',   category: 'particuliers', categoryId: _CP_CAT_ID, color: '#7c3aed' },
+      { id: 'subj-cp-economie',       name: 'Économie',             category: 'particuliers', categoryId: _CP_CAT_ID, color: '#7c3aed' },
+      { id: 'subj-cp-sciences-po',    name: 'Sciences politiques',  category: 'particuliers', categoryId: _CP_CAT_ID, color: '#7c3aed' },
+      { id: 'subj-cp-finances',       name: 'Finances',             category: 'particuliers', categoryId: _CP_CAT_ID, color: '#7c3aed' },
+      { id: 'subj-cp-philosophie',    name: 'Philosophie',          category: 'particuliers', categoryId: _CP_CAT_ID, color: '#7c3aed' },
+      { id: 'subj-cp-histoire',       name: 'Histoire',             category: 'particuliers', categoryId: _CP_CAT_ID, color: '#7c3aed' },
+      { id: 'subj-cp-geopolitique',   name: 'Géopolitique',         category: 'particuliers', categoryId: _CP_CAT_ID, color: '#7c3aed' },
     ];
     _cpSubjects.forEach(def => {
       const existing = (this._db.subjects || []).find(s => s.id === def.id);
