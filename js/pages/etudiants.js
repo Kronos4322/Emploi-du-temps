@@ -52,8 +52,9 @@ const DL    = {non_cree:'Non créé',cree:'Créé',envoye:'Envoyé',recu:'Reçu'
 const DC    = {non_cree:'#94a3b8',cree:'#94a3b8',envoye:'#f59e0b',recu:'#f59e0b',signe:'#22c55e',archive:'#22c55e'};
 
 // ── État ────────────────────────────────────────────────────────
-let _view = 'hub';
-let _qId  = null;
+let _view  = 'hub';
+let _qId   = null;
+let _stuId = null;   // étudiant affiché dans student-detail
 const filters = {search:'',companyId:'',formationId:'',status:''};
 let _st = null;
 
@@ -77,13 +78,15 @@ document.addEventListener('DOMContentLoaded', () => {
 function handleClick(e) {
   const t = e.target.closest('[data-action]'); if (!t) return;
   const a = t.dataset.action, id = t.dataset.id;
-  if (a === 'goto-hub')      { _view='hub';             render(); }
-  if (a === 'goto-students') { _view='students';        render(); }
-  if (a === 'goto-qualiopi') { _view='qualiopi';        render(); }
-  if (a === 'q-detail')      { _qId=id; _view='qualiopi-detail'; render(); }
-  if (a === 'q-back')        { _view='qualiopi';        render(); }
-  if (a === 'new-student')   { Modals.openStudent(null); }
-  if (a === 'open-student')  { Modals.openStudent(id); }
+  if (a === 'goto-hub')        { _view='hub';                      render(); }
+  if (a === 'goto-students')   { _view='students';                 render(); }
+  if (a === 'goto-qualiopi')   { _view='qualiopi';                 render(); }
+  if (a === 'q-detail')        { _qId=id; _view='qualiopi-detail'; render(); }
+  if (a === 'q-back')          { _view='qualiopi';                 render(); }
+  if (a === 'new-student')     { Modals.openStudent(null); }
+  if (a === 'open-student')    { Modals.openStudent(id); }
+  if (a === 'student-detail')  { _stuId=id; _view='student-detail'; render(); }
+  if (a === 'stu-back')        { _view='students';                  render(); }
   if (a === 'reset-filters') {
     filters.search=''; filters.companyId=''; filters.formationId=''; filters.status='';
     render();
@@ -115,10 +118,11 @@ function handleChange(e) {
 // ── Render ──────────────────────────────────────────────────────
 function render() {
   document.getElementById('main-content').innerHTML =
-    _view==='hub'              ? hubHTML()       :
-    _view==='students'         ? studentsHTML()  :
-    _view==='qualiopi'         ? qualiopiHTML()  :
-    _view==='qualiopi-detail'  ? qDetailHTML()   : '';
+    _view==='hub'              ? hubHTML()            :
+    _view==='students'         ? studentsHTML()       :
+    _view==='student-detail'   ? studentDetailHTML()  :
+    _view==='qualiopi'         ? qualiopiHTML()       :
+    _view==='qualiopi-detail'  ? qDetailHTML()        : '';
 }
 
 // ── HUB ─────────────────────────────────────────────────────────
@@ -217,12 +221,15 @@ function studentsHTML() {
           <div style="font-size:0.85rem;font-weight:700">${Utils.formatDuration(totH)} total</div>
           <div style="font-size:0.8rem;color:var(--success)">${Utils.formatMoney(totR)} facturé</div>
           ${provStats||'<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px">Aucun prestataire</div>'}
-          <div style="position:relative;display:inline-block;margin-top:8px" onclick="event.stopPropagation()">
-            <button class="btn btn-ghost btn-sm" onclick="window._toggleMenu('smenu-${s.id}')">⋯ Exporter</button>
-            <div id="smenu-${s.id}" style="display:none;position:absolute;right:0;top:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:200px;padding:4px">
-              <div style="padding:6px 10px;font-size:0.75rem;color:var(--text-muted);border-bottom:1px solid var(--border);margin-bottom:4px">Exporter les cours</div>
-              <button class="btn btn-ghost btn-sm" style="width:100%;text-align:left;padding:6px 10px" onclick="_exportStudent('${s.id}','${Utils.currentYearMonth()}')">📥 Ce mois</button>
-              <button class="btn btn-ghost btn-sm" style="width:100%;text-align:left;padding:6px 10px" onclick="_exportStudent('${s.id}','')">📥 Tout l'historique</button>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px" onclick="event.stopPropagation()">
+            <button class="btn btn-primary btn-sm" data-action="student-detail" data-id="${s.id}">📅 Voir les cours</button>
+            <div style="position:relative;display:inline-block">
+              <button class="btn btn-ghost btn-sm" onclick="window._toggleMenu('smenu-${s.id}')">⋯ Exporter CSV</button>
+              <div id="smenu-${s.id}" style="display:none;position:absolute;right:0;top:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:200px;padding:4px">
+                <div style="padding:6px 10px;font-size:0.75rem;color:var(--text-muted);border-bottom:1px solid var(--border);margin-bottom:4px">Exporter les cours</div>
+                <button class="btn btn-ghost btn-sm" style="width:100%;text-align:left;padding:6px 10px" onclick="_exportStudent('${s.id}','${Utils.currentYearMonth()}')">📥 Ce mois</button>
+                <button class="btn btn-ghost btn-sm" style="width:100%;text-align:left;padding:6px 10px" onclick="_exportStudent('${s.id}','')">📥 Tout l'historique</button>
+              </div>
             </div>
           </div>
         </div>
@@ -254,6 +261,157 @@ function studentsHTML() {
   </div>
   <div class="list-summary">${st.length} étudiant${st.length>1?'s':''} · ${nA} actif${nA>1?'s':''} · ${nI} inactif${nI>1?'s':''}</div>
   <div class="cards-grid">${cards}</div>`;
+}
+
+// ── DÉTAIL COURS ÉTUDIANT ────────────────────────────────────────
+function studentDetailHTML() {
+  const s = Data.getStudentById(_stuId);
+  if (!s) return '<p>Étudiant introuvable.</p>';
+
+  const cos  = {}; Data.getCompanies().forEach(c => cos[c.id] = c);
+  const prov = {}; Data.getProviders().forEach(p => prov[p.id] = p);
+  const co   = cos[s.poleId || s.companyId];
+  const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin',
+                     'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+  // Toutes les missions liées à cet étudiant, triées par date
+  const missions = Data.getMissions()
+    .filter(m => (m.studentIds || []).includes(s.id) && m.status !== 'cancelled')
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  const totalH  = missions.reduce((a, m) => a + (m.duration || 0), 0);
+  const totalHT = missions.reduce((a, m) => a + (m.duration || 0) * (m.billingRate || 0), 0);
+
+  if (!missions.length) {
+    return `
+    <div class="page-header">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="btn btn-ghost btn-sm" data-action="stu-back">← Étudiants</button>
+        <h1 class="page-title" style="margin:0">${Utils.escapeHtml(s.firstName + ' ' + s.lastName)}</h1>
+      </div>
+    </div>
+    <div class="empty-page"><div class="empty-icon">📅</div><h2>Aucun cours enregistré</h2></div>`;
+  }
+
+  // Regrouper par mois
+  const byMonth = {};
+  missions.forEach(m => {
+    const mo = (m.date || '').substring(0, 7); // "2026-05"
+    if (!byMonth[mo]) byMonth[mo] = [];
+    byMonth[mo].push(m);
+  });
+
+  const monthBlocks = Object.keys(byMonth).sort().map(mo => {
+    const [y, mIdx] = mo.split('-');
+    const label = MONTHS_FR[+mIdx - 1] + ' ' + y;
+    const mms   = byMonth[mo];
+    const mH    = mms.reduce((a, m) => a + (m.duration || 0), 0);
+    const mHT   = mms.reduce((a, m) => a + (m.duration || 0) * (m.billingRate || 0), 0);
+
+    const rows = mms.map(m => {
+      const d = new Date((m.date || '') + 'T00:00:00');
+      const dayStr = d.toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'short' });
+      const pids   = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+      const provNames = pids.map(pid => {
+        const p = prov[pid];
+        return p ? p.firstName + ' ' + p.lastName : '';
+      }).filter(Boolean).join(', ') || '—';
+      const title = m.title || m.subject || '—';
+      const h     = m.duration || 0;
+      const pu    = m.billingRate || 0;
+      const tot   = h * pu;
+      return `<tr>
+        <td style="padding:8px 12px;font-size:0.85rem;white-space:nowrap;color:var(--text-muted)">${dayStr}</td>
+        <td style="padding:8px 12px;font-size:0.85rem">${Utils.escapeHtml(title)}</td>
+        <td style="padding:8px 12px;font-size:0.85rem;color:var(--text-muted)">${Utils.escapeHtml(provNames)}</td>
+        <td style="padding:8px 12px;font-size:0.85rem;text-align:right">${h % 1 === 0 ? h + 'h' : h + 'h'}</td>
+        <td style="padding:8px 12px;font-size:0.85rem;text-align:right;color:var(--text-muted)">${pu > 0 ? pu.toFixed(2) + ' €' : '—'}</td>
+        <td style="padding:8px 12px;font-size:0.85rem;text-align:right;font-weight:600">${tot > 0 ? Utils.formatMoney(tot) : '—'}</td>
+      </tr>`;
+    }).join('');
+
+    return `<div style="margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h3 style="margin:0;font-size:0.95rem;font-weight:700;color:var(--text)">${label}</h3>
+        <span style="font-size:0.82rem;color:var(--text-muted)">${mms.length} séance${mms.length > 1 ? 's' : ''} · ${mH}h · <strong style="color:var(--success)">${Utils.formatMoney(mHT)}</strong></span>
+      </div>
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="background:var(--surface);border-bottom:1px solid var(--border)">
+              <th style="padding:8px 12px;font-size:0.72rem;font-weight:600;text-align:left;color:var(--text-muted)">DATE</th>
+              <th style="padding:8px 12px;font-size:0.72rem;font-weight:600;text-align:left;color:var(--text-muted)">COURS</th>
+              <th style="padding:8px 12px;font-size:0.72rem;font-weight:600;text-align:left;color:var(--text-muted)">PROF</th>
+              <th style="padding:8px 12px;font-size:0.72rem;font-weight:600;text-align:right;color:var(--text-muted)">HEURES</th>
+              <th style="padding:8px 12px;font-size:0.72rem;font-weight:600;text-align:right;color:var(--text-muted)">€/H</th>
+              <th style="padding:8px 12px;font-size:0.72rem;font-weight:600;text-align:right;color:var(--text-muted)">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr style="border-top:2px solid var(--border);background:var(--surface)">
+              <td colspan="3" style="padding:8px 12px;font-size:0.82rem;font-weight:700">Sous-total ${label}</td>
+              <td style="padding:8px 12px;text-align:right;font-weight:700">${mH}h</td>
+              <td></td>
+              <td style="padding:8px 12px;text-align:right;font-weight:700;color:var(--success)">${Utils.formatMoney(mHT)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+
+  const SBL = {active:['Actif','#22c55e'],inactive:['Inactif','#94a3b8'],pending:['En attente','#f59e0b']};
+  const [sl, sc] = SBL[s.status] || [s.status, '#94a3b8'];
+
+  return `
+  <div class="page-header">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn btn-ghost btn-sm" data-action="stu-back">← Étudiants</button>
+      <h1 class="page-title" style="margin:0">${Utils.escapeHtml(s.firstName + ' ' + s.lastName)}</h1>
+      <span style="font-size:0.78rem;font-weight:600;padding:3px 10px;border-radius:12px;background:${sc}20;color:${sc}">${sl}</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" data-action="open-student" data-id="${s.id}">✏ Modifier</button>
+      <button class="btn btn-ghost" onclick="_exportStudent('${s.id}','')">📥 Exporter CSV</button>
+    </div>
+  </div>
+
+  <!-- Résumé -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:24px">
+    ${co ? `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+      <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Pôle</div>
+      <div style="font-weight:700;color:${co.color||'var(--primary)'}">${Utils.escapeHtml(co.name)}</div>
+    </div>` : ''}
+    ${s.email ? `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+      <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Email</div>
+      <div style="font-size:0.85rem">${Utils.escapeHtml(s.email)}</div>
+    </div>` : ''}
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+      <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Séances</div>
+      <div style="font-size:1.4rem;font-weight:800;color:var(--primary)">${missions.length}</div>
+    </div>
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+      <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Total heures</div>
+      <div style="font-size:1.4rem;font-weight:800">${totalH}h</div>
+    </div>
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+      <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Total facturé</div>
+      <div style="font-size:1.4rem;font-weight:800;color:var(--success)">${Utils.formatMoney(totalHT)}</div>
+    </div>
+  </div>
+
+  <!-- Cours par mois -->
+  ${monthBlocks}
+
+  <!-- Total général -->
+  <div style="background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+    <span style="font-size:0.95rem;font-weight:700">TOTAL GÉNÉRAL — ${missions.length} séance${missions.length>1?'s':''}</span>
+    <div style="text-align:right">
+      <span style="font-size:1rem;font-weight:800;margin-right:24px">${totalH}h</span>
+      <span style="font-size:1.2rem;font-weight:800;color:var(--success)">${Utils.formatMoney(totalHT)}</span>
+    </div>
+  </div>`;
 }
 
 // ── QUALIOPI DASHBOARD ──────────────────────────────────────────
