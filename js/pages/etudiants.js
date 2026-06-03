@@ -364,7 +364,7 @@ function studentDetailHTML() {
         </div>
         <div style="text-align:right">
           <div style="font-size:1.1rem;font-weight:800;color:#fff">${Utils.formatMoney(pHT)}</div>
-          <div style="font-size:0.78rem;color:rgba(255,255,255,.8)">${pH}h · ${pu > 0 ? (pHT/pH).toFixed(0)+' €/h moy.' : ''}</div>
+          <div style="font-size:0.78rem;color:rgba(255,255,255,.8)">${pH}h · ${pH > 0 && pHT > 0 ? (pHT/pH).toFixed(0)+' €/h moy.' : ''}</div>
         </div>
       </div>
       <!-- Tableau des séances -->
