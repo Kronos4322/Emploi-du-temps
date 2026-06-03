@@ -326,7 +326,7 @@ const Modals = {
       if (checked.length > 0) {
         const companyId = compSel?.value;
         const rate = Data.getEffectiveRate(checked[0].value, companyId);
-        if (rate) document.getElementById('mf-provider-rate').value = rate;
+        if (rate != null) document.getElementById('mf-provider-rate').value = rate;
       }
       updatePreview();
     };
@@ -342,7 +342,7 @@ const Modals = {
         const firstProv = document.querySelector('input[name="mf-provider-chk"]:checked');
         if (firstProv) {
           const rate = Data.getEffectiveRate(firstProv.value, compSel.value);
-          if (rate) document.getElementById('mf-provider-rate').value = rate;
+          if (rate != null) document.getElementById('mf-provider-rate').value = rate;
         }
         updatePreview();
       });
@@ -352,6 +352,26 @@ const Modals = {
       const el = document.getElementById(id);
       if (el) el.addEventListener('input', updatePreview);
     });
+
+    // P2 — Auto-sélection société "Cours particuliers" quand matière particuliers choisie
+    const subjSel = document.getElementById('mf-subject');
+    if (subjSel) {
+      subjSel.addEventListener('change', () => {
+        const sid = subjSel.value;
+        if (!sid) return;
+        const subj = (Data.getSubjects()||[]).find(s => s.id === sid);
+        if (!subj || subj.category !== 'particuliers') return;
+        // Trouver la société "Cours particuliers" (poleId = Artémis, name contient 'cours particulier')
+        const cpCo = Data.getCompanies().find(c =>
+          c.role !== 'own' && (c.name||'').toLowerCase().includes('cours particulier')
+        );
+        if (cpCo && compSel) {
+          compSel.value = cpCo.id;
+          // Déclencher le changement de société pour mettre à jour le tarif facturation
+          compSel.dispatchEvent(new Event('change'));
+        }
+      });
+    }
 
     // Recurrence toggle
     const recSel = document.getElementById('mf-recurrence');
@@ -379,6 +399,13 @@ const Modals = {
 
       const recurrence    = document.getElementById('mf-recurrence')?.value || '';
       const recurrenceEnd = document.getElementById('mf-recurrence-end')?.value || '';
+
+      // P5 — Alerte si prestataire coché mais tarif prof = 0 (marge faussée)
+      const _checkedProvs = [...document.querySelectorAll('input[name="mf-provider-chk"]:checked')];
+      const _pRate = parseFloat(document.getElementById('mf-provider-rate')?.value) || 0;
+      if (_checkedProvs.length > 0 && _pRate === 0) {
+        if (!confirm('⚠️ Tarif prestataire à 0 €/h — la marge sera incorrecte.\nContinuer quand même ?')) return;
+      }
 
       const saved = {
         id: m.id || Utils.uuid(),

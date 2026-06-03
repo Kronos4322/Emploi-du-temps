@@ -845,15 +845,19 @@ window._exportStudent = function(studentId, month) {
     (!month||(m.date&&m.date.startsWith(month)))
   ).sort((a,b)=>a.date.localeCompare(b.date));
   const DAYS=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
-  const rows=[['Date','Jour','Heure début','Heure fin','Durée (h)','Matière','Prestataire','Tarif (€/h)','Total (€)']];
+  const rows=[['Date','Jour','Heure début','Heure fin','Durée (h)','Matière','Prestataire',
+    'Tarif facturé (€/h)','Total facturé (€)','Tarif prof (€/h)','Coût prof (€)','Marge (€)']];
   missions.forEach(m=>{
     const d=new Date(m.date+'T00:00:00');
     const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
     const provNames = pids.map(pid => { const p=providers[pid]; return p ? p.firstName+' '+p.lastName : ''; }).filter(Boolean).join(', ');
     const subj=m.subjectId?(subjects[m.subjectId]?.name||m.subject||''):(m.subject||m.title||'');
-    rows.push([m.date,DAYS[d.getDay()],m.startTime||'',m.endTime||'',(m.duration||0).toFixed(2),subj,
-      provNames,(m.billingRate||0).toFixed(2),((m.duration||0)*(m.billingRate||0)).toFixed(2)]);
+    const h=m.duration||0, pu=m.billingRate||0, pp=m.providerRate||0;
+    rows.push([m.date,DAYS[d.getDay()],m.startTime||'',m.endTime||'',h.toFixed(2),subj,provNames,
+      pu.toFixed(2),(h*pu).toFixed(2),pp.toFixed(2),(h*pp).toFixed(2),((h*pu)-(h*pp)).toFixed(2)]);
   });
-  rows.push(['','','','','','','','TOTAL',missions.reduce((a,m)=>a+(m.duration||0)*(m.billingRate||0),0).toFixed(2)]);
+  const totHT   = missions.reduce((a,m)=>a+(m.duration||0)*(m.billingRate||0),0);
+  const totCost = missions.reduce((a,m)=>a+(m.duration||0)*(m.providerRate||0),0);
+  rows.push(['','','','','','','','TOTAL FACTURÉ',totHT.toFixed(2),'COÛT PROF',totCost.toFixed(2),(totHT-totCost).toFixed(2)]);
   _downloadCSV(rows,`cours_${s.lastName}_${month||'complet'}.csv`);
 };
