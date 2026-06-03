@@ -266,23 +266,58 @@ function renderDashboard() {
     </div>
   `;
 
-  // ── Aperçu écoles ─────────────────────────────────────────────
+  // ── Aperçu écoles — année scolaire (1 sept → 31 août) ────────
   const compEl = document.getElementById('companies-overview');
   if (compEl) {
+    // Calcul de l'année scolaire courante
+    const _now     = new Date();
+    const _today   = Utils.today();
+    const _yr      = _now.getMonth() >= 8 ? _now.getFullYear() : _now.getFullYear() - 1;
+    const _yearStart = `${_yr}-09-01`;           // 1er septembre
+    const _yearEnd   = `${_yr+1}-08-31`;         // 31 août suivant
+
+    const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled');
+
     const entries = Object.values(d.byCompany).filter(({company:co}) => co.role !== 'own');
     const filtered = _dashPole ? entries.filter(({company:co}) => {
       if (co.poleId) return co.poleId === _dashPole;
-      return false; // société sans poleId → exclure
+      return false;
     }) : entries;
-    compEl.innerHTML = filtered.map(({company:co, planned, done, hoursPlanned, hoursDone}) => {
+
+    compEl.innerHTML = filtered.map(({company:co}) => {
       const lightBg = Utils.lightenColor(co.color, 0.88);
+
+      // Missions de cette école sur l'année scolaire
+      const yearMs = allMissions.filter(m =>
+        m.companyId === co.id && m.date >= _yearStart && m.date <= _yearEnd
+      );
+      // Faites = status 'done' OU date passée (auto-done)
+      const doneMs  = yearMs.filter(m => m.status === 'done' || (m.status === 'planned' && m.date <= _today));
+      const restMs  = yearMs.filter(m => m.status === 'planned' && m.date > _today);
+
+      const hTotal  = yearMs.reduce((s,m) => s+(m.duration||0), 0);
+      const hDone   = doneMs.reduce((s,m) => s+(m.duration||0), 0);
+      const hRest   = restMs.reduce((s,m) => s+(m.duration||0), 0);
+
+      // Barre de progression
+      const pct   = hTotal > 0 ? Math.round(hDone / hTotal * 100) : 0;
+      const barCol = pct === 100 ? '#22c55e' : pct > 50 ? co.color : '#f59e0b';
+
       return `<div class="company-mini-card" style="background:${lightBg};border:1px solid ${co.color}40" onclick="location.href='ecoles.html'">
         <div class="company-mini-name" style="color:${co.color}">${Utils.escapeHtml(co.name)}</div>
         <div class="company-mini-stats">
-          <div class="company-mini-stat"><span>Prévues</span><strong>${planned}</strong></div>
-          <div class="company-mini-stat"><span>Réalisées</span><strong>${done}</strong></div>
-          <div class="company-mini-stat"><span>H prévues</span><strong>${Utils.formatDuration(hoursPlanned)}</strong></div>
+          <div class="company-mini-stat"><span>H prévues</span><strong style="color:${co.color}">${Utils.formatDuration(hTotal)}</strong></div>
+          <div class="company-mini-stat"><span>H faites</span><strong style="color:#22c55e">${Utils.formatDuration(hDone)}</strong></div>
+          <div class="company-mini-stat"><span>H restantes</span><strong style="color:#f59e0b">${Utils.formatDuration(hRest)}</strong></div>
         </div>
+        ${hTotal > 0 ? `<div style="margin-top:8px">
+          <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-muted);margin-bottom:2px">
+            <span>${pct}% réalisé</span><span>Année scolaire ${_yr}/${_yr+1}</span>
+          </div>
+          <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${barCol};border-radius:3px;transition:width .3s"></div>
+          </div>
+        </div>` : ''}
       </div>`;
     }).join('') || '<p class="empty-state">Aucune école.</p>';
   }
