@@ -751,11 +751,11 @@ window._updateInvDest = function() {
   if (to < from) { document.getElementById('inv-date-to').value = from; to = from; }
   const sel = document.getElementById('inv-dest'); if (!sel) return;
   const prev = sel.value;
-  // Compter les missions sur toute la plage (par date exacte)
+  // Compter les missions sur toute la plage (YYYY-MM comparaison)
   const allM = Data.getMissions().filter(m => {
     if (m.status === 'cancelled') return false;
-    const d = m.date || '';
-    return d >= from && d <= to;
+    const ym = (m.date||'').substring(0,7);
+    return ym >= from && ym <= to;
   });
   const cntP = {}, cntC = {};
   allM.forEach(m => {
@@ -849,7 +849,10 @@ window._updateInvPreview = function() {
   const dest = document.getElementById('inv-dest')?.value      || '';
   if (!from || !dest) { box.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">Sélectionnez un destinataire…</p>'; return; }
 
-  const missions = window._getInvMissions(from, to, dest);
+  // Les selects retournent YYYY-MM → passer à _getInvMissions avec le dernier jour du mois "to"
+  const toEnd = to.length === 7 ? to + '-31' : to;
+  const fromStart = from.length === 7 ? from + '-01' : from;
+  const missions = window._getInvMissions(fromStart, toEnd, dest);
   if (!missions.length) {
     box.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">Aucune mission trouvée pour ce mois.</p>';
     return;
@@ -921,10 +924,11 @@ window._showInvoiceExport = function() {
     '<option value="'+c.id+'"'+(c.id===defaultEmId?' selected':'')+'>'+Utils.escapeHtml(c.name)+'</option>'
   ).join('');
 
-  // Période par défaut = 1er jour du mois courant → aujourd'hui
-  const defaultDateFrom = Utils.currentYearMonth() + '-01';
-  const defaultDateTo   = Utils.today();
-  const { pOpts: provOpts, cOpts: coOpts } = window._buildInvDestOpts(Utils.currentYearMonth());
+  // Période par défaut = mois courant
+  const currentM    = Utils.currentYearMonth();
+  const defaultFrom = months.includes(currentM) ? currentM : (months[0] || '');
+  const defaultTo   = defaultFrom;
+  const { pOpts: provOpts, cOpts: coOpts } = window._buildInvDestOpts(defaultFrom);
 
   const warn = (!settings.siret||!settings.iban)
     ? '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;font-size:0.85rem;color:#92400e;display:flex;gap:8px;align-items:flex-start"><span>⚠️</span><span>SIRET / IBAN non configurés — <a href="parametres.html" style="color:#92400e;font-weight:700;text-decoration:underline">Paramètres → Informations de facturation →</a></span></div>'
@@ -940,19 +944,15 @@ window._showInvoiceExport = function() {
       '<div class="form-grid">' +
         '<div class="form-group form-col-2"><label>Société émettrice</label>' +
           '<select id="inv-emetteur" class="form-input">'+emOpts+'</select></div>' +
-        '<div class="form-group form-col-2" style="display:flex;flex-direction:column;gap:6px">' +
-          '<label>Raccourcis période</label>' +
-          '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-            '<button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'month\',0)">Ce mois</button>' +
-            '<button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'month\',-1)">Mois préc.</button>' +
-            '<button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'months3\')">3 mois</button>' +
-            '<button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'year\')">Année</button>' +
-          '</div>' +
-        '</div>' +
-        '<div class="form-group form-col-2"><label>Du</label>' +
-          '<input type="date" id="inv-date-from" class="form-input" value="'+defaultDateFrom+'" oninput="window._updateInvDest()" onchange="window._updateInvDest()"></div>' +
-        '<div class="form-group form-col-2"><label>Au (inclus)</label>' +
-          '<input type="date" id="inv-date-to" class="form-input" value="'+defaultDateTo+'" oninput="window._updateInvDest()" onchange="window._updateInvDest()"></div>' +
+        '<div class="form-group form-col-2"></div>' +
+        '<div class="form-group form-col-2"><label>Du mois</label>' +
+          '<select id="inv-date-from" class="form-input" onchange="window._updateInvDest()">'+
+            months.map(m=>'<option value="'+m+'"'+(m===defaultFrom?' selected':'')+'>'+monthLabel(m)+'</option>').join('')+
+          '</select></div>' +
+        '<div class="form-group form-col-2"><label>Au mois</label>' +
+          '<select id="inv-date-to" class="form-input" onchange="window._updateInvDest()">'+
+            months.map(m=>'<option value="'+m+'"'+(m===defaultTo?' selected':'')+'>'+monthLabel(m)+'</option>').join('')+
+          '</select></div>' +
       '</div>' +
       '<div class="form-group" style="margin:0">' +
         '<label>Facturer à</label>' +
@@ -989,8 +989,11 @@ window._showInvoiceExport = function() {
 
 window._generateInvoice = function() {
   const emetteurId = document.getElementById('inv-emetteur')?.value || '';
-  const dateFrom   = document.getElementById('inv-date-from')?.value || '';
-  const dateTo     = document.getElementById('inv-date-to')?.value   || dateFrom;
+  const monthFrom  = document.getElementById('inv-date-from')?.value || '';
+  const monthTo    = document.getElementById('inv-date-to')?.value   || monthFrom;
+  // Convertir YYYY-MM → dates complètes pour la plage
+  const dateFrom   = monthFrom.length === 7 ? monthFrom + '-01' : monthFrom;
+  const dateTo     = monthTo.length === 7   ? monthTo   + '-31' : monthTo;
   const destRaw    = document.getElementById('inv-dest')?.value || '';
   const invNum     = document.getElementById('inv-num')?.value.trim() || '';
   const invDate    = document.getElementById('inv-date')?.value || Utils.today();
@@ -1007,14 +1010,11 @@ window._generateInvoice = function() {
   const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin',
                      'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   const MONTHS_SH = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
-  // Label période pour le titre de facture
-  const _dateFr = d => { const [yd,md,dd] = d.split('-'); return dd+'/'+md+'/'+yd; };
-  const monthName = dateFrom.substring(0,7) === dateTo.substring(0,7)
-    ? MONTHS_FR[+dateFrom.split('-')[1]-1]+' '+dateFrom.split('-')[0]
-    : _dateFr(dateFrom)+' au '+_dateFr(dateTo);
-  // Variables legacy pour compatibilité avec le reste du code
-  const monthFrom = dateFrom.substring(0,7);
-  const monthTo   = dateTo.substring(0,7);
+  // Label période pour le titre de facture (monthFrom/monthTo sont déjà YYYY-MM)
+  const [y, mo] = monthFrom.split('-');
+  const monthName = monthFrom === monthTo
+    ? MONTHS_FR[+mo-1]+' '+y
+    : MONTHS_FR[+mo-1]+' '+y+' – '+MONTHS_FR[+monthTo.split('-')[1]-1]+' '+monthTo.split('-')[0];
 
   const [iy,im,id2] = invDate.split('-');
   const invDateFr   = id2+'/'+im+'/'+iy;
