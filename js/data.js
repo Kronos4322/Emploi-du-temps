@@ -66,7 +66,8 @@ const Data = {
   _mergeWithFirebase(fbData) {
     const ARRAY_KEYS = ['companies','missions','providers','students','formations',
       'subjects','subjectCategories','providerLinks','properties','rentalIncomes'];
-    const merged = { ...fbData };
+    // Préserver les flags racine locaux (migrations one-shot, version, etc.)
+    const merged = { ...this._db, ...fbData };
     for (const key of ARRAY_KEYS) {
       const localArr = this._db[key] || [];
       const remoteArr = fbData[key] || [];
@@ -112,13 +113,9 @@ const Data = {
       const localTs = parseInt(localStorage.getItem('_edt_ts') || '0');
       const needsMigration = (fbData.companies || []).some(c => !c.role) || !fbData._poleAssignmentsFixed3;
 
-      if (_fbLastTs > localTs) {
-        // Firebase strictement plus récent, aucun changement local → remplacer
-        this._db = fbData;
-      } else {
-        // Local a des changements ou égalité → FUSIONNER pour éviter la perte de données
-        this._db = this._mergeWithFirebase(fbData);
-      }
+      // R3 — Toujours fusionner : préserve les créations offline même quand Firebase est plus récent
+      // (pire cas : résurrection d'un item supprimé — acceptable vs perte de création offline)
+      this._db = this._mergeWithFirebase(fbData);
       this._migrate();
       const canonChanged = this._applyModelDefaults(true);
       const ts2 = (canonChanged || localTs > _fbLastTs) ? Date.now() : _fbLastTs;
@@ -543,7 +540,12 @@ const Data = {
     if (!entry) return { error: 'Sauvegarde introuvable.' };
     try {
       this._db = JSON.parse(entry.data);
-      this._save(); // persist + push vers Firebase pour ne pas être écrasé au prochain sync
+      // R2 — persist + push SANS _autoBackup pour ne pas écraser la sauvegarde du jour
+      const ts = Date.now();
+      this._db._updatedAt = ts;
+      localStorage.setItem(DB_KEY, JSON.stringify(this._db));
+      localStorage.setItem('_edt_ts', String(ts));
+      this._pushToFirebase();
       return { success: true };
     } catch(e) {
       return { error: 'Erreur lors de la restauration.' };
@@ -1186,16 +1188,23 @@ const Data = {
 
     const header = ['Date','Titre','Type','Société','Prestataire','Début','Fin','Durée (h)',
       'Tarif facturation','Revenu','Tarif prestataire','Coût','Statut','Paiement','Notes'];
-    const rows = missions.map(m => [
-      Utils.formatDate(m.date), m.title || '', m.missionType || '',
-      companies[m.companyId] || '', providers[m.providerId] || '',
-      m.startTime || '', m.endTime || '', m.duration || 0,
-      m.billingRate || 0,
-      Math.round((m.duration || 0) * (m.billingRate || 0) * 100) / 100,
-      m.providerRate || '',
-      m.providerId ? Math.round((m.duration || 0) * (m.providerRate || 0) * 100) / 100 : '',
-      m.status || '', m.paymentStatus || '', m.notes || ''
-    ]);
+    const rows = missions.map(m => {
+      // M3 — multi-prestataires : joindre tous les noms
+      const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+      const provNames = pids.map(pid => providers[pid] || '').filter(Boolean).join(', ');
+      const cost = pids.length
+        ? Math.round((m.duration || 0) * (m.providerRate || 0) * 100) / 100
+        : '';
+      return [
+        Utils.formatDate(m.date), m.title || '', m.missionType || '',
+        companies[m.companyId] || '', provNames,
+        m.startTime || '', m.endTime || '', m.duration || 0,
+        m.billingRate || 0,
+        Math.round((m.duration || 0) * (m.billingRate || 0) * 100) / 100,
+        m.providerRate || '', cost,
+        m.status || '', m.paymentStatus || '', m.notes || ''
+      ];
+    });
 
     const csv = [header, ...rows].map(r =>
       r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')

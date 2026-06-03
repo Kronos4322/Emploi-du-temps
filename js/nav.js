@@ -75,12 +75,6 @@
     `;
   }
 
-  // I2 — Rafraîchir la sidebar après chargement Firebase (données arrivées après le render initial)
-  window._refreshSidebar = function() {
-    const nav = document.getElementById('sidebar-nav');
-    if (nav) nav.innerHTML = buildNavHTML();
-  };
-
   // ── Bouton installation PWA ───────────────────────────────
   let _installPrompt = null;
   window.addEventListener('beforeinstallprompt', e => {

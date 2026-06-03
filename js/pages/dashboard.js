@@ -445,7 +445,7 @@ window._showPlanningExport = function() {
   const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   const monthLabel = m => { const [y,mo] = m.split('-'); return `${MONTHS_FR[+mo-1]} ${y}`; };
   const currentM  = Utils.currentYearMonth();
-  const providers = Data.getProviders().slice().sort((a,b) => (a.lastName+a.firstName).localeCompare(b.lastName+b.firstName));
+  const providers = Data.getProviders().slice().sort((a,b) => ((a.lastName||'')+(a.firstName||'')).localeCompare((b.lastName||'')+(b.firstName||'')));
 
   Modals._open(`
     <div class="modal-header">

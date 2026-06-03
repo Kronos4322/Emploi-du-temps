@@ -333,9 +333,14 @@ const Modals = {
       const grp = document.getElementById('prov-rate-group');
       if (grp) grp.style.display = checked.length > 0 ? '' : 'none';
       if (checked.length > 0) {
-        const companyId = compSel?.value;
-        const rate = Data.getEffectiveRate(checked[0].value, companyId);
-        if (rate != null) document.getElementById('mf-provider-rate').value = rate;
+        const rateEl = document.getElementById('mf-provider-rate');
+        // Ne pas écraser un tarif saisi manuellement (≠ 0) — sauf si le champ était vide/0
+        const currentRate = parseFloat(rateEl?.value) || 0;
+        if (currentRate === 0 || isNew) {
+          const companyId = compSel?.value;
+          const rate = Data.getEffectiveRate(checked[0].value, companyId);
+          if (rate != null) rateEl.value = rate;
+        }
       }
       updatePreview();
     };
@@ -347,11 +352,14 @@ const Modals = {
         if (co && co.defaultBillingRate) {
           document.getElementById('mf-billing-rate').value = co.defaultBillingRate;
         }
-        // Re-apply provider rate from first selected provider for new company
+        // Re-apply provider rate uniquement si champ vide/0
         const firstProv = document.querySelector('input[name="mf-provider-chk"]:checked');
         if (firstProv) {
-          const rate = Data.getEffectiveRate(firstProv.value, compSel.value);
-          if (rate != null) document.getElementById('mf-provider-rate').value = rate;
+          const rateEl = document.getElementById('mf-provider-rate');
+          if ((parseFloat(rateEl?.value) || 0) === 0) {
+            const rate = Data.getEffectiveRate(firstProv.value, compSel.value);
+            if (rate != null) rateEl.value = rate;
+          }
         }
         updatePreview();
       });

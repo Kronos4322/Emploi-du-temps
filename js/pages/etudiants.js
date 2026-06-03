@@ -229,7 +229,7 @@ function studentsHTML() {
           <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px" onclick="event.stopPropagation()">
             <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();window._openStudentDetail('${s.id}')">📅 Voir les cours</button>
             <div style="position:relative;display:inline-block">
-              <button class="btn btn-ghost btn-sm" onclick="window._toggleMenu('smenu-${s.id}')">⋯ Exporter CSV</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();window._toggleMenu('smenu-${s.id}')">⋯ Exporter CSV</button>
               <div id="smenu-${s.id}" style="display:none;position:absolute;right:0;top:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:200px;padding:4px">
                 <div style="padding:6px 10px;font-size:0.75rem;color:var(--text-muted);border-bottom:1px solid var(--border);margin-bottom:4px">Exporter les cours</div>
                 <button class="btn btn-ghost btn-sm" style="width:100%;text-align:left;padding:6px 10px" onclick="_exportStudent('${s.id}','${Utils.currentYearMonth()}')">📥 Ce mois</button>
@@ -814,6 +814,7 @@ window._printStudentDetail = function(studentId, month) {
   </body></html>`;
 
   const w = window.open('','_blank','width=1100,height=750');
+  if (!w) { Utils.toast('Autorisez les pop-ups pour ce site.', 'error'); return; }
   w.document.write(html);
   w.document.close();
 };
