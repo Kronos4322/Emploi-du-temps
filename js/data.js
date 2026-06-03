@@ -375,6 +375,13 @@ const Data = {
       if (coChanged) { c.updatedAt = _n; changed = true; }
     });
 
+    // Couleur jaune pour la société "Cours particuliers" (visible dans le calendrier)
+    (this._db.companies || []).forEach(c => {
+      if (c.role === 'own') return;
+      if (!(c.name || '').toLowerCase().includes('cours particulier')) return;
+      if (c.color !== '#eab308') { c.color = '#eab308'; c.updatedAt = Date.now(); changed = true; }
+    });
+
     // Infos de facturation USAC — adresse/tél/SIRET forcés, NOM INCHANGÉ
     // ⚠️ Ne pas forcer le nom : "Lyon" dans le nom casserait le keyword matching
     (this._db.companies || []).forEach(c => {
