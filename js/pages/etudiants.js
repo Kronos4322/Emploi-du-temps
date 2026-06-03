@@ -282,8 +282,10 @@ function studentDetailHTML() {
     .filter(m => (m.studentIds || []).includes(s.id) && m.status !== 'cancelled')
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
-  const totalH  = missions.reduce((a, m) => a + (m.duration || 0), 0);
-  const totalHT = missions.reduce((a, m) => a + (m.duration || 0) * (m.billingRate || 0), 0);
+  const totalH    = missions.reduce((a, m) => a + (m.duration || 0), 0);
+  const totalHT   = missions.reduce((a, m) => a + (m.duration || 0) * (m.billingRate  || 0), 0);
+  const totalCost = missions.reduce((a, m) => a + (m.duration || 0) * (m.providerRate || 0), 0);
+  const totalMarge = totalHT - totalCost;
 
   if (!missions.length) {
     return `
@@ -335,18 +337,25 @@ function studentDetailHTML() {
     const pCost= pms.reduce((a, m) => a + (m.duration || 0) * (m.providerRate || 0), 0);
     const provName = p ? (p.firstName + ' ' + p.lastName).toUpperCase() : 'INTERVENANT INCONNU';
 
+    const pMarge = pHT - pCost;
+
     const rows = pms.map(m => {
-      const d = new Date((m.date || '') + 'T00:00:00');
+      const d      = new Date((m.date || '') + 'T00:00:00');
       const dayStr = d.toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'long', year:'numeric' });
       const cours  = courseName(m);
-      const h = m.duration || 0;
-      const pu = m.billingRate || 0;
+      const h      = m.duration    || 0;
+      const pu     = m.billingRate || 0;   // ce qu'on facture à l'étudiant
+      const pp     = m.providerRate|| 0;   // ce qu'on paie le prof
+      const marge  = (pu - pp) * h;
       return `<tr style="border-bottom:1px solid var(--border)">
         <td style="padding:9px 14px;font-size:0.84rem;white-space:nowrap;color:var(--text-muted);min-width:140px">${dayStr}</td>
         <td style="padding:9px 14px;font-size:0.84rem;font-weight:500">${Utils.escapeHtml(cours)}</td>
-        <td style="padding:9px 14px;font-size:0.84rem;text-align:right;font-weight:600;color:${col}">${h % 1 === 0 ? h+'h' : h+'h'}</td>
-        <td style="padding:9px 14px;font-size:0.84rem;text-align:right;color:var(--text-muted)">${pu > 0 ? pu.toFixed(2)+' €' : '—'}</td>
-        <td style="padding:9px 14px;font-size:0.84rem;text-align:right;font-weight:700">${h*pu > 0 ? Utils.formatMoney(h*pu) : '—'}</td>
+        <td style="padding:9px 14px;font-size:0.84rem;text-align:right;font-weight:600;color:${col}">${h}h</td>
+        <td style="padding:9px 14px;font-size:0.84rem;text-align:right;color:var(--success)">${pu > 0 ? pu.toFixed(2)+' €' : '—'}</td>
+        <td style="padding:9px 14px;font-size:0.84rem;text-align:right;color:var(--danger)">${pp > 0 ? pp.toFixed(2)+' €' : '—'}</td>
+        <td style="padding:9px 14px;font-size:0.84rem;text-align:right;font-weight:700;color:var(--success)">${h*pu > 0 ? Utils.formatMoney(h*pu) : '—'}</td>
+        <td style="padding:9px 14px;font-size:0.84rem;text-align:right;color:var(--danger)">${h*pp > 0 ? Utils.formatMoney(h*pp) : '—'}</td>
+        <td style="padding:9px 14px;font-size:0.84rem;text-align:right;font-weight:700;color:${marge>=0?'#10b981':'#ef4444'}">${Utils.formatMoney(marge)}</td>
       </tr>`;
     }).join('');
 
@@ -359,12 +368,13 @@ function studentDetailHTML() {
           </div>
           <div>
             <div style="font-weight:800;font-size:0.95rem;color:#fff">${Utils.escapeHtml(provName)}</div>
-            <div style="font-size:0.75rem;color:rgba(255,255,255,.75)">${pms.length} séance${pms.length>1?'s':''}</div>
+            <div style="font-size:0.75rem;color:rgba(255,255,255,.75)">${pms.length} séance${pms.length>1?'s':''} · ${pH}h</div>
           </div>
         </div>
-        <div style="text-align:right">
-          <div style="font-size:1.1rem;font-weight:800;color:#fff">${Utils.formatMoney(pHT)}</div>
-          <div style="font-size:0.78rem;color:rgba(255,255,255,.8)">${pH}h · ${pH > 0 && pHT > 0 ? (pHT/pH).toFixed(0)+' €/h moy.' : ''}</div>
+        <div style="display:flex;gap:24px;text-align:right">
+          <div><div style="font-size:0.68rem;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.06em">Facturé</div><div style="font-size:1rem;font-weight:800;color:#fff">${Utils.formatMoney(pHT)}</div></div>
+          <div><div style="font-size:0.68rem;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.06em">Coût prof</div><div style="font-size:1rem;font-weight:800;color:rgba(255,255,255,.8)">${pCost > 0 ? Utils.formatMoney(pCost) : '—'}</div></div>
+          <div><div style="font-size:0.68rem;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.06em">Marge</div><div style="font-size:1rem;font-weight:800;color:${pMarge>=0?'#86efac':'#fca5a5'}">${Utils.formatMoney(pMarge)}</div></div>
         </div>
       </div>
       <!-- Tableau des séances -->
@@ -374,18 +384,23 @@ function studentDetailHTML() {
             <tr style="background:${col}18;border-bottom:2px solid ${col}40">
               <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:left;color:${col};letter-spacing:.06em">DATE</th>
               <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:left;color:${col};letter-spacing:.06em">COURS</th>
-              <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:right;color:${col};letter-spacing:.06em">HEURES</th>
-              <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:right;color:${col};letter-spacing:.06em">€/H</th>
-              <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:right;color:${col};letter-spacing:.06em">TOTAL</th>
+              <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:right;color:${col};letter-spacing:.06em">H</th>
+              <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:right;color:var(--success);letter-spacing:.06em">€/H FACTURÉ</th>
+              <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:right;color:var(--danger);letter-spacing:.06em">€/H PROF</th>
+              <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:right;color:var(--success);letter-spacing:.06em">TOTAL FACTURÉ</th>
+              <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:right;color:var(--danger);letter-spacing:.06em">COÛT PROF</th>
+              <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:right;color:#10b981;letter-spacing:.06em">MARGE</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
           <tfoot>
             <tr style="background:${col}10;border-top:2px solid ${col}40">
               <td colspan="2" style="padding:10px 14px;font-weight:700;font-size:0.88rem">Total ${Utils.escapeHtml(provName)}</td>
-              <td style="padding:10px 14px;text-align:right;font-weight:800;font-size:0.95rem;color:${col}">${pH}h</td>
-              <td></td>
-              <td style="padding:10px 14px;text-align:right;font-weight:800;font-size:0.95rem;color:${col}">${Utils.formatMoney(pHT)}</td>
+              <td style="padding:10px 14px;text-align:right;font-weight:800;color:${col}">${pH}h</td>
+              <td></td><td></td>
+              <td style="padding:10px 14px;text-align:right;font-weight:800;color:var(--success)">${Utils.formatMoney(pHT)}</td>
+              <td style="padding:10px 14px;text-align:right;font-weight:800;color:var(--danger)">${pCost > 0 ? Utils.formatMoney(pCost) : '—'}</td>
+              <td style="padding:10px 14px;text-align:right;font-weight:800;color:${pMarge>=0?'#10b981':'#ef4444'}">${Utils.formatMoney(pMarge)}</td>
             </tr>
           </tfoot>
         </table>
@@ -437,14 +452,26 @@ function studentDetailHTML() {
   ${provBlocks}
 
   <!-- Total général -->
-  <div style="background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:18px 22px;display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-    <div>
-      <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:2px">Total général</div>
-      <div style="font-size:0.9rem;color:var(--text-muted)">${missions.length} séance${missions.length>1?'s':''} · ${provOrder.length} intervenant${provOrder.length>1?'s':''}</div>
+  <div style="background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:18px 22px;margin-top:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div>
+        <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted)">Total général</div>
+        <div style="font-size:0.88rem;color:var(--text-muted);margin-top:2px">${missions.length} séance${missions.length>1?'s':''} · ${totalH}h · ${provOrder.length} intervenant${provOrder.length>1?'s':''}</div>
+      </div>
     </div>
-    <div style="text-align:right">
-      <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:2px">${totalH}h au total</div>
-      <div style="font-size:1.5rem;font-weight:800;color:var(--success)">${Utils.formatMoney(totalHT)}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 18px;text-align:center">
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--success);margin-bottom:4px">Total facturé</div>
+        <div style="font-size:1.4rem;font-weight:800;color:var(--success)">${Utils.formatMoney(totalHT)}</div>
+      </div>
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 18px;text-align:center">
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--danger);margin-bottom:4px">Coût profs</div>
+        <div style="font-size:1.4rem;font-weight:800;color:var(--danger)">${totalCost > 0 ? Utils.formatMoney(totalCost) : '—'}</div>
+      </div>
+      <div style="background:${totalMarge>=0?'#f0fdf4':'#fef2f2'};border:1px solid ${totalMarge>=0?'#86efac':'#fca5a5'};border-radius:10px;padding:14px 18px;text-align:center">
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${totalMarge>=0?'#10b981':'#ef4444'};margin-bottom:4px">Marge nette</div>
+        <div style="font-size:1.4rem;font-weight:800;color:${totalMarge>=0?'#10b981':'#ef4444'}">${Utils.formatMoney(totalMarge)}</div>
+      </div>
     </div>
   </div>`;
 }
