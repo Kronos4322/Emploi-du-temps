@@ -876,6 +876,29 @@ window._updateInvPreview = function() {
     '</div>' + rows;
 };
 
+// Raccourcis de période pour le modal facture
+window._invSetPeriod = function(type, offset) {
+  const now = new Date();
+  let from, to;
+  if (type === 'month') {
+    const d = new Date(now.getFullYear(), now.getMonth() + (offset||0), 1);
+    from = d.toISOString().substring(0,10);
+    to   = new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().substring(0,10);
+  } else if (type === 'months3') {
+    const d = new Date(now.getFullYear(), now.getMonth()-2, 1);
+    from = d.toISOString().substring(0,10);
+    to   = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().substring(0,10);
+  } else if (type === 'year') {
+    from = now.getFullYear()+'-01-01';
+    to   = now.getFullYear()+'-12-31';
+  }
+  const fEl = document.getElementById('inv-date-from');
+  const tEl = document.getElementById('inv-date-to');
+  if (fEl && from) fEl.value = from;
+  if (tEl && to)   tEl.value = to;
+  window._updateInvDest();
+};
+
 window._showInvoiceExport = function() {
   const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled');
   const months = [...new Set(allMissions.map(m => m.date?.substring(0,7)).filter(Boolean))].sort().reverse();
@@ -917,11 +940,19 @@ window._showInvoiceExport = function() {
       '<div class="form-grid">' +
         '<div class="form-group form-col-2"><label>Société émettrice</label>' +
           '<select id="inv-emetteur" class="form-input">'+emOpts+'</select></div>' +
-        '<div class="form-group form-col-2"></div>' +
-        '<div class="form-group form-col-2"><label>Période — Du</label>' +
-          '<input type="date" id="inv-date-from" class="form-input" value="'+defaultDateFrom+'" onchange="window._updateInvDest()"></div>' +
-        '<div class="form-group form-col-2"><label>Au</label>' +
-          '<input type="date" id="inv-date-to" class="form-input" value="'+defaultDateTo+'" onchange="window._updateInvDest()"></div>' +
+        '<div class="form-group form-col-2" style="display:flex;flex-direction:column;gap:6px">' +
+          '<label>Raccourcis période</label>' +
+          '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+            '<button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'month\',0)">Ce mois</button>' +
+            '<button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'month\',-1)">Mois préc.</button>' +
+            '<button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'months3\')">3 mois</button>' +
+            '<button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'year\')">Année</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-group form-col-2"><label>Du</label>' +
+          '<input type="date" id="inv-date-from" class="form-input" value="'+defaultDateFrom+'" oninput="window._updateInvDest()" onchange="window._updateInvDest()"></div>' +
+        '<div class="form-group form-col-2"><label>Au (inclus)</label>' +
+          '<input type="date" id="inv-date-to" class="form-input" value="'+defaultDateTo+'" oninput="window._updateInvDest()" onchange="window._updateInvDest()"></div>' +
       '</div>' +
       '<div class="form-group" style="margin:0">' +
         '<label>Facturer à</label>' +
