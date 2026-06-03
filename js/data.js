@@ -431,19 +431,46 @@ const Data = {
     }
 
     // ── Réparation : missions institutionnelles mal placées dans cours particuliers ─
-    // Une mission est "cours particulier" si missionCategory='particuliers' OU si
-    // sa société pointe vers la société "Cours particuliers"
-    const _cpCo = (this._db.companies || []).find(c =>
+    // Trois critères pour identifier un cours particulier :
+    // 1. missionCategory = 'particuliers' (nouvelles missions depuis le fix P6)
+    // 2. companyId = société "Cours particuliers" (id canonique 'co-cours-part')
+    // 3. studentIds.length > 0 (mission liée à des étudiants nommés = cours particulier)
+    const _cpCo   = (this._db.companies || []).find(c =>
       c.role !== 'own' && (c.name || '').toLowerCase().includes('cours particulier')
     );
-    const _cpCoId = _cpCo?.id;
+    const _cpCoId = _cpCo?.id || 'co-cours-part'; // fallback sur l'ID canonique
     (this._db.missions || []).forEach(m => {
       if (m.subjectId !== 'subj-cp-droit-contrats') return;
-      const isParticulier = m.missionCategory === 'particuliers' || m.companyId === _cpCoId;
+      const isParticulier =
+        m.missionCategory === 'particuliers' ||
+        m.companyId === _cpCoId ||
+        (Array.isArray(m.studentIds) && m.studentIds.length > 0); // cours lié à un étudiant nommé
       if (!isParticulier) {
         // Mission institutionnelle absorbée par erreur → la réassigner
-        m.subjectId  = _CONTRATS_INST_ID;
-        m.updatedAt  = Date.now();
+        m.subjectId = _CONTRATS_INST_ID;
+        m.updatedAt = Date.now();
+        changed = true;
+      }
+    });
+    // Même logique pour droit administratif institutionnel (sécurité)
+    const _ADMIN_INST_ID = 'subj-ecoles-droit-admin';
+    if (!(this._db.subjects || []).find(s => s.id === _ADMIN_INST_ID)) {
+      (this._db.subjects = this._db.subjects || []).push({
+        id: _ADMIN_INST_ID, name: 'Droit administratif', level: 'superieur',
+        color: '#3b82f6', category: 'ecoles',
+        createdAt: Date.now(), updatedAt: Date.now()
+      });
+      changed = true;
+    }
+    (this._db.missions || []).forEach(m => {
+      if (m.subjectId !== 'subj-cp-droit-admin') return;
+      const isParticulier =
+        m.missionCategory === 'particuliers' ||
+        m.companyId === _cpCoId ||
+        (Array.isArray(m.studentIds) && m.studentIds.length > 0);
+      if (!isParticulier) {
+        m.subjectId = _ADMIN_INST_ID;
+        m.updatedAt = Date.now();
         changed = true;
       }
     });
