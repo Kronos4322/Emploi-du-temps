@@ -174,9 +174,10 @@ window._openCatManager = () => {
     Modals.close(); window._openCatManager(); renderPage();
   };
   window._delCat = id => {
-    if (!confirm('Supprimer cette catégorie ? Les matières seront déplacées dans "Autres".')) return;
-    Data.deleteSubjectCategory(id);
-    Modals.close(); window._openCatManager(); renderPage();
+    Modals.confirm('Supprimer cette catégorie ? Les matières seront déplacées dans "Autres".', () => {
+      Data.deleteSubjectCategory(id);
+      window._openCatManager(); renderPage();
+    }, 'Supprimer', true);
   };
 };
 

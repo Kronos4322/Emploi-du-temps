@@ -13,6 +13,8 @@ let _fbPending  = false; // un push supplémentaire est en attente (évite les �
 
 function _reRenderPage() {
   try {
+    // I2 — Toujours rafraîchir la sidebar (pôles chargés depuis Firebase)
+    if (typeof window._refreshSidebar === 'function') window._refreshSidebar();
     if      (typeof renderDashboard  === 'function') renderDashboard();
     else if (typeof renderCalendar   === 'function') renderCalendar();
     else if (typeof render           === 'function') render();
@@ -59,6 +61,35 @@ const Data = {
     _schedulePoll();
   },
 
+  // ── Fusion locale + Firebase (évite le last-write-wins entre appareils) ──────
+  // Garde les items locaux plus récents, prend les nouveaux items distants.
+  _mergeWithFirebase(fbData) {
+    const ARRAY_KEYS = ['companies','missions','providers','students','formations',
+      'subjects','subjectCategories','providerLinks','properties','rentalIncomes'];
+    const merged = { ...fbData };
+    for (const key of ARRAY_KEYS) {
+      const localArr = this._db[key] || [];
+      const remoteArr = fbData[key] || [];
+      const map = {};
+      remoteArr.forEach(item => { if (item.id) map[item.id] = item; });
+      localArr.forEach(item => {
+        if (!item.id) return;
+        const remote = map[item.id];
+        if (!remote) {
+          // Créé localement depuis le dernier load Firebase → conserver
+          if ((item.updatedAt || 0) > _fbLastTs) map[item.id] = item;
+        } else if ((item.updatedAt || 0) > (remote.updatedAt || 0)) {
+          // Item local plus récent → préférer
+          map[item.id] = item;
+        }
+      });
+      merged[key] = Object.values(map);
+    }
+    // Settings : deep merge, les champs locaux priment
+    merged.settings = { ...(fbData.settings || {}), ...(this._db.settings || {}) };
+    return merged;
+  },
+
   // Charge les données depuis Firebase (source de vérité absolue)
   async _loadFromFirebase() {
     try {
@@ -69,8 +100,8 @@ const Data = {
         return;
       }
       const fbData = await res.json();
-      if (!fbData || !fbData._updatedAt) {
-        // Firebase vide → push local si on a des données (toutes collections confondues)
+      // Validation minimale du schéma Firebase avant adoption
+      if (!fbData || !fbData._updatedAt || typeof fbData !== 'object') {
         const hasLocal = (this._db.companies||[]).length + (this._db.missions||[]).length +
           (this._db.providers||[]).length + (this._db.students||[]).length +
           (this._db.formations||[]).length > 0;
@@ -78,29 +109,24 @@ const Data = {
         return;
       }
       _fbLastTs = fbData._updatedAt;
-      // Timestamp local persisté séparément pour survivre au rechargement
       const localTs = parseInt(localStorage.getItem('_edt_ts') || '0');
+      const needsMigration = (fbData.companies || []).some(c => !c.role) || !fbData._poleAssignmentsFixed3;
+
       if (_fbLastTs > localTs) {
-        // Firebase plus récent → TOUJOURS l'utiliser (suppressions incluses)
-        const needsMigration = (fbData.companies || []).some(c => !c.role) || !fbData._poleAssignmentsFixed3;
+        // Firebase strictement plus récent, aucun changement local → remplacer
         this._db = fbData;
-        this._migrate();
-        // ── Appliquer TOUTES les données canoniques APRÈS chargement Firebase ────────
-        // (EVOL merge, ASTÉRIA banking, USAC adresse, etc.)
-        // skipSave=true : on gère la persistance ici, pas dans _applyModelDefaults
-        const canonChanged = this._applyModelDefaults(true);
-        const ts2 = canonChanged ? Date.now() : _fbLastTs;
-        if (canonChanged) this._db._updatedAt = ts2;
-        localStorage.setItem(DB_KEY, JSON.stringify(this._db));
-        localStorage.setItem('_edt_ts', String(ts2));
-        _reRenderPage();
-        // Repousser vers Firebase si migration ou données canoniques appliquées
-        if (needsMigration || canonChanged) this._pushToFirebase();
-      } else if (localTs > _fbLastTs) {
-        // Local plus récent → on pousse vers Firebase
-        this._pushToFirebase();
+      } else {
+        // Local a des changements ou égalité → FUSIONNER pour éviter la perte de données
+        this._db = this._mergeWithFirebase(fbData);
       }
-      // Si égaux → rien à faire
+      this._migrate();
+      const canonChanged = this._applyModelDefaults(true);
+      const ts2 = (canonChanged || localTs > _fbLastTs) ? Date.now() : _fbLastTs;
+      if (ts2 > _fbLastTs) this._db._updatedAt = ts2;
+      localStorage.setItem(DB_KEY, JSON.stringify(this._db));
+      localStorage.setItem('_edt_ts', String(ts2));
+      _reRenderPage();
+      if (needsMigration || canonChanged || localTs > _fbLastTs) this._pushToFirebase();
     } catch(e) {
       console.warn('Firebase non disponible, données locales utilisées.', e);
     }
@@ -335,7 +361,6 @@ const Data = {
       _f('numcompte',   '911 121 620');
       _f('bankname',    'CR Loire Haute Loire — Saint-Étienne Bellevue');
       if (coChanged) { c.updatedAt = _n; changed = true; }
-      console.log('[Canonical] ASTÉRIA ('+c.id+') iban='+c.iban+' clerib='+c.clerib);
     });
 
     // Infos de facturation USAC — adresse/tél/SIRET forcés, NOM INCHANGÉ
@@ -353,7 +378,6 @@ const Data = {
       _f('phone',   '04 72 32 67 15');
       _f('siret',   '81018796300022');
       if (coChanged) { c.updatedAt = _n; changed = true; }
-      console.log('[Canonical] USAC ('+c.id+') name='+c.name+' address='+c.address+' siret='+c.siret);
     });
 
     // Tarif AGRONOVA — 45 €/h forcé
@@ -418,8 +442,6 @@ const Data = {
     // Log de synthèse pour diagnostic
     const _asterCo = (this._db.companies||[]).find(c => c.role==='own' && (c.name||'').toLowerCase().includes('aster'));
     const _usacCo  = (this._db.companies||[]).find(c => c.role!=='own' && ((c.name||'').toLowerCase().includes('usac')||(c.name||'').toLowerCase().includes('ursac')));
-    if (!_asterCo) console.warn('[Canonical] ⚠️ Aucune société ASTÉRIA (role=own) trouvée en base !');
-    if (!_usacCo)  console.warn('[Canonical] ⚠️ Aucune société USAC/URSAC trouvée en base !');
 
     // Fusion des doublons EVOL AGENCY → un seul prestataire canonique
     if (this._mergeProvidersByKeyword('evol', 'EVOL AGENCY',
@@ -479,7 +501,6 @@ const Data = {
 
     // Supprimer les doublons de la liste
     this._db.providers = providers.filter(p => !dupIds.includes(p.id));
-    console.log('[Data] Fusion prestataires "'+keyword+'" : '+dupIds.length+' doublon(s) supprimé(s) → '+masterName);
     return true;
   },
 
@@ -522,7 +543,7 @@ const Data = {
     if (!entry) return { error: 'Sauvegarde introuvable.' };
     try {
       this._db = JSON.parse(entry.data);
-      localStorage.setItem(DB_KEY, JSON.stringify(this._db));
+      this._save(); // persist + push vers Firebase pour ne pas être écrasé au prochain sync
       return { success: true };
     } catch(e) {
       return { error: 'Erreur lors de la restauration.' };
@@ -540,7 +561,7 @@ const Data = {
   // ── Sociétés (anciennement "écoles") ────────────────────────
 
   getCompanies() {
-    return [...this._db.companies].sort((a, b) => a.name.localeCompare(b.name));
+    return [...this._db.companies].sort((a, b) => (a.name||'').localeCompare(b.name||''));
   },
   // alias pour compatibilité avec l'ancien code
   getSchools() { return this.getCompanies(); },
@@ -587,7 +608,7 @@ const Data = {
 
   getProviders() {
     return [...this._db.providers].sort((a, b) =>
-      `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)
+      `${a.lastName||''} ${a.firstName||''}`.localeCompare(`${b.lastName||''} ${b.firstName||''}`)
     );
   },
   getProviderById(id) {
@@ -766,7 +787,7 @@ const Data = {
 
   getStudents() {
     return [...this._db.students].sort((a, b) =>
-      `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)
+      `${a.lastName||''} ${a.firstName||''}`.localeCompare(`${b.lastName||''} ${b.firstName||''}`)
     );
   },
 
@@ -800,7 +821,7 @@ const Data = {
   // ── Formations ──────────────────────────────────────────────
 
   getFormations() {
-    return [...this._db.formations].sort((a, b) => a.name.localeCompare(b.name));
+    return [...this._db.formations].sort((a, b) => (a.name||'').localeCompare(b.name||''));
   },
 
   getFormationById(id) {
@@ -830,7 +851,7 @@ const Data = {
 
   getSubjects() {
     if (!this._db.subjects) this._db.subjects = [];
-    return [...this._db.subjects].sort((a, b) => a.name.localeCompare(b.name));
+    return [...this._db.subjects].sort((a, b) => (a.name||'').localeCompare(b.name||''));
   },
 
   saveSubject(subject) {
@@ -853,7 +874,7 @@ const Data = {
 
   getSubjectCategories() {
     if (!this._db.subjectCategories) this._db.subjectCategories = [];
-    return [...this._db.subjectCategories].sort((a,b) => a.name.localeCompare(b.name));
+    return [...this._db.subjectCategories].sort((a,b) => (a.name||'').localeCompare(b.name||''));
   },
   saveSubjectCategory(cat) {
     if (!this._db.subjectCategories) this._db.subjectCategories = [];
@@ -870,7 +891,7 @@ const Data = {
   // ── Biens locatifs ───────────────────────────────────────────
 
   getProperties() {
-    return [...(this._db.properties||[])].sort((a, b) => a.name.localeCompare(b.name));
+    return [...(this._db.properties||[])].sort((a, b) => (a.name||'').localeCompare(b.name||''));
   },
   getActiveProperties() {
     return this.getProperties().filter(p => p.active !== false);

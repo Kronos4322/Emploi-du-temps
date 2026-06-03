@@ -43,11 +43,12 @@ function render() {
       </summary>
       <div class="cards-grid-inner" style="margin-bottom:12px">${companyCard(own, allMissions)}</div>`;
 
-    html += `<details class="subsection-block" open><summary class="subsection-header" style="cursor:pointer;list-style:none">🏫 Écoles (${schools.length}) <button class="btn btn-xs btn-ghost" onclick="event.preventDefault();event.stopPropagation();Modals.openCompany(null)">+ Ajouter</button></summary>
+    // I6 — pré-remplir poleId + category à l'ouverture de la modale
+    html += `<details class="subsection-block" open><summary class="subsection-header" style="cursor:pointer;list-style:none">🏫 Écoles (${schools.length}) <button class="btn btn-xs btn-ghost" onclick="event.preventDefault();event.stopPropagation();Modals.openCompany(null,null,null,{poleId:'${own.id}',category:'school'})">+ Ajouter</button></summary>
       ${schools.length ? `<div class="cards-grid-inner">${schools.map(c => companyCard(c, allMissions)).join('')}</div>` : '<p class="empty-state-sm">Aucune école rattachée</p>'}
     </details>`;
 
-    html += `<details class="subsection-block" open><summary class="subsection-header" style="cursor:pointer;list-style:none">🏛 Institutions (${institutions.length}) <button class="btn btn-xs btn-ghost" onclick="event.preventDefault();event.stopPropagation();Modals.openCompany(null)">+ Ajouter</button></summary>
+    html += `<details class="subsection-block" open><summary class="subsection-header" style="cursor:pointer;list-style:none">🏛 Institutions (${institutions.length}) <button class="btn btn-xs btn-ghost" onclick="event.preventDefault();event.stopPropagation();Modals.openCompany(null,null,null,{poleId:'${own.id}',category:'institution'})">+ Ajouter</button></summary>
       ${institutions.length ? `<div class="cards-grid-inner">${institutions.map(c => companyCard(c, allMissions)).join('')}</div>` : '<p class="empty-state-sm">Aucune institution rattachée</p>'}
     </details>`;
 

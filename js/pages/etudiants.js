@@ -187,11 +187,13 @@ function studentsHTML() {
       const totR  = sMs.reduce((a,m)=>a+(m.duration||0)*(m.billingRate||0),0);
       const score = qScore(s); const pct = Math.round(score/QSTEPS.length*100);
       const qc    = pct===100?'#22c55e':pct>50?'#f59e0b':'#ef4444';
-      const provIds = [...new Set(sMs.map(m=>m.providerId).filter(Boolean))];
+      // I4 — utiliser providerIds[] (multi-prestataires) au lieu de providerId seul
+      const provIds = [...new Set(sMs.flatMap(m=>
+        m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])
+      ).filter(Boolean))];
       const provStats = provIds.map(pid=>{
         const p=prov[pid]; if(!p) return '';
-        const pMs=sMs.filter(m=>m.providerId===pid);
-        // On utilise le providerRate de chaque mission (source de vérité), pas le tarif de la fiche prestataire
+        const pMs=sMs.filter(m=>(m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])).includes(pid));
         const cost=pMs.reduce((a,m)=>a+(m.duration||0)*(m.providerRate||0),0);
         const rev=pMs.reduce((a,m)=>a+(m.duration||0)*(m.billingRate||0),0);
         return `<div style="font-size:0.78rem;margin-top:4px"><strong>${Utils.escapeHtml(p.lastName+' '+p.firstName)}</strong>
@@ -850,7 +852,7 @@ window._exportStudent = function(studentId, month) {
   const missions = Data.getMissions().filter(m=>
     (m.studentIds||[]).includes(studentId)&&m.status!=='cancelled'&&
     (!month||(m.date&&m.date.startsWith(month)))
-  ).sort((a,b)=>a.date.localeCompare(b.date));
+  ).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   const DAYS=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
   const rows=[['Date','Jour','Heure début','Heure fin','Durée (h)','Matière','Prestataire',
     'Tarif facturé (€/h)','Total facturé (€)','Tarif prof (€/h)','Coût prof (€)','Marge (€)']];

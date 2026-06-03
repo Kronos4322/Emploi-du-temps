@@ -18,14 +18,18 @@ const Modals = {
     document.body.appendChild(overlay);
 
     overlay.addEventListener('click', e => { if (e.target === overlay) this.close(); });
-    const escH = e => { if (e.key === 'Escape') { this.close(); document.removeEventListener('keydown', escH); } };
-    document.addEventListener('keydown', escH);
+    // I3 — stocker le handler pour pouvoir le retirer proprement à la fermeture
+    if (this._escH) document.removeEventListener('keydown', this._escH);
+    this._escH = e => { if (e.key === 'Escape') this.close(); };
+    document.addEventListener('keydown', this._escH);
     if (onReady) onReady(overlay.querySelector('.modal-box'));
   },
 
   close() {
     const o = document.getElementById('modal-overlay');
     if (o) o.remove();
+    // I3 — retirer le listener Escape pour éviter la fuite
+    if (this._escH) { document.removeEventListener('keydown', this._escH); this._escH = null; }
   },
 
   // ── Confirmation ─────────────────────────────────────────────
@@ -513,14 +517,17 @@ const Modals = {
 
   openSchool(companyId = null) { return this.openCompany(companyId); },
 
-  openCompany(companyId = null) {
+  openCompany(companyId = null, _onDone = null, _unused = null, defaults = {}) {
     const company = companyId ? Data.getCompanyById(companyId) : null;
     const isNew   = !company;
     const ownCos  = Data.getOwnCompanies();
+    // I6 — appliquer les defaults (poleId, category) pour les nouvelles sociétés
     const c = company || {
       name: '', color: Utils.PRESET_COLORS[0], role: 'client', type: 'other',
       address: '', phone: '', email: '', contact: '',
-      defaultBillingRate: 50, notes: '', poleId: '', category: 'school'
+      defaultBillingRate: 50, notes: '',
+      poleId:   defaults.poleId   || '',
+      category: defaults.category || 'school'
     };
 
     const colorSwatches = Utils.PRESET_COLORS.map(col =>

@@ -440,7 +440,7 @@ function missionRowCompact(m, coMap) {
 window._showPlanningExport = function() {
   const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled');
   const months = [...new Set(allMissions.map(m => m.date?.substring(0,7)).filter(Boolean))].sort().reverse();
-  if (!months.length) { Utils.toast('Aucune mission trouvée.', 'info'); return; }
+  if (!months.length) { Utils.toast('Aucune mission trouvée.', 'success'); return; }
 
   const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   const monthLabel = m => { const [y,mo] = m.split('-'); return `${MONTHS_FR[+mo-1]} ${y}`; };
@@ -543,7 +543,7 @@ window._generatePlanning = function() {
   }
   missions.sort((a, b) => (a.date + (a.startTime||'')).localeCompare(b.date + (b.startTime||'')));
 
-  if (!missions.length) { Utils.toast('Aucune mission trouvée pour ces critères.', 'info'); return; }
+  if (!missions.length) { Utils.toast('Aucune mission trouvée pour ces critères.', 'success'); return; }
 
   // Grouper par date
   const byDate = {};
@@ -704,6 +704,7 @@ window._generatePlanning = function() {
 </html>`;
 
   const w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) { Utils.toast('Autorisez les pop-ups pour ce site.', 'error'); return; }
   w.document.write(html);
   w.document.close();
 };
@@ -835,7 +836,7 @@ window._updateInvPreview = function() {
 window._showInvoiceExport = function() {
   const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled');
   const months = [...new Set(allMissions.map(m => m.date?.substring(0,7)).filter(Boolean))].sort().reverse();
-  if (!months.length) { Utils.toast('Aucune mission trouvée.', 'info'); return; }
+  if (!months.length) { Utils.toast('Aucune mission trouvée.', 'success'); return; }
 
   const ownCos   = Data.getOwnCompanies();
   const settings = Data.getSettings();
@@ -980,7 +981,7 @@ window._generateInvoice = function() {
   let missions = window._getInvMissions(month, destRaw);
 
   if (!missions.length) {
-    Utils.toast('Aucune mission pour ce destinataire sur ce mois.', 'info');
+    Utils.toast('Aucune mission pour ce destinataire sur ce mois.', 'success');
     return;
   }
 
@@ -1173,6 +1174,7 @@ ${(iban || codebanque) ? `<div class="inv-footer">
 
   Modals.close();
   const w = window.open('', '_blank', 'width=900,height=750');
+  if (!w) { Utils.toast('Autorisez les pop-ups pour ce site.', 'error'); return; }
   w.document.write(html);
   w.document.close();
 };
