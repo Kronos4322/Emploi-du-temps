@@ -236,14 +236,19 @@ function render() {
   document.getElementById('total-hours').innerHTML   = `<strong>${Utils.formatDuration(allHours)}</strong>`;
   document.getElementById('total-revenue').innerHTML = `<strong>${Utils.formatMoney(totalRevenue)}</strong>`;
 
-  // Prestataires — filtrés par pôle
-  const byProvEntries = Object.entries(stats.byProvider).filter(([pid]) => {
-    if (!_poleId) return true;
-    const prov = providers[pid];
-    if (!prov) return false;
-    if (prov.poleId) return prov.poleId === _poleId;
-    return true; // pas de poleId → afficher dans tous les pôles
+  // Prestataires — recalculés depuis les missions déjà filtrées par pôle/école
+  // (évite la fuite de coûts inter-pôles de stats.byProvider global)
+  const byProvMap = {};
+  [...doneMissions, ...plannedMissions].forEach(m => {
+    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+    pids.forEach(pid => {
+      if (!byProvMap[pid]) byProvMap[pid] = { count:0, hours:0, cost:0 };
+      byProvMap[pid].count++;
+      byProvMap[pid].hours += m.duration || 0;
+      byProvMap[pid].cost  += (m.duration||0) * (m.providerRate||0) / pids.length;
+    });
   });
+  const byProvEntries = Object.entries(byProvMap).filter(([pid]) => providers[pid]);
   document.getElementById('section-by-provider').style.display = byProvEntries.length > 0 ? '' : 'none';
   document.getElementById('tbody-by-provider').innerHTML = byProvEntries.map(([pid, d]) => {
     const p = providers[pid];

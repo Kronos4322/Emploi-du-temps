@@ -143,8 +143,21 @@ function getFilteredMissions(start, end) {
   const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
   return missions.filter(m => {
     const co = coMap[m.companyId]; if (!co) return false;
-    const poleOk = polesAll  || (co.poleId ? _filterPoles.has(co.poleId) : _filterPoles.has(co.id));
-    const coOk   = schoolsAll || co.role === 'own' || _filterCos.has(m.companyId);
+    // Pôle OK :
+    //  - société own → vérifie si son propre ID est dans le filtre pôle
+    //  - école avec poleId → vérifie le pôle parent
+    //  - école sans poleId → toujours OK (non-rattachée = visible dans tous les pôles)
+    const poleOk = polesAll || (
+      co.role === 'own'  ? _filterPoles.has(co.id) :
+      co.poleId          ? _filterPoles.has(co.poleId) :
+      true               // école non-rattachée → passe toujours
+    );
+    // École OK :
+    //  - toutes sélectionnées → OK
+    //  - école cliente → vérifier si elle est dans le filtre
+    //  - société own → visible seulement si son pôle est sélectionné
+    const coOk = schoolsAll || _filterCos.has(m.companyId) ||
+      (co.role === 'own' && _filterPoles.has(co.id));
     return poleOk && coOk;
   });
 }

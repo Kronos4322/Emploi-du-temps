@@ -42,7 +42,16 @@ function render() {
   window._matSearch = v => { _filterSearch = v; render(); };
   window._matSchool = id => { _filterSchool = id || null; render(); };
 
-  if (_filterSchool) subjects = subjects.filter(s => (s.schoolIds||[]).includes(_filterSchool));
+  if (_filterSchool) {
+    // I7 — deux sources de vérité réconciliées :
+    // 1. subject.schoolIds (lien direct sur la matière)
+    // 2. company.subjectIds (lien inversé depuis la fiche école)
+    const selectedCo = Data.getCompanyById(_filterSchool);
+    const coSubjIds  = new Set(selectedCo?.subjectIds || []);
+    subjects = subjects.filter(s =>
+      (s.schoolIds||[]).includes(_filterSchool) || coSubjIds.has(s.id)
+    );
+  }
   if (_filterSearch) subjects = subjects.filter(s => s.id === _filterSearch);
 
   if (Data.getSubjects().length === 0) {

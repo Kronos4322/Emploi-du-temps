@@ -104,7 +104,15 @@ function render() {
   let done    = _selSchools ? doneAll.filter(m => _selSchools.has(m.companyId))    : doneAll;
   let planned = _selSchools ? plannedAll.filter(m => _selSchools.has(m.companyId)) : plannedAll;
 
-  // KPIs
+  // KPIs — M1 : base done+planned pour cohérence avec finances.js
+  const _kpiRev  = m => (m.duration||0)*(m.billingRate||0);
+  const _kpiCost = m => { const pids=m.providerIds?.length?m.providerIds:(m.providerId?[m.providerId]:[]); return pids.length?(m.duration||0)*(m.providerRate||0):0; };
+  const _allM    = [...done, ...planned]; // réalisé + prévu
+  const _doneRev = done.reduce((s,m)=>s+_kpiRev(m),0);
+  const _planRev = planned.reduce((s,m)=>s+_kpiRev(m),0);
+  const _totRev  = _doneRev + _planRev;
+  const _totCost = _allM.reduce((s,m)=>s+_kpiCost(m),0);
+  const _mg      = _totRev - _totCost;
   document.getElementById('billing-kpis').innerHTML = `
     <div class="kpi-card"><div class="kpi-icon kpi-blue">✓</div><div class="kpi-content">
       <div class="kpi-value">${Utils.formatDuration(done.reduce((s,m)=>s+(m.duration||0),0))}</div>
@@ -113,12 +121,14 @@ function render() {
       <div class="kpi-value">${Utils.formatDuration(planned.reduce((s,m)=>s+(m.duration||0),0))}</div>
       <div class="kpi-label">Heures prévues</div></div></div>
     <div class="kpi-card"><div class="kpi-icon kpi-green">💶</div><div class="kpi-content">
-      <div class="kpi-value">${Utils.formatMoney(done.reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0))}</div>
-      <div class="kpi-label">CA réalisé</div></div></div>
+      <div class="kpi-value">${Utils.formatMoney(_doneRev)}</div>
+      <div class="kpi-label">CA réalisé<br><span style="font-size:0.7rem;color:var(--text-muted)">+ ${Utils.formatMoney(_planRev)} prévu</span></div></div></div>
     <div class="kpi-card"><div class="kpi-icon kpi-red">📤</div><div class="kpi-content">
-      <div class="kpi-value">${Utils.formatMoney(done.reduce((s,m)=>{const pids=m.providerIds?.length?m.providerIds:(m.providerId?[m.providerId]:[]);return pids.length?s+(m.duration||0)*(m.providerRate||0):s;},0))}</div>
-      <div class="kpi-label">Charges prestataires</div></div></div>
-    ${(()=>{ const rev=done.reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0); const cost=done.reduce((s,m)=>{const pids=m.providerIds?.length?m.providerIds:(m.providerId?[m.providerId]:[]);return pids.length?s+(m.duration||0)*(m.providerRate||0):s;},0); const mg=rev-cost; return `<div class="kpi-card ${mg>=0?'kpi-positive':'kpi-negative'}"><div class="kpi-icon kpi-teal">📊</div><div class="kpi-content"><div class="kpi-value">${Utils.formatMoney(mg)}</div><div class="kpi-label">Marge nette</div></div></div>`; })()}
+      <div class="kpi-value">${Utils.formatMoney(_totCost)}</div>
+      <div class="kpi-label">Charges prestataires<br><span style="font-size:0.7rem;color:var(--text-muted)">réalisé + prévu</span></div></div></div>
+    <div class="kpi-card ${_mg>=0?'kpi-positive':'kpi-negative'}"><div class="kpi-icon kpi-teal">📊</div><div class="kpi-content">
+      <div class="kpi-value">${Utils.formatMoney(_mg)}</div>
+      <div class="kpi-label">Marge du mois<br><span style="font-size:0.7rem;color:var(--text-muted)">réalisé + prévu</span></div></div></div>
   `;
 
   // ── Section prestataires (indépendant du filtre école) ──
