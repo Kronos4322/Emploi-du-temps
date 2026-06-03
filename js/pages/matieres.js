@@ -81,7 +81,10 @@ function render() {
     const planned = sm.filter(m => m.status === 'planned');
     const totalH  = sm.reduce((a,m)=>a+(m.duration||0),0);
     const planH   = planned.reduce((a,m)=>a+(m.duration||0),0);
-    const schoolObjs = (s.schoolIds||[]).map(id=>companies[id]).filter(Boolean);
+    // Écoles réellement liées via les missions (source de vérité)
+    const missionCoIds = [...new Set(sm.map(m => m.companyId).filter(Boolean))];
+    const missionCos   = missionCoIds.map(id => companies[id]).filter(Boolean);
+    const schoolObjs   = missionCos.length ? missionCos : (s.schoolIds||[]).map(id=>companies[id]).filter(Boolean);
     const color = s.color || LEVEL_COLORS[s.level] || '#64748b';
     return `<div onclick="openSubjectModal('${s.id}')" style="background:var(--bg-card);border-radius:var(--radius);overflow:hidden;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.07);transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 4px 14px rgba(0,0,0,.13)'" onmouseout="this.style.boxShadow='0 1px 4px rgba(0,0,0,.07)'">
       <div style="background:${color};padding:14px 16px">
