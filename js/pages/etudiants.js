@@ -448,6 +448,7 @@ function studentDetailHTML() {
           return `<option value="${mo}" ${_stuMonth===mo?'selected':''}>${label}</option>`;
         }).join('')}
       </select>
+      <button class="btn" style="background:#10b981;color:#fff;font-weight:600" onclick="Modals.openMission(null,'${Utils.today()}',()=>render(),{studentIds:['${s.id}']})">+ Ajouter un cours</button>
       <button class="btn btn-ghost" data-action="open-student" data-id="${s.id}">✏ Modifier</button>
       <button class="btn btn-ghost" onclick="_exportStudent('${s.id}','${_stuMonth}')">📥 CSV</button>
       <button class="btn btn-primary" onclick="window._printStudentDetail('${s.id}','${_stuMonth}')">🖨 PDF</button>
