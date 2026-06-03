@@ -54,13 +54,15 @@ const DC    = {non_cree:'#94a3b8',cree:'#94a3b8',envoye:'#f59e0b',recu:'#f59e0b'
 // ── État ────────────────────────────────────────────────────────
 let _view  = 'hub';
 let _qId   = null;
-let _stuId = null;   // étudiant affiché dans student-detail
+let _stuId   = null;   // étudiant affiché dans student-detail
+let _stuMonth = '';    // filtre mois dans student-detail ('' = tous)
 const filters = {search:'',companyId:'',formationId:'',status:''};
 let _st = null;
 
 function renderPage() { render(); }
 function qScore(s) { return (s.qSteps||[]).filter(v=>v==='vert').length; }
-window._openStudentDetail = function(id) { _stuId = id; _view = 'student-detail'; render(); };
+window._openStudentDetail = function(id) { _stuId = id; _stuMonth = ''; _view = 'student-detail'; render(); };
+window._setStuMonth = function(mo) { _stuMonth = mo; render(); };
 
 // ── Init ────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -277,10 +279,21 @@ function studentDetailHTML() {
   // Palette de couleurs par prof
   const PROF_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
 
+  const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin',
+                     'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
   // Toutes les missions liées à cet étudiant, triées par date
-  const missions = Data.getMissions()
+  const allMissions = Data.getMissions()
     .filter(m => (m.studentIds || []).includes(s.id) && m.status !== 'cancelled')
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  // Liste des mois disponibles (pour le sélecteur)
+  const availMonths = [...new Set(allMissions.map(m => (m.date || '').substring(0, 7)))].sort();
+
+  // Missions filtrées selon le mois sélectionné
+  const missions = _stuMonth
+    ? allMissions.filter(m => (m.date || '').startsWith(_stuMonth))
+    : allMissions;
 
   const totalH    = missions.reduce((a, m) => a + (m.duration || 0), 0);
   const totalHT   = missions.reduce((a, m) => a + (m.duration || 0) * (m.billingRate  || 0), 0);
@@ -418,9 +431,19 @@ function studentDetailHTML() {
       <h1 class="page-title" style="margin:0">${Utils.escapeHtml(s.firstName + ' ' + s.lastName)}</h1>
       <span style="font-size:0.78rem;font-weight:600;padding:3px 10px;border-radius:12px;background:${sc}20;color:${sc}">${sl}</span>
     </div>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;align-items:center">
+      <!-- Sélecteur de mois -->
+      <select onchange="window._setStuMonth(this.value)"
+        style="padding:6px 12px;border:1px solid var(--border);border-radius:8px;font-size:0.85rem;background:var(--bg-card);cursor:pointer;min-width:160px">
+        <option value="" ${!_stuMonth?'selected':''}>📅 Tous les mois</option>
+        ${availMonths.map(mo => {
+          const [y, mIdx] = mo.split('-');
+          const label = MONTHS_FR[+mIdx-1] + ' ' + y;
+          return `<option value="${mo}" ${_stuMonth===mo?'selected':''}>${label}</option>`;
+        }).join('')}
+      </select>
       <button class="btn btn-ghost" data-action="open-student" data-id="${s.id}">✏ Modifier</button>
-      <button class="btn btn-ghost" onclick="_exportStudent('${s.id}','')">📥 Exporter CSV</button>
+      <button class="btn btn-ghost" onclick="_exportStudent('${s.id}','${_stuMonth}')">📥 Exporter CSV</button>
     </div>
   </div>
 
