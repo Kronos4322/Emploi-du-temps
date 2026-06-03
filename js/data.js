@@ -356,6 +356,13 @@ const Data = {
       console.log('[Canonical] USAC ('+c.id+') name='+c.name+' address='+c.address+' siret='+c.siret);
     });
 
+    // Tarif AGRONOVA — 45 €/h forcé
+    (this._db.companies || []).forEach(c => {
+      if (c.role === 'own') return;
+      if (!(c.name || '').toLowerCase().includes('agronova')) return;
+      if (c.defaultBillingRate !== 45) { c.defaultBillingRate = 45; c.updatedAt = Date.now(); changed = true; }
+    });
+
     // Log de synthèse pour diagnostic
     const _asterCo = (this._db.companies||[]).find(c => c.role==='own' && (c.name||'').toLowerCase().includes('aster'));
     const _usacCo  = (this._db.companies||[]).find(c => c.role!=='own' && ((c.name||'').toLowerCase().includes('usac')||(c.name||'').toLowerCase().includes('ursac')));
