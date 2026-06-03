@@ -305,8 +305,13 @@ const Modals = {
         prev.innerHTML = `
           <span class="preview-item"><strong>Durée :</strong> ${Utils.formatDuration(dur)}</span>
           <span class="preview-item"><strong>Revenu :</strong> ${Utils.formatMoney(revenue)}</span>
-          ${pRate > 0 ? `<span class="preview-item"><strong>Coût prestataire :</strong> ${Utils.formatMoney(cost)}</span>
-          <span class="preview-item preview-margin"><strong>Marge :</strong> ${Utils.formatMoney(revenue - cost)}</span>` : ''}
+          ${pRate > 0
+            ? `<span class="preview-item"><strong>Coût prestataire :</strong> ${Utils.formatMoney(cost)}</span>
+               <span class="preview-item preview-margin"><strong>Marge :</strong> ${Utils.formatMoney(revenue - cost)}</span>`
+            : (document.querySelector('input[name="mf-provider-chk"]:checked')
+                ? `<span class="preview-item" style="color:#64748b;font-size:0.8rem">💼 Tarif interne → marge = revenu total</span>`
+                : '')
+          }
         `;
       } else if (prev) { prev.innerHTML = ''; }
     };
@@ -400,13 +405,6 @@ const Modals = {
       const recurrence    = document.getElementById('mf-recurrence')?.value || '';
       const recurrenceEnd = document.getElementById('mf-recurrence-end')?.value || '';
 
-      // P5 — Alerte si prestataire coché mais tarif prof = 0 (marge faussée)
-      const _checkedProvs = [...document.querySelectorAll('input[name="mf-provider-chk"]:checked')];
-      const _pRate = parseFloat(document.getElementById('mf-provider-rate')?.value) || 0;
-      if (_checkedProvs.length > 0 && _pRate === 0) {
-        if (!confirm('⚠️ Tarif prestataire à 0 €/h — la marge sera incorrecte.\nContinuer quand même ?')) return;
-      }
-
       const saved = {
         id: m.id || Utils.uuid(),
         title,
@@ -430,6 +428,12 @@ const Modals = {
         recurringGroupId: m.recurringGroupId || null,
         formationId: document.getElementById('mf-formation').value || null,
         studentIds:  [...document.querySelectorAll('input[name="mf-student-chk"]:checked')].map(i => i.value),
+        // P6 — catégorie déduite de la matière pour un filtrage direct
+        missionCategory: (() => {
+          const sid = document.getElementById('mf-subject').value;
+          const subj = sid ? (Data.getSubjects()||[]).find(s => s.id === sid) : null;
+          return subj?.category || '';
+        })(),
       };
 
       if (isNew && recurrence && recurrenceEnd) {

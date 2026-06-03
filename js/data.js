@@ -584,7 +584,11 @@ const Data = {
   },
 
   deleteProvider(id) {
-    const linked = this._db.missions.filter(m => m.providerId === id);
+    // P4 — vérifier aussi providerIds[] (nouveau format multi-prestataires)
+    const linked = this._db.missions.filter(m =>
+      m.providerId === id ||
+      (Array.isArray(m.providerIds) && m.providerIds.includes(id))
+    );
     if (linked.length > 0) {
       return { error: `Impossible de supprimer : ${linked.length} mission(s) liée(s) à ce prestataire.` };
     }

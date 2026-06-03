@@ -255,6 +255,10 @@ function missionBlock(c, companies, allMissions) {
     ${conflict ? '<span class="block-conflict">⚠ Conflit</span>' : ''}
     <div class="block-title" style="${strike}">${icon ? `<span class="block-status-icon">${icon}</span>` : ''}${typeIco} ${Utils.escapeHtml(c.title)}</div>
     ${c.subjectId ? (()=>{ const subj = (Data.getSubjects()||[]).find(s=>s.id===c.subjectId); return subj ? `<div class="block-time" style="opacity:0.85">📖 ${Utils.escapeHtml(subj.name)}</div>` : ''; })() : ''}
+    ${(c.studentIds||[]).length > 0 ? (()=>{
+      const stus = (c.studentIds||[]).slice(0,2).map(sid => { const st=Data.getStudentById(sid); return st ? st.firstName+' '+st.lastName : ''; }).filter(Boolean);
+      return stus.length ? `<div class="block-time" style="opacity:0.85">👤 ${Utils.escapeHtml(stus.join(', '))}${(c.studentIds||[]).length>2?' +'+((c.studentIds||[]).length-2):''}</div>` : '';
+    })() : ''}
     <div class="block-time">${c.startTime}–${c.endTime}</div>
     ${c.type === 'visio' ? '<div class="block-badge">Visio</div>' : ''}
   </div>`;
