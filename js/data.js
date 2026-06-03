@@ -65,7 +65,7 @@ const Data = {
   // Garde les items locaux plus récents, prend les nouveaux items distants.
   _mergeWithFirebase(fbData) {
     const ARRAY_KEYS = ['companies','missions','providers','students','formations',
-      'subjects','subjectCategories','providerLinks','properties','rentalIncomes'];
+      'subjects','subjectCategories','providerLinks','properties','rentalIncomes','internalStaff'];
     // Préserver les flags racine locaux (migrations one-shot, version, etc.)
     const merged = { ...this._db, ...fbData };
     for (const key of ARRAY_KEYS) {
@@ -207,6 +207,7 @@ const Data = {
       },
       properties: [],      // appartements / biens locatifs
       rentalIncomes: [],   // revenus locatifs mensuels
+      internalStaff: [],   // personnel interne (salaires fixes mensuels)
     };
   },
 
@@ -239,6 +240,7 @@ const Data = {
     if (!this._db.settings)      this._db.settings = this._emptyDb().settings;
     if (!this._db.properties)    this._db.properties = [];
     if (!this._db.rentalIncomes) this._db.rentalIncomes = [];
+    if (!this._db.internalStaff) this._db.internalStaff = [];
 
     // Garantir le champ role sur chaque société
     this._db.companies = this._db.companies.map(c => {
@@ -374,6 +376,16 @@ const Data = {
       _f('bankname',    'CR Loire Haute Loire — Saint-Étienne Bellevue');
       if (coChanged) { c.updatedAt = _n; changed = true; }
     });
+
+    // Secrétariat — créer automatiquement si absent
+    if (!(this._db.internalStaff||[]).find(s => s.id === 'staff-secretariat')) {
+      (this._db.internalStaff = this._db.internalStaff || []).push({
+        id: 'staff-secretariat', name: 'Secrétariat', role: 'Secrétaire administrative',
+        monthlyCost: 0, color: '#6366f1', notes: '', payments: [],
+        createdAt: Date.now(), updatedAt: Date.now()
+      });
+      changed = true;
+    }
 
     // Couleur jaune pour la société "Cours particuliers" (visible dans le calendrier)
     (this._db.companies || []).forEach(c => {
@@ -1095,6 +1107,26 @@ const Data = {
     this._db.rentalIncomes = (this._db.rentalIncomes||[]).filter(r => r.propertyId !== id);
     this._save();
     return { success: true };
+  },
+
+  // ── Personnel interne ────────────────────────────────────────
+
+  getInternalStaff() {
+    return [...(this._db.internalStaff||[])].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  },
+  getInternalStaffById(id) {
+    return (this._db.internalStaff||[]).find(s=>s.id===id)||null;
+  },
+  saveInternalStaff(staff) {
+    if (!this._db.internalStaff) this._db.internalStaff=[];
+    const idx=this._db.internalStaff.findIndex(s=>s.id===staff.id);
+    if (idx>=0) { this._db.internalStaff[idx]={...staff,updatedAt:Date.now()}; }
+    else { this._db.internalStaff.push({...staff,id:staff.id||Utils.uuid(),createdAt:Date.now(),updatedAt:Date.now()}); }
+    this._save();
+  },
+  deleteInternalStaff(id) {
+    this._db.internalStaff=(this._db.internalStaff||[]).filter(s=>s.id!==id);
+    this._save();
   },
 
   // ── Revenus locatifs ─────────────────────────────────────────
