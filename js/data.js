@@ -446,6 +446,45 @@ const Data = {
       changed = true;
     }
 
+    // EVOL AGENCY — porteur de facturation pour les écoles à 35€/h
+    // 1. Marquer comme agence de facturation (isAgency)
+    // 2. Créer les providerLinks vers toutes les écoles EVOL (si absents)
+    const _evolProv = (this._db.providers || []).find(p =>
+      (p.structure || '').toUpperCase().includes('EVOL')
+    );
+    if (_evolProv) {
+      // isAgency
+      if (!_evolProv.isAgency) {
+        _evolProv.isAgency = true;
+        _evolProv.updatedAt = Date.now();
+        changed = true;
+      }
+      // Mots-clés des écoles à 35€/h facturées via EVOL AGENCY
+      const _EVOL_SCHOOL_KW = ['eklya','cnam','eac','eemi','irup','iomi','monts'];
+      const _EVOL_RATE = 35;
+      const _evolSchools = (this._db.companies || []).filter(c => {
+        if (c.role === 'own') return false;
+        const n = (c.name || '').toLowerCase();
+        return _EVOL_SCHOOL_KW.some(kw => n.includes(kw));
+      });
+      _evolSchools.forEach(school => {
+        const exists = (this._db.providerLinks || []).find(l =>
+          l.providerId === _evolProv.id && l.companyId === school.id
+        );
+        if (!exists) {
+          (this._db.providerLinks = this._db.providerLinks || []).push({
+            id: `pl-evol-${school.id}`,
+            providerId: _evolProv.id,
+            companyId:  school.id,
+            hourlyRate: _EVOL_RATE,
+            createdAt:  Date.now(),
+            updatedAt:  Date.now(),
+          });
+          changed = true;
+        }
+      });
+    }
+
     if (changed && !skipSave) this._save();
     return changed;
   },
