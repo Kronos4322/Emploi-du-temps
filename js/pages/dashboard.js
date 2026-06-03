@@ -724,11 +724,16 @@ window._buildInvDestOpts = function(month) {
     if (m.companyId) cntC[m.companyId] = (cntC[m.companyId]||0)+1;
   });
   const providers = Data.getProviders().slice().sort((a,b) =>
-    (a.structure||a.lastName).localeCompare(b.structure||b.lastName));
+    ((a.lastName||'')+' '+(a.firstName||'')).localeCompare((b.lastName||'')+' '+(b.firstName||'')));
   const clientCos = Data.getCompanies().filter(c => c.role !== 'own')
-    .sort((a,b) => a.name.localeCompare(b.name));
+    .sort((a,b) => (a.name||'').localeCompare(b.name||''));
   const pOpts = providers.map(p => {
-    const lbl = p.structure || p.lastName+' '+p.firstName;
+    // Toujours afficher Prénom Nom en priorité ; structure = info complémentaire si différente
+    const fullName = [p.firstName, p.lastName].filter(Boolean).join(' ');
+    const hasStruct = p.structure && p.structure !== fullName && p.structure !== p.lastName;
+    const lbl = fullName
+      ? fullName + (hasStruct ? ' — ' + p.structure : '')
+      : (p.structure || 'Inconnu');
     const n = cntP[p.id]||0;
     return '<option value="prov::'+p.id+'">'+Utils.escapeHtml(lbl)+(n?' ('+n+' mission'+(n>1?'s':'')+')':'')+'</option>';
   }).join('');
@@ -856,7 +861,9 @@ window._showInvoiceExport = function() {
   ).join('');
 
   // "Facturer à" = prestataires + sociétés clientes avec comptage de missions
-  const defaultMonth = months[0] || '';
+  // Mois par défaut = mois courant si présent, sinon le plus récent
+  const currentM = Utils.currentYearMonth();
+  const defaultMonth = months.includes(currentM) ? currentM : (months[0] || '');
   const { pOpts: provOpts, cOpts: coOpts } = window._buildInvDestOpts(defaultMonth);
 
   const warn = (!settings.siret||!settings.iban)
@@ -961,7 +968,8 @@ window._generateInvoice = function() {
   if (destType === 'prov') {
     const p = Data.getProviders().find(p => p.id === destId);
     if (p) {
-      destName    = p.structure || p.lastName+' '+p.firstName;
+      const _pFullName = [p.firstName, p.lastName].filter(Boolean).join(' ');
+      destName    = _pFullName || p.structure || 'Inconnu';
       destAddr    = p.address   || '';
       destContact = [p.email, p.phone].filter(Boolean).join(' — ');
       destSiret   = p.siret    || '';
