@@ -744,12 +744,41 @@ window._buildInvDestOpts = function(month) {
   return { pOpts, cOpts };
 };
 
-// Met à jour la liste "Facturer à" quand le mois change
+// Met à jour la liste "Facturer à" quand la période change
 window._updateInvDest = function() {
-  const month = document.getElementById('inv-month')?.value; if (!month) return;
-  const sel   = document.getElementById('inv-dest');          if (!sel)   return;
-  const prev  = sel.value;
-  const { pOpts, cOpts } = window._buildInvDestOpts(month);
+  const from = document.getElementById('inv-month-from')?.value; if (!from) return;
+  const to   = document.getElementById('inv-month-to')?.value || from;
+  // S'assurer que "to" >= "from"
+  if (to < from) { document.getElementById('inv-month-to').value = from; }
+  const sel = document.getElementById('inv-dest'); if (!sel) return;
+  const prev = sel.value;
+  // Compter les missions sur toute la plage
+  const allM = Data.getMissions().filter(m => {
+    if (m.status === 'cancelled') return false;
+    const ym = (m.date||'').substring(0,7);
+    return ym >= from && ym <= (to < from ? from : to);
+  });
+  const cntP = {}, cntC = {};
+  allM.forEach(m => {
+    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+    pids.forEach(pid => { cntP[pid] = (cntP[pid]||0)+1; });
+    if (m.companyId) cntC[m.companyId] = (cntC[m.companyId]||0)+1;
+  });
+  const providers = Data.getProviders().slice().sort((a,b) =>
+    ((a.lastName||'')+' '+(a.firstName||'')).localeCompare((b.lastName||'')+' '+(b.firstName||'')));
+  const clientCos = Data.getCompanies().filter(c => c.role !== 'own')
+    .sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  const pOpts = providers.map(p => {
+    const fullName = [p.firstName, p.lastName].filter(Boolean).join(' ');
+    const hasStruct = p.structure && p.structure !== fullName && p.structure !== p.lastName;
+    const lbl = fullName ? fullName + (hasStruct ? ' — '+p.structure : '') : (p.structure||'Inconnu');
+    const n = cntP[p.id]||0;
+    return '<option value="prov::'+p.id+'">'+Utils.escapeHtml(lbl)+(n?' ('+n+' mission'+(n>1?'s':'')+')':'')+'</option>';
+  }).join('');
+  const cOpts = clientCos.map(c => {
+    const n = cntC[c.id]||0;
+    return '<option value="co::'+c.id+'">'+Utils.escapeHtml(c.name)+(n?' ('+n+' mission'+(n>1?'s':'')+')':'')+'</option>';
+  }).join('');
   sel.innerHTML =
     (pOpts ? '<optgroup label="Agences / Prestataires">'+pOpts+'</optgroup>' : '') +
     (cOpts ? '<optgroup label="Sociétés clientes">'+cOpts+'</optgroup>'      : '');
@@ -758,30 +787,34 @@ window._updateInvDest = function() {
 };
 
 // ── Fonction centrale de filtrage des missions pour la facture ──────────────
-// Logique : agenda → école (ID direct) ou prestataire (keyword pour doublons EVOL)
-window._getInvMissions = function(month, destRaw) {
-  if (!month || !destRaw) return [];
+// monthFrom / monthTo : "YYYY-MM" — plage inclusive (1 mois = from === to)
+window._getInvMissions = function(monthFrom, monthTo, destRaw) {
+  // Rétrocompatibilité : 2 args = (month, destRaw)
+  if (arguments.length === 2) { destRaw = monthTo; monthTo = monthFrom; }
+  if (!monthFrom || !destRaw) return [];
+  if (!monthTo || monthTo < monthFrom) monthTo = monthFrom;
   const sep     = '::';
   const sepIdx  = destRaw.indexOf(sep);
   if (sepIdx < 0) return [];
   const destType = destRaw.substring(0, sepIdx);
   const destId   = destRaw.substring(sepIdx + sep.length);
 
+  const _inRange = m => {
+    const ym = (m.date||'').substring(0,7);
+    return ym >= monthFrom && ym <= monthTo;
+  };
+
   let missions = [];
 
   if (destType === 'co') {
-    // ── École : match direct par companyId ──────────────────────────
-    // L'agenda lie chaque mission à une école précise — pas besoin de keyword.
     missions = Data.getMissions().filter(m => {
-      if (!m.date?.startsWith(month)) return false;
+      if (!_inRange(m)) return false;
       if (m.status === 'cancelled') return false;
       return m.companyId === destId;
     });
-
   } else {
-    // ── Prestataire : keyword matching (gère les doublons d'ID comme EVOL AGENCY) ──
     const p = Data.getProviders().find(p => p.id === destId);
-    const destName = p ? (p.structure || p.lastName+' '+p.firstName) : '';
+    const destName = p ? ([p.firstName, p.lastName].filter(Boolean).join(' ') || p.structure || '') : '';
     if (!destName) return [];
     const _kws = n => new Set(
       n.toLowerCase().replace(/[^a-z0-9]/g,' ').split(/\s+/).filter(w => w.length >= 4)
@@ -789,11 +822,11 @@ window._getInvMissions = function(month, destRaw) {
     const selKws = _kws(destName);
     const allProvIds = new Set([destId]);
     Data.getProviders().forEach(pr => {
-      const n = pr.structure || pr.lastName+' '+pr.firstName;
+      const n = [pr.firstName, pr.lastName].filter(Boolean).join(' ') || pr.structure || '';
       if ([..._kws(n)].some(w => selKws.has(w))) allProvIds.add(pr.id);
     });
     missions = Data.getMissions().filter(m => {
-      if (!m.date?.startsWith(month)) return false;
+      if (!_inRange(m)) return false;
       if (m.status === 'cancelled') return false;
       const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
       return pids.some(pid => allProvIds.has(pid));
@@ -806,12 +839,13 @@ window._getInvMissions = function(month, destRaw) {
 
 // Aperçu en direct des missions dans le modal
 window._updateInvPreview = function() {
-  const box   = document.getElementById('inv-preview'); if (!box) return;
-  const month = document.getElementById('inv-month')?.value || '';
-  const dest  = document.getElementById('inv-dest')?.value  || '';
-  if (!month || !dest) { box.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">Sélectionnez un destinataire…</p>'; return; }
+  const box  = document.getElementById('inv-preview'); if (!box) return;
+  const from = document.getElementById('inv-month-from')?.value || '';
+  const to   = document.getElementById('inv-month-to')?.value   || from;
+  const dest = document.getElementById('inv-dest')?.value       || '';
+  if (!from || !dest) { box.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">Sélectionnez un destinataire…</p>'; return; }
 
-  const missions = window._getInvMissions(month, dest);
+  const missions = window._getInvMissions(from, to, dest);
   if (!missions.length) {
     box.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">Aucune mission trouvée pour ce mois.</p>';
     return;
@@ -860,11 +894,11 @@ window._showInvoiceExport = function() {
     '<option value="'+c.id+'"'+(c.id===defaultEmId?' selected':'')+'>'+Utils.escapeHtml(c.name)+'</option>'
   ).join('');
 
-  // "Facturer à" = prestataires + sociétés clientes avec comptage de missions
-  // Mois par défaut = mois courant si présent, sinon le plus récent
-  const currentM = Utils.currentYearMonth();
-  const defaultMonth = months.includes(currentM) ? currentM : (months[0] || '');
-  const { pOpts: provOpts, cOpts: coOpts } = window._buildInvDestOpts(defaultMonth);
+  // Période par défaut = mois courant (ou le plus récent disponible)
+  const currentM    = Utils.currentYearMonth();
+  const defaultFrom = months.includes(currentM) ? currentM : (months[0] || '');
+  const defaultTo   = defaultFrom;
+  const { pOpts: provOpts, cOpts: coOpts } = window._buildInvDestOpts(defaultFrom);
 
   const warn = (!settings.siret||!settings.iban)
     ? '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;font-size:0.85rem;color:#92400e;display:flex;gap:8px;align-items:flex-start"><span>⚠️</span><span>SIRET / IBAN non configurés — <a href="parametres.html" style="color:#92400e;font-weight:700;text-decoration:underline">Paramètres → Informations de facturation →</a></span></div>'
@@ -880,9 +914,14 @@ window._showInvoiceExport = function() {
       '<div class="form-grid">' +
         '<div class="form-group form-col-2"><label>Société émettrice</label>' +
           '<select id="inv-emetteur" class="form-input">'+emOpts+'</select></div>' +
-        '<div class="form-group form-col-2"><label>Mois de facturation</label>' +
-          '<select id="inv-month" class="form-input" onchange="window._updateInvDest()">'+
-            months.map(m=>'<option value="'+m+'">'+monthLabel(m)+'</option>').join('')+
+        '<div class="form-group form-col-2"></div>' +
+        '<div class="form-group form-col-2"><label>Période — Du mois</label>' +
+          '<select id="inv-month-from" class="form-input" onchange="window._updateInvDest()">'+
+            months.map(m=>'<option value="'+m+'"'+(m===defaultFrom?' selected':'')+'>'+monthLabel(m)+'</option>').join('')+
+          '</select></div>' +
+        '<div class="form-group form-col-2"><label>Au mois</label>' +
+          '<select id="inv-month-to" class="form-input" onchange="window._updateInvDest()">'+
+            months.map(m=>'<option value="'+m+'"'+(m===defaultTo?' selected':'')+'>'+monthLabel(m)+'</option>').join('')+
           '</select></div>' +
       '</div>' +
       '<div class="form-group" style="margin:0">' +
@@ -920,25 +959,28 @@ window._showInvoiceExport = function() {
 
 window._generateInvoice = function() {
   const emetteurId = document.getElementById('inv-emetteur')?.value || '';
-  const month      = document.getElementById('inv-month')?.value || '';
+  const monthFrom  = document.getElementById('inv-month-from')?.value || '';
+  const monthTo    = document.getElementById('inv-month-to')?.value   || monthFrom;
   const destRaw    = document.getElementById('inv-dest')?.value || '';
   const invNum     = document.getElementById('inv-num')?.value.trim() || '';
   const invDate    = document.getElementById('inv-date')?.value || Utils.today();
   const delay      = document.getElementById('inv-delay')?.value || '45 jours';
   const ref        = document.getElementById('inv-ref')?.value.trim() || '';
 
-  if (!month || !destRaw) { Utils.toast('Champs requis manquants.', 'error'); return; }
+  if (!monthFrom || !destRaw) { Utils.toast('Champs requis manquants.', 'error'); return; }
 
   const sep = '::';
   const sepIdx = destRaw.indexOf(sep);
-  const destType = destRaw.substring(0, sepIdx);   // 'prov' ou 'co'
+  const destType = destRaw.substring(0, sepIdx);
   const destId   = destRaw.substring(sepIdx + sep.length);
 
   const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin',
                      'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   const MONTHS_SH = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
-  const [y, mo]   = month.split('-');
-  const monthName = MONTHS_FR[+mo-1]+' '+y;
+  const [y, mo]   = monthFrom.split('-');
+  const monthName = monthFrom === monthTo
+    ? MONTHS_FR[+mo-1]+' '+y
+    : MONTHS_FR[+mo-1]+' '+y+' – '+MONTHS_FR[+monthTo.split('-')[1]-1]+' '+monthTo.split('-')[0];
 
   const [iy,im,id2] = invDate.split('-');
   const invDateFr   = id2+'/'+im+'/'+iy;
@@ -986,7 +1028,7 @@ window._generateInvoice = function() {
   if (!destName) { Utils.toast('Destinataire introuvable.', 'error'); return; }
 
   // Filtrage via la fonction centrale (même logique que l'aperçu)
-  let missions = window._getInvMissions(month, destRaw);
+  let missions = window._getInvMissions(monthFrom, monthTo, destRaw);
 
   if (!missions.length) {
     Utils.toast('Aucune mission pour ce destinataire sur ce mois.', 'success');
