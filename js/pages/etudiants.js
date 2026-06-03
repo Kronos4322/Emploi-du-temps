@@ -332,12 +332,19 @@ function studentDetailHTML() {
     byProv[key].push(m);
   });
 
-  // Nom d'un cours : subject > subject texte libre > title
+  // Nom d'un cours : subjectId → nom matière > subject libre > title (en italique = fallback)
   const courseName = m => {
     if (m.subjectId && subjMap[m.subjectId]) return subjMap[m.subjectId].name;
-    if (m.subject) return m.subject;
-    if (m.title)   return m.title;
-    return '—';
+    if (m.subject && m.subject.trim()) return m.subject.trim();
+    return m.title || '—';  // titre brut = fallback (mission sans matière définie)
+  };
+  // Indicateur visuel quand on utilise le titre en fallback (pas de matière définie)
+  const courseCell = m => {
+    const hasSubject = (m.subjectId && subjMap[m.subjectId]) || (m.subject && m.subject.trim());
+    const name = courseName(m);
+    return hasSubject
+      ? Utils.escapeHtml(name)
+      : `<em style="color:var(--text-muted);font-style:italic" title="Aucune matière définie — titre de la mission">${Utils.escapeHtml(name)}</em>`;
   };
 
   const provBlocks = provOrder.map(pid => {
@@ -355,14 +362,13 @@ function studentDetailHTML() {
     const rows = pms.map(m => {
       const d      = new Date((m.date || '') + 'T00:00:00');
       const dayStr = d.toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'long', year:'numeric' });
-      const cours  = courseName(m);
       const h      = m.duration    || 0;
       const pu     = m.billingRate || 0;   // ce qu'on facture à l'étudiant
       const pp     = m.providerRate|| 0;   // ce qu'on paie le prof
       const marge  = (pu - pp) * h;
       return `<tr style="border-bottom:1px solid var(--border)">
         <td style="padding:9px 14px;font-size:0.84rem;white-space:nowrap;color:var(--text-muted);min-width:140px">${dayStr}</td>
-        <td style="padding:9px 14px;font-size:0.84rem;font-weight:500">${Utils.escapeHtml(cours)}</td>
+        <td style="padding:9px 14px;font-size:0.84rem;font-weight:500">${courseCell(m)}</td>
         <td style="padding:9px 14px;font-size:0.84rem;text-align:right;font-weight:600;color:${col}">${h}h</td>
         <td style="padding:9px 14px;font-size:0.84rem;text-align:right;color:var(--success)">${pu > 0 ? pu.toFixed(2)+' €' : '—'}</td>
         <td style="padding:9px 14px;font-size:0.84rem;text-align:right;color:var(--danger)">${pp > 0 ? pp.toFixed(2)+' €' : '—'}</td>

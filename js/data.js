@@ -391,6 +391,30 @@ const Data = {
       }
     });
 
+    // Fusion des anciennes matières "cours particulier" vers les nouvelles canoniques
+    // ex: "Droit administratif- Cours particulier" → 'subj-cp-droit-admin'
+    const _legacyMerges = [
+      { keywords: ['droit administratif'], canonId: 'subj-cp-droit-admin'    },
+      { keywords: ['droit des contrats','contrats'],  canonId: 'subj-cp-droit-contrats' },
+    ];
+    _legacyMerges.forEach(({ keywords, canonId }) => {
+      const dupes = (this._db.subjects || []).filter(s =>
+        s.id !== canonId &&
+        keywords.some(kw => (s.name || '').toLowerCase().includes(kw))
+      );
+      dupes.forEach(dupe => {
+        // Rediriger toutes les missions pointant vers l'ancien ID
+        (this._db.missions || []).forEach(m => {
+          let mc = false;
+          if (m.subjectId === dupe.id) { m.subjectId = canonId; mc = true; }
+          if (mc) { m.updatedAt = Date.now(); changed = true; }
+        });
+        // Supprimer la matière dupliquée
+        this._db.subjects = (this._db.subjects || []).filter(s => s.id !== dupe.id);
+        changed = true;
+      });
+    });
+
     // Log de synthèse pour diagnostic
     const _asterCo = (this._db.companies||[]).find(c => c.role==='own' && (c.name||'').toLowerCase().includes('aster'));
     const _usacCo  = (this._db.companies||[]).find(c => c.role!=='own' && ((c.name||'').toLowerCase().includes('usac')||(c.name||'').toLowerCase().includes('ursac')));
