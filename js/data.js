@@ -432,6 +432,33 @@ const Data = {
       }
     });
 
+    // ── Restauration de DRA106 PRINCIPAUX CONTRATS DE L'ENTREPRISE ───────────
+    // Ce sujet a été supprimé par le _legacyMerges ('contrats' trop large)
+    // On le recrée et on réassigne les missions CNAM qui lui appartenaient
+    const _DRA106_ID = 'subj-dra106-contrats';
+    if (!(this._db.subjects || []).find(s => s.id === _DRA106_ID)) {
+      (this._db.subjects = this._db.subjects || []).push({
+        id: _DRA106_ID,
+        name: 'DRA106 Principaux contrats de l\'entreprise',
+        level: 'superieur', color: '#3b82f6', category: 'ecoles',
+        createdAt: Date.now(), updatedAt: Date.now()
+      });
+      changed = true;
+    }
+    // Réassigner les missions CNAM orphelines (subjectId = ecoles-droit-contrats) → DRA106
+    const _cnamIds = new Set(
+      (this._db.companies || [])
+        .filter(c => (c.name || '').toLowerCase().includes('cnam'))
+        .map(c => c.id)
+    );
+    (this._db.missions || []).forEach(m => {
+      if (m.subjectId !== 'subj-ecoles-droit-contrats') return;
+      if (!_cnamIds.has(m.companyId)) return;
+      m.subjectId = _DRA106_ID;
+      m.updatedAt = Date.now();
+      changed = true;
+    });
+
     // ── Sujet institutionnel "Droit des contrats" dans COURS ÉCOLES ──────────
     // Distinct du sujet cours particuliers (subj-cp-droit-contrats)
     const _CONTRATS_INST_ID = 'subj-ecoles-droit-contrats';
