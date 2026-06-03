@@ -269,11 +269,13 @@ function studentDetailHTML() {
   const s = Data.getStudentById(_stuId);
   if (!s) return '<p>Étudiant introuvable.</p>';
 
-  const cos  = {}; Data.getCompanies().forEach(c => cos[c.id] = c);
-  const prov = {}; Data.getProviders().forEach(p => prov[p.id] = p);
-  const co   = cos[s.poleId || s.companyId];
-  const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin',
-                     'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const cos      = {}; Data.getCompanies().forEach(c => cos[c.id] = c);
+  const provMap  = {}; Data.getProviders().forEach(p => provMap[p.id] = p);
+  const subjMap  = {}; (Data.getSubjects()||[]).forEach(x => subjMap[x.id] = x);
+  const co       = cos[s.poleId || s.companyId];
+
+  // Palette de couleurs par prof
+  const PROF_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
 
   // Toutes les missions liées à cet étudiant, triées par date
   const missions = Data.getMissions()
@@ -294,67 +296,96 @@ function studentDetailHTML() {
     <div class="empty-page"><div class="empty-icon">📅</div><h2>Aucun cours enregistré</h2></div>`;
   }
 
-  // Regrouper par mois
-  const byMonth = {};
+  // Identifier tous les profs impliqués (dans l'ordre d'apparition)
+  const provOrder = [];
+  const provSeen  = new Set();
   missions.forEach(m => {
-    const mo = (m.date || '').substring(0, 7); // "2026-05"
-    if (!byMonth[mo]) byMonth[mo] = [];
-    byMonth[mo].push(m);
+    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : ['__none__']);
+    pids.forEach(pid => { if (!provSeen.has(pid)) { provSeen.add(pid); provOrder.push(pid); } });
   });
 
-  const monthBlocks = Object.keys(byMonth).sort().map(mo => {
-    const [y, mIdx] = mo.split('-');
-    const label = MONTHS_FR[+mIdx - 1] + ' ' + y;
-    const mms   = byMonth[mo];
-    const mH    = mms.reduce((a, m) => a + (m.duration || 0), 0);
-    const mHT   = mms.reduce((a, m) => a + (m.duration || 0) * (m.billingRate || 0), 0);
+  // Couleur par prof
+  const provColor = {};
+  provOrder.forEach((pid, i) => { provColor[pid] = PROF_COLORS[i % PROF_COLORS.length]; });
 
-    const rows = mms.map(m => {
+  // Grouper les missions par prof principal (premier pid)
+  const byProv = {};
+  missions.forEach(m => {
+    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : ['__none__']);
+    const key  = pids[0];
+    if (!byProv[key]) byProv[key] = [];
+    byProv[key].push(m);
+  });
+
+  // Nom d'un cours : subject > subject texte libre > title
+  const courseName = m => {
+    if (m.subjectId && subjMap[m.subjectId]) return subjMap[m.subjectId].name;
+    if (m.subject) return m.subject;
+    if (m.title)   return m.title;
+    return '—';
+  };
+
+  const provBlocks = provOrder.map(pid => {
+    const p    = provMap[pid];
+    const pms  = byProv[pid] || [];
+    if (!pms.length) return '';
+    const col  = provColor[pid];
+    const pH   = pms.reduce((a, m) => a + (m.duration || 0), 0);
+    const pHT  = pms.reduce((a, m) => a + (m.duration || 0) * (m.billingRate || 0), 0);
+    const pCost= pms.reduce((a, m) => a + (m.duration || 0) * (m.providerRate || 0), 0);
+    const provName = p ? (p.firstName + ' ' + p.lastName).toUpperCase() : 'INTERVENANT INCONNU';
+
+    const rows = pms.map(m => {
       const d = new Date((m.date || '') + 'T00:00:00');
-      const dayStr = d.toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'short' });
-      const pids   = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
-      const provNames = pids.map(pid => {
-        const p = prov[pid];
-        return p ? p.firstName + ' ' + p.lastName : '';
-      }).filter(Boolean).join(', ') || '—';
-      const title = m.title || m.subject || '—';
-      const h     = m.duration || 0;
-      const pu    = m.billingRate || 0;
-      const tot   = h * pu;
-      return `<tr>
-        <td style="padding:8px 12px;font-size:0.85rem;white-space:nowrap;color:var(--text-muted)">${dayStr}</td>
-        <td style="padding:8px 12px;font-size:0.85rem">${Utils.escapeHtml(title)}</td>
-        <td style="padding:8px 12px;font-size:0.85rem;color:var(--text-muted)">${Utils.escapeHtml(provNames)}</td>
-        <td style="padding:8px 12px;font-size:0.85rem;text-align:right">${h % 1 === 0 ? h + 'h' : h + 'h'}</td>
-        <td style="padding:8px 12px;font-size:0.85rem;text-align:right;color:var(--text-muted)">${pu > 0 ? pu.toFixed(2) + ' €' : '—'}</td>
-        <td style="padding:8px 12px;font-size:0.85rem;text-align:right;font-weight:600">${tot > 0 ? Utils.formatMoney(tot) : '—'}</td>
+      const dayStr = d.toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'long', year:'numeric' });
+      const cours  = courseName(m);
+      const h = m.duration || 0;
+      const pu = m.billingRate || 0;
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:9px 14px;font-size:0.84rem;white-space:nowrap;color:var(--text-muted);min-width:140px">${dayStr}</td>
+        <td style="padding:9px 14px;font-size:0.84rem;font-weight:500">${Utils.escapeHtml(cours)}</td>
+        <td style="padding:9px 14px;font-size:0.84rem;text-align:right;font-weight:600;color:${col}">${h % 1 === 0 ? h+'h' : h+'h'}</td>
+        <td style="padding:9px 14px;font-size:0.84rem;text-align:right;color:var(--text-muted)">${pu > 0 ? pu.toFixed(2)+' €' : '—'}</td>
+        <td style="padding:9px 14px;font-size:0.84rem;text-align:right;font-weight:700">${h*pu > 0 ? Utils.formatMoney(h*pu) : '—'}</td>
       </tr>`;
     }).join('');
 
-    return `<div style="margin-bottom:20px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <h3 style="margin:0;font-size:0.95rem;font-weight:700;color:var(--text)">${label}</h3>
-        <span style="font-size:0.82rem;color:var(--text-muted)">${mms.length} séance${mms.length > 1 ? 's' : ''} · ${mH}h · <strong style="color:var(--success)">${Utils.formatMoney(mHT)}</strong></span>
+    return `<div style="margin-bottom:24px;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.08)">
+      <!-- En-tête prof -->
+      <div style="background:${col};padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.85rem;color:#fff">
+            ${(provName[0]||'?')}
+          </div>
+          <div>
+            <div style="font-weight:800;font-size:0.95rem;color:#fff">${Utils.escapeHtml(provName)}</div>
+            <div style="font-size:0.75rem;color:rgba(255,255,255,.75)">${pms.length} séance${pms.length>1?'s':''}</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:1.1rem;font-weight:800;color:#fff">${Utils.formatMoney(pHT)}</div>
+          <div style="font-size:0.78rem;color:rgba(255,255,255,.8)">${pH}h · ${pu > 0 ? (pHT/pH).toFixed(0)+' €/h moy.' : ''}</div>
+        </div>
       </div>
-      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <!-- Tableau des séances -->
+      <div style="background:var(--bg-card)">
         <table style="width:100%;border-collapse:collapse">
           <thead>
-            <tr style="background:var(--surface);border-bottom:1px solid var(--border)">
-              <th style="padding:8px 12px;font-size:0.72rem;font-weight:600;text-align:left;color:var(--text-muted)">DATE</th>
-              <th style="padding:8px 12px;font-size:0.72rem;font-weight:600;text-align:left;color:var(--text-muted)">COURS</th>
-              <th style="padding:8px 12px;font-size:0.72rem;font-weight:600;text-align:left;color:var(--text-muted)">PROF</th>
-              <th style="padding:8px 12px;font-size:0.72rem;font-weight:600;text-align:right;color:var(--text-muted)">HEURES</th>
-              <th style="padding:8px 12px;font-size:0.72rem;font-weight:600;text-align:right;color:var(--text-muted)">€/H</th>
-              <th style="padding:8px 12px;font-size:0.72rem;font-weight:600;text-align:right;color:var(--text-muted)">TOTAL</th>
+            <tr style="background:${col}18;border-bottom:2px solid ${col}40">
+              <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:left;color:${col};letter-spacing:.06em">DATE</th>
+              <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:left;color:${col};letter-spacing:.06em">COURS</th>
+              <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:right;color:${col};letter-spacing:.06em">HEURES</th>
+              <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:right;color:${col};letter-spacing:.06em">€/H</th>
+              <th style="padding:8px 14px;font-size:0.7rem;font-weight:700;text-align:right;color:${col};letter-spacing:.06em">TOTAL</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
           <tfoot>
-            <tr style="border-top:2px solid var(--border);background:var(--surface)">
-              <td colspan="3" style="padding:8px 12px;font-size:0.82rem;font-weight:700">Sous-total ${label}</td>
-              <td style="padding:8px 12px;text-align:right;font-weight:700">${mH}h</td>
+            <tr style="background:${col}10;border-top:2px solid ${col}40">
+              <td colspan="2" style="padding:10px 14px;font-weight:700;font-size:0.88rem">Total ${Utils.escapeHtml(provName)}</td>
+              <td style="padding:10px 14px;text-align:right;font-weight:800;font-size:0.95rem;color:${col}">${pH}h</td>
               <td></td>
-              <td style="padding:8px 12px;text-align:right;font-weight:700;color:var(--success)">${Utils.formatMoney(mHT)}</td>
+              <td style="padding:10px 14px;text-align:right;font-weight:800;font-size:0.95rem;color:${col}">${Utils.formatMoney(pHT)}</td>
             </tr>
           </tfoot>
         </table>
@@ -402,15 +433,18 @@ function studentDetailHTML() {
     </div>
   </div>
 
-  <!-- Cours par mois -->
-  ${monthBlocks}
+  <!-- Cours par prof -->
+  ${provBlocks}
 
   <!-- Total général -->
-  <div style="background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-    <span style="font-size:0.95rem;font-weight:700">TOTAL GÉNÉRAL — ${missions.length} séance${missions.length>1?'s':''}</span>
+  <div style="background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:18px 22px;display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+    <div>
+      <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:2px">Total général</div>
+      <div style="font-size:0.9rem;color:var(--text-muted)">${missions.length} séance${missions.length>1?'s':''} · ${provOrder.length} intervenant${provOrder.length>1?'s':''}</div>
+    </div>
     <div style="text-align:right">
-      <span style="font-size:1rem;font-weight:800;margin-right:24px">${totalH}h</span>
-      <span style="font-size:1.2rem;font-weight:800;color:var(--success)">${Utils.formatMoney(totalHT)}</span>
+      <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:2px">${totalH}h au total</div>
+      <div style="font-size:1.5rem;font-weight:800;color:var(--success)">${Utils.formatMoney(totalHT)}</div>
     </div>
   </div>`;
 }
