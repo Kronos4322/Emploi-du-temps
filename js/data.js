@@ -19,8 +19,9 @@ function _reRenderPage() {
     else if (typeof renderCalendar   === 'function') renderCalendar();
     else if (typeof render           === 'function') render();
     else if (typeof renderPage       === 'function') renderPage();
-    else location.reload();
-  } catch(e) { location.reload(); }
+    // ⚠️ PAS de location.reload() en fallback : causerait une boucle infinie
+    // sur les pages sans render() (parametres, location, personnel…)
+  } catch(e) { console.warn('[_reRenderPage] erreur:', e); }
 }
 
 const Data = {
