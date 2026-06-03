@@ -342,10 +342,23 @@ const Data = {
     });
 
     // Infos bancaires ASTÉRIA — toujours forcées (valeurs canoniques)
-    // ⚠️ On vérifie le nom (pas le rôle) : la migration peut ne pas avoir tourné
+    // ⚠️ 'Astéria'.includes('aster') = FALSE : é (U+00E9) ≠ e (U+0065)
+    // Détection robuste : ID canonique OU variantes de nom sans accent
+    const _isAsteriaCompany = c => {
+      if (c.id === 'co-asteria') return true;
+      const n = (c.name||'').toLowerCase();
+      // Couvre: asteria, astéria, astéria, ASTERIA, ASTÉRIA, etc.
+      if (n.includes('asteria')) return true;           // sans accent
+      if (n.includes('astéria')) return true;     // é NFD
+      if (n.charCodeAt(0)===97 && n.includes('ast')) {
+        // Fallback: commence par 'a' et contient 'ast' + 'ria' → Astéria probable
+        const idx = n.indexOf('ast'); return idx >= 0 && n.includes('ria', idx);
+      }
+      return false;
+    };
     const _ASTER_IBAN = 'FR76 1450 6042 1000 9111 2162 016';
     (this._db.companies || []).forEach(c => {
-      if (!(c.name || '').toLowerCase().includes('aster')) return;
+      if (!_isAsteriaCompany(c)) return;
       // Forcer aussi le rôle si absent
       if (c.role !== 'own') { c.role = 'own'; changed = true; }
       const _n = Date.now();
