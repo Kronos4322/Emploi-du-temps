@@ -412,11 +412,43 @@ const Data = {
       }
     });
 
-    // Fusion des anciennes matières "cours particulier" vers les nouvelles canoniques
-    // ex: "Droit administratif- Cours particulier" → 'subj-cp-droit-admin'
+    // ── Sujet institutionnel "Droit des contrats" dans COURS ÉCOLES ──────────
+    // Distinct du sujet cours particuliers (subj-cp-droit-contrats)
+    const _CONTRATS_INST_ID = 'subj-ecoles-droit-contrats';
+    if (!(this._db.subjects || []).find(s => s.id === _CONTRATS_INST_ID)) {
+      (this._db.subjects = this._db.subjects || []).push({
+        id: _CONTRATS_INST_ID, name: 'Droit des contrats', level: 'superieur',
+        color: '#3b82f6', category: 'ecoles',
+        createdAt: Date.now(), updatedAt: Date.now()
+      });
+      changed = true;
+    }
+
+    // ── Réparation : missions institutionnelles mal placées dans cours particuliers ─
+    // Une mission est "cours particulier" si missionCategory='particuliers' OU si
+    // sa société pointe vers la société "Cours particuliers"
+    const _cpCo = (this._db.companies || []).find(c =>
+      c.role !== 'own' && (c.name || '').toLowerCase().includes('cours particulier')
+    );
+    const _cpCoId = _cpCo?.id;
+    (this._db.missions || []).forEach(m => {
+      if (m.subjectId !== 'subj-cp-droit-contrats') return;
+      const isParticulier = m.missionCategory === 'particuliers' || m.companyId === _cpCoId;
+      if (!isParticulier) {
+        // Mission institutionnelle absorbée par erreur → la réassigner
+        m.subjectId  = _CONTRATS_INST_ID;
+        m.updatedAt  = Date.now();
+        changed = true;
+      }
+    });
+
+    // ── Fusion uniquement des ANCIENS doublons cours particuliers (noms explicites) ─
+    // ⚠️ Ne PAS utiliser 'contrats' seul : trop large, absorberait DRA106 etc.
     const _legacyMerges = [
-      { keywords: ['droit administratif'], canonId: 'subj-cp-droit-admin'    },
-      { keywords: ['droit des contrats','contrats'],  canonId: 'subj-cp-droit-contrats' },
+      { keywords: ['droit administratif cours particulier', 'droit administratif- cours'],
+        canonId: 'subj-cp-droit-admin' },
+      { keywords: ['droit des contrats cours particulier', 'droit des contrats- cours'],
+        canonId: 'subj-cp-droit-contrats' },
     ];
     _legacyMerges.forEach(({ keywords, canonId }) => {
       const dupes = (this._db.subjects || []).filter(s =>
@@ -424,13 +456,9 @@ const Data = {
         keywords.some(kw => (s.name || '').toLowerCase().includes(kw))
       );
       dupes.forEach(dupe => {
-        // Rediriger toutes les missions pointant vers l'ancien ID
         (this._db.missions || []).forEach(m => {
-          let mc = false;
-          if (m.subjectId === dupe.id) { m.subjectId = canonId; mc = true; }
-          if (mc) { m.updatedAt = Date.now(); changed = true; }
+          if (m.subjectId === dupe.id) { m.subjectId = canonId; m.updatedAt = Date.now(); changed = true; }
         });
-        // Supprimer la matière dupliquée
         this._db.subjects = (this._db.subjects || []).filter(s => s.id !== dupe.id);
         changed = true;
       });
