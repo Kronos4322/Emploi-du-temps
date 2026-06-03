@@ -432,6 +432,21 @@ const Data = {
       }
     });
 
+    // ── Matières institutionnelles DRA — créées si absentes ──────────────────
+    const _draSubjects = [
+      { id: 'subj-dra106-contrats',  name: 'DRA106 Principaux contrats de l\'entreprise', color: '#3b82f6', level: 'superieur' },
+      { id: 'subj-dra110-activites', name: 'DRA110 Activités et biens de l\'entreprise',  color: '#3b82f6', level: 'superieur' },
+      { id: 'subj-dra103-regles',    name: 'DRA103 Règles générales du droit des contrats', color: '#3b82f6', level: 'superieur' },
+    ];
+    _draSubjects.forEach(def => {
+      if (!(this._db.subjects || []).find(s => s.id === def.id)) {
+        (this._db.subjects = this._db.subjects || []).push({
+          ...def, category: 'ecoles', createdAt: Date.now(), updatedAt: Date.now()
+        });
+        changed = true;
+      }
+    });
+
     // ── Restauration de DRA106 PRINCIPAUX CONTRATS DE L'ENTREPRISE ───────────
     // Ce sujet a été supprimé par le _legacyMerges ('contrats' trop large)
     // On le recrée et on réassigne les missions CNAM qui lui appartenaient
