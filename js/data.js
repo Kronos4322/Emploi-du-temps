@@ -363,14 +363,29 @@ const Data = {
       if (c.defaultBillingRate !== 45) { c.defaultBillingRate = 45; c.updatedAt = Date.now(); changed = true; }
     });
 
-    // Matières "Cours particuliers" — créées si absentes
+    // Catégorie "Cours particuliers" dans le référentiel Matières
+    const _CP_CAT_ID = 'cat-cours-particuliers';
+    if (!(this._db.subjectCategories || []).find(c => c.id === _CP_CAT_ID)) {
+      (this._db.subjectCategories = this._db.subjectCategories || []).push({
+        id: _CP_CAT_ID, name: 'Cours particuliers', createdAt: Date.now(), updatedAt: Date.now()
+      });
+      changed = true;
+    }
+
+    // Matières "Cours particuliers" — créées si absentes, rattachées à la catégorie
     const _cpSubjects = [
-      { id: 'subj-cp-droit-admin',    name: 'Droit administratif', category: 'particuliers' },
-      { id: 'subj-cp-droit-contrats', name: 'Droit des contrats',  category: 'particuliers' },
+      { id: 'subj-cp-droit-admin',    name: 'Droit administratif', category: 'particuliers', categoryId: _CP_CAT_ID, color: '#7c3aed' },
+      { id: 'subj-cp-droit-contrats', name: 'Droit des contrats',  category: 'particuliers', categoryId: _CP_CAT_ID, color: '#7c3aed' },
     ];
     _cpSubjects.forEach(def => {
-      if (!(this._db.subjects || []).find(s => s.id === def.id)) {
+      const existing = (this._db.subjects || []).find(s => s.id === def.id);
+      if (!existing) {
         (this._db.subjects = this._db.subjects || []).push({ ...def, createdAt: Date.now(), updatedAt: Date.now() });
+        changed = true;
+      } else if (existing.categoryId !== _CP_CAT_ID) {
+        existing.categoryId = _CP_CAT_ID;
+        existing.category   = 'particuliers';
+        existing.updatedAt  = Date.now();
         changed = true;
       }
     });
