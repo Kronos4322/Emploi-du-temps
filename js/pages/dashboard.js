@@ -785,11 +785,12 @@ function _buildDestSelect(from, to, selected) {
 // ── 3. Mise à jour de l'aperçu ────────────────────────────────────
 window._updateInvPreview = function() {
   const box  = document.getElementById('inv-preview'); if (!box) return;
-  const from = document.getElementById('inv-from')?.value || '';
-  const to   = document.getElementById('inv-to')?.value   || from;
-  const dest = document.getElementById('inv-dest')?.value || '';
-  if (!from || !dest) { box.innerHTML='<p style="color:var(--text-muted);font-size:0.85rem">Sélectionnez un destinataire…</p>'; return; }
-  const ms = window._getInvMissions(from, to, dest);
+  const fromRaw = document.getElementById('inv-from')?.value || '';
+  const toRaw   = document.getElementById('inv-to')?.value   || fromRaw;
+  const dest    = document.getElementById('inv-dest')?.value || '';
+  if (!fromRaw || !dest) { box.innerHTML='<p style="color:var(--text-muted);font-size:0.85rem">Sélectionnez un destinataire…</p>'; return; }
+  // _getInvMissions accepte YYYY-MM-DD (isFullDate=true → comparaison directe)
+  const ms = window._getInvMissions(fromRaw, toRaw < fromRaw ? fromRaw : toRaw, dest);
   if (!ms.length) { box.innerHTML='<p style="color:var(--text-muted);font-size:0.85rem">Aucune mission pour cette période.</p>'; return; }
   const totalH  = ms.reduce((s,m)=>s+(m.duration||0),0);
   const totalHT = ms.reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0);
@@ -799,31 +800,35 @@ window._updateInvPreview = function() {
 };
 
 // ── 4. Mise à jour du select destination quand la période change ──
+// Lit les dates YYYY-MM-DD des inputs, convertit en YYYY-MM pour le filtre
 window._updateInvDest = function() {
-  const from = document.getElementById('inv-from')?.value; if (!from) return;
-  const to   = document.getElementById('inv-to')?.value || from;
-  if (to < from) { const el=document.getElementById('inv-to'); if(el) el.value=from; }
+  const fromFull = document.getElementById('inv-from')?.value; if (!fromFull) return;
+  const toFull   = document.getElementById('inv-to')?.value   || fromFull;
+  // Normaliser : accepte YYYY-MM ou YYYY-MM-DD
+  const norm = s => s.length >= 7 ? s.substring(0,7) : s;
+  const from = norm(fromFull), to = norm(toFull < fromFull ? fromFull : toFull);
   const sel  = document.getElementById('inv-dest'); if (!sel) return;
   const prev = sel.value;
-  sel.innerHTML = _buildDestSelect(from, to < from ? from : to, prev);
+  sel.innerHTML = _buildDestSelect(from, to, prev);
   window._updateInvPreview();
 };
 
 // ── 5. Raccourcis période ─────────────────────────────────────────
 window._invSetPeriod = function(type, offset) {
   const now = new Date();
-  let from, to;
   const pad = n => String(n).padStart(2,'0');
-  const fmt = d => d.getFullYear()+'-'+pad(d.getMonth()+1);
+  const fmtDate = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  let from, to;
   if (type === 'month') {
-    const d = new Date(now.getFullYear(), now.getMonth()+(offset||0), 1);
-    from = to = fmt(d);
+    const d  = new Date(now.getFullYear(), now.getMonth()+(offset||0), 1);
+    const d2 = new Date(d.getFullYear(), d.getMonth()+1, 0); // dernier jour du mois
+    from = fmtDate(d); to = fmtDate(d2);
   } else if (type === 'months3') {
-    from = fmt(new Date(now.getFullYear(), now.getMonth()-2, 1));
-    to   = fmt(now);
+    from = fmtDate(new Date(now.getFullYear(), now.getMonth()-2, 1));
+    to   = fmtDate(new Date(now.getFullYear(), now.getMonth()+1, 0));
   } else if (type === 'year') {
-    from = now.getFullYear()+'-01';
-    to   = now.getFullYear()+'-12';
+    from = now.getFullYear()+'-01-01';
+    to   = now.getFullYear()+'-12-31';
   }
   const fEl=document.getElementById('inv-from'), tEl=document.getElementById('inv-to');
   if (fEl && from) fEl.value=from;
@@ -842,14 +847,16 @@ window._showInvoiceExport = function() {
   const defaultDelay = settings.invoicePaymentDelay || '45 jours';
 
   const currentM    = Utils.currentYearMonth();
-  const defaultFrom = months.includes(currentM) ? currentM : months[0];
-  const defaultTo   = defaultFrom;
+  const pad = n => String(n).padStart(2,'0');
+  // Dates par défaut : 1er du mois courant → aujourd'hui
+  const now2 = new Date();
+  const defaultDateFrom = currentM + '-01';
+  const defaultDateTo   = Utils.today();
 
   const defaultEmId = (_dashPole && ownCos.find(c=>c.id===_dashPole)) ? _dashPole : (ownCos[0]?.id||'');
   const emOpts = ownCos.map(c=>'<option value="'+c.id+'"'+(c.id===defaultEmId?' selected':'')+'>'+Utils.escapeHtml(c.name)+'</option>').join('');
   const delayOpts = ['30 jours','45 jours','60 jours','À réception'].map(d=>'<option value="'+d+'"'+(d===defaultDelay?' selected':'')+'>'+d+'</option>').join('');
-  const monthOpts = months.map(m=>'<option value="'+m+'">'+_invMonthLabel(m)+'</option>').join('');
-  const destOpts  = _buildDestSelect(defaultFrom, defaultTo, '');
+  const destOpts  = _buildDestSelect(currentM, currentM, '');
   const warn = (!settings.siret&&!settings.iban) ? '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;font-size:0.85rem;color:#92400e">⚠️ SIRET / IBAN non configurés — <a href="parametres.html" style="color:#92400e;font-weight:700">Paramètres →</a></div>' : '';
 
   Modals._open(
@@ -858,10 +865,20 @@ window._showInvoiceExport = function() {
       warn+
       '<div class="form-grid">'+
         '<div class="form-group form-col-2"><label>Société émettrice</label><select id="inv-emetteur" class="form-input">'+emOpts+'</select></div>'+
-        '<div class="form-group form-col-2"><div style="display:flex;gap:6px;margin-top:22px"><button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'month\',0)">Ce mois</button><button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'month\',-1)">Mois préc.</button><button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'months3\')">3 mois</button></div></div>'+
-        '<div class="form-group form-col-2"><label>Du mois</label><select id="inv-from" class="form-input" onchange="window._updateInvDest()">'+monthOpts.replace('<option value="'+defaultFrom+'">', '<option value="'+defaultFrom+'" selected>')+'</select></div>'+
-        '<div class="form-group form-col-2"><label>Au mois</label><select id="inv-to" class="form-input" onchange="window._updateInvDest()">'+monthOpts.replace('<option value="'+defaultTo+'">', '<option value="'+defaultTo+'" selected>')+'</select></div>'+
+        '<div class="form-group form-col-2" style="display:flex;flex-direction:column;justify-content:flex-end">'+
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px">'+
+            '<button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'month\',0)">Ce mois</button>'+
+            '<button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'month\',-1)">Mois préc.</button>'+
+            '<button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'months3\')">3 mois</button>'+
+            '<button type="button" class="btn btn-ghost btn-sm" onclick="window._invSetPeriod(\'year\')">Année</button>'+
+          '</div>'+
+        '</div>'+
+        '<div class="form-group form-col-2"><label>Du</label>'+
+          '<input type="date" id="inv-from" class="form-input" value="'+defaultDateFrom+'"></div>'+
+        '<div class="form-group form-col-2"><label>Au</label>'+
+          '<input type="date" id="inv-to" class="form-input" value="'+defaultDateTo+'"></div>'+
       '</div>'+
+      '<button type="button" class="btn btn-primary" style="width:100%;margin-top:-8px" onclick="window._updateInvDest()">🔍 Afficher les missions de cette période</button>'+
       '<div class="form-group" style="margin:0"><label>Facturer à</label><select id="inv-dest" class="form-input" onchange="window._updateInvPreview()">'+destOpts+'</select></div>'+
       '<div><div style="font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:6px">Missions incluses</div><div id="inv-preview" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:10px 14px;background:var(--bg)"><p style="color:var(--text-muted);font-size:0.85rem">Chargement…</p></div></div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">'+
@@ -879,24 +896,28 @@ window._showInvoiceExport = function() {
 // ── 7. Générer la facture ─────────────────────────────────────────
 window._generateInvoice = function() {
   const emetteurId = document.getElementById('inv-emetteur')?.value || '';
-  const monthFrom  = document.getElementById('inv-from')?.value || '';
-  const monthTo    = document.getElementById('inv-to')?.value   || monthFrom;
+  const dateFrom   = document.getElementById('inv-from')?.value || '';
+  const dateTo     = document.getElementById('inv-to')?.value   || dateFrom;
   const destRaw    = document.getElementById('inv-dest')?.value || '';
   const invNum     = document.getElementById('inv-num')?.value?.trim() || '';
   const invDate    = document.getElementById('inv-date')?.value || Utils.today();
   const delay      = document.getElementById('inv-delay')?.value || '45 jours';
   const ref        = document.getElementById('inv-ref')?.value?.trim() || '';
 
-  if (!monthFrom || !destRaw) { Utils.toast('Champs requis manquants.', 'error'); return; }
+  if (!dateFrom || !destRaw) { Utils.toast('Sélectionnez une période et un destinataire.', 'error'); return; }
 
   const sep = '::'; const si = destRaw.indexOf(sep);
   const destType = destRaw.substring(0, si);
   const destId   = destRaw.substring(si + sep.length);
 
-  const [y, mo] = monthFrom.split('-');
-  const monthName = monthFrom === monthTo
+  // Label période : si même mois → "Juin 2026", sinon "01/04 – 30/06/2026"
+  const df = new Date(dateFrom+'T00:00:00'), dt = new Date(dateTo+'T00:00:00');
+  const sameMonth = dateFrom.substring(0,7) === dateTo.substring(0,7);
+  const [y, mo] = dateFrom.split('-');
+  const fmtFr = d => String(d.getDate()).padStart(2,'0')+'/'+(d.getMonth()+1 < 10?'0':'')+(d.getMonth()+1);
+  const monthName = sameMonth
     ? _INV_MONTHS_FR[+mo-1]+' '+y
-    : _INV_MONTHS_FR[+mo-1]+' '+y+' – '+_INV_MONTHS_FR[+monthTo.split('-')[1]-1]+' '+monthTo.split('-')[0];
+    : fmtFr(df)+' – '+fmtFr(dt)+'/'+dt.getFullYear();
 
   const [iy,im,id2] = invDate.split('-');
   const invDateFr   = id2+'/'+im+'/'+iy;
@@ -929,7 +950,7 @@ window._generateInvoice = function() {
   }
   if (!destName) { Utils.toast('Destinataire introuvable.', 'error'); return; }
 
-  let missions = window._getInvMissions(monthFrom, monthTo, destRaw);
+  let missions = window._getInvMissions(dateFrom, dateTo, destRaw);
   if (!missions.length) { Utils.toast('Aucune mission pour ce destinataire sur cette période.', 'success'); return; }
 
   const totalH  = missions.reduce((s,m) => s+(m.duration||0), 0);
