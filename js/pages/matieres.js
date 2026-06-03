@@ -28,10 +28,19 @@ function render() {
     filterBar.style.cssText = 'display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap';
     list.parentElement.insertBefore(filterBar, list);
   }
+  // Dropdown matières : groupé par catégorie (COURS ÉCOLES / COURS PARTICULIERS), tout en majuscules
+  const _allSubjects   = Data.getSubjects();
+  const _subjectsEcoles = _allSubjects.filter(s => s.category !== 'particuliers')
+    .sort((a,b) => (a.name||'').localeCompare(b.name||'', 'fr'));
+  const _subjectsPart   = _allSubjects.filter(s => s.category === 'particuliers')
+    .sort((a,b) => (a.name||'').localeCompare(b.name||'', 'fr'));
+  const _subjOpt = s => `<option value="${s.id}" ${_filterSearch===s.id?'selected':''}>${Utils.escapeHtml((s.name||'').toUpperCase())}</option>`;
+
   filterBar.innerHTML =
     `<select onchange="window._matSearch(this.value)" style="flex:1;padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:0.85rem;background:var(--bg-card);cursor:pointer">
       <option value="">— Toutes les matières —</option>
-      ${Data.getSubjects().map(s=>`<option value="${s.id}" ${_filterSearch===s.id?'selected':''}>${Utils.escapeHtml(s.name)}</option>`).join('')}
+      ${_subjectsEcoles.length ? `<optgroup label="🏫 COURS ÉCOLES">${_subjectsEcoles.map(_subjOpt).join('')}</optgroup>` : ''}
+      ${_subjectsPart.length   ? `<optgroup label="👤 COURS PARTICULIERS">${_subjectsPart.map(_subjOpt).join('')}</optgroup>` : ''}
     </select>
     <select onchange="window._matSchool(this.value)" style="flex:1;padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:0.85rem;background:var(--bg-card);cursor:pointer">
       <option value="">— Toutes les écoles —</option>
