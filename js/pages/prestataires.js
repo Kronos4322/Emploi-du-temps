@@ -118,11 +118,18 @@ function render() {
   const _mProvIds = m => m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
   const inclMonth = allMissionsWithProv.filter(m => _mProvIds(m).some(pid => inclProvIds.has(pid)) && m.date && m.date.startsWith(cm));
   const inclAll   = allMissionsWithProv.filter(m => _mProvIds(m).some(pid => inclProvIds.has(pid)));
-  const totMonthCost  = inclMonth.reduce((s,m) => s+(m.duration||0)*(m.providerRate||0), 0);
+  // Pour les missions multi-prestataires : multiplier le coût par le nb de profs inclus
+  // (providerRate = tarif individuel par intervenant)
+  const _mCost = (m, filtPids) => {
+    const pids = _mProvIds(m);
+    const n = filtPids ? pids.filter(pid => filtPids.has(pid)).length : pids.length;
+    return (m.duration||0) * (m.providerRate||0) * Math.max(n, 1);
+  };
+  const totMonthCost  = inclMonth.reduce((s,m) => s + _mCost(m, inclProvIds), 0);
   const totMonthRev   = inclMonth.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
   const totMonthH     = inclMonth.reduce((s,m) => s+(m.duration||0), 0);
   const totMonthCount = inclMonth.length;
-  const totAllCost    = inclAll.reduce((s,m) => s+(m.duration||0)*(m.providerRate||0), 0);
+  const totAllCost    = inclAll.reduce((s,m) => s + _mCost(m, inclProvIds), 0);
   const totAllRev     = inclAll.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
   const totAllH       = inclAll.reduce((s,m) => s+(m.duration||0), 0);
   const totAllCount   = inclAll.length;
@@ -165,7 +172,7 @@ function _exportProvider(providerId, month) {
     (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])).includes(providerId) &&
     m.status !== 'cancelled' &&
     (!month || (m.date && m.date.startsWith(month)))
-  ).sort((a,b) => a.date.localeCompare(b.date));
+  ).sort((a,b) => (a.date||'').localeCompare(b.date||''));
 
   const DAYS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
   const rows = [['Date','Jour','Heure début','Heure fin','Durée (h)','École / Étudiant','Matière','Tarif prestataire (€/h)','Total prestataire (€)','Tarif facturation (€/h)','Total facturé (€)']];
@@ -241,21 +248,26 @@ function providerCard(provider, allMissions, allMissionsWithProv) {
   const done       = missions.filter(m => m.status === 'done');
   const planned    = missions.filter(m => m.status === 'planned');
   const active     = missions;
-  const totalH     = active.reduce((s, m) => s + (m.duration||0), 0);
-  const totalCost  = isBillingAgency ? 0 : active.reduce((s, m) => s + (m.duration||0)*(m.providerRate||0), 0);
-  const totalRev   = active.reduce((s, m) => s + (m.duration||0)*(m.billingRate||0), 0);
-  const totalMargin = totalRev - totalCost;
   const cm         = _provMonth;
   const monthAll   = active.filter(m => m.date && m.date.startsWith(cm));
-  const monthDone  = monthAll.filter(m => m.status === 'done');
-  const monthHDone = monthDone.reduce((s, m) => s + (m.duration||0), 0);
-  const monthHPlan = monthAll.filter(m => m.status === 'planned').reduce((s, m) => s + (m.duration||0), 0);
-  const monthH     = monthHDone + monthHPlan;
-  const monthCost  = isBillingAgency ? 0 : monthAll.reduce((s, m) => s + (m.duration||0)*(m.providerRate||0), 0);
-  const monthRev   = monthAll.reduce((s, m) => s + (m.duration||0)*(m.billingRate||0), 0);
+
+  // Pour les missions multi-prestataires, le coût de CE prestataire = providerRate × duration
+  // (providerRate est le tarif individuel de chaque intervenant, pas un tarif partagé)
+  const _provCost = m => (m.duration||0) * (m.providerRate||0);
+  const totalH      = active.reduce((s, m) => s + (m.duration||0), 0);
+  const totalCost   = isBillingAgency ? 0 : active.reduce((s, m) => s + _provCost(m), 0);
+  const totalRev    = active.reduce((s, m) => s + (m.duration||0)*(m.billingRate||0), 0);
+  const totalMargin = totalRev - totalCost;
+  const monthHDone  = monthAll.filter(m => m.status === 'done').reduce((s, m) => s + (m.duration||0), 0);
+  const monthHPlan  = monthAll.filter(m => m.status === 'planned').reduce((s, m) => s + (m.duration||0), 0);
+  const monthH      = monthHDone + monthHPlan;
+  const monthCost   = isBillingAgency ? 0 : monthAll.reduce((s, m) => s + _provCost(m), 0);
+  const monthRev    = monthAll.reduce((s, m) => s + (m.duration||0)*(m.billingRate||0), 0);
   const monthMargin = monthRev - monthCost;
-  const upcoming   = planned.filter(m => m.date >= Utils.today()).length;
-  const initials   = ((provider.firstName||'')[0]||'?') + ((provider.lastName||'')[0]||'');
+  // Missions "à venir" = planned dans le mois sélectionné ou dans le futur
+  const monthPlanned = monthAll.filter(m => m.status === 'planned').length;
+  const upcoming     = planned.filter(m => m.date >= Utils.today()).length;
+  const initials     = ((provider.firstName||'')[0]||'?') + ((provider.lastName||'')[0]||'');
 
   // Liaisons avec sociétés
   const companies = {}; Data.getCompanies().forEach(c => companies[c.id] = c);
@@ -301,15 +313,15 @@ function providerCard(provider, allMissions, allMissionsWithProv) {
 
       <div class="provider-stats">
         <div class="provider-stat">
-          <div class="provider-stat-value">${upcoming}</div>
-          <div class="provider-stat-label">Missions prévues</div>
+          <div class="provider-stat-value">${monthAll.length}${monthPlanned > 0 ? `<span style="font-size:0.7rem;color:var(--text-muted)"> (${monthPlanned} prévu)</span>` : ''}</div>
+          <div class="provider-stat-label">${Utils.MONTHS_LONG[+cm.split('-')[1]-1]} (missions)</div>
         </div>
         <div class="provider-stat">
           <div class="provider-stat-value">${Utils.formatDuration(monthH)}</div>
           <div class="provider-stat-label">${Utils.MONTHS_LONG[+cm.split('-')[1]-1]} (h)</div>
         </div>
         <div class="provider-stat highlight">
-          <div class="provider-stat-value">${Utils.formatMoney(monthCost)}</div>
+          <div class="provider-stat-value">${isBillingAgency ? '<span style="font-size:0.75rem;color:var(--text-muted)">Agence</span>' : Utils.formatMoney(monthCost)}</div>
           <div class="provider-stat-label">Coût ${Utils.MONTHS_LONG[+cm.split('-')[1]-1]}</div>
         </div>
         <div class="provider-stat">
@@ -323,7 +335,7 @@ function providerCard(provider, allMissions, allMissionsWithProv) {
       </div>
       <div class="provider-stats" style="margin-top:4px;padding-top:8px;border-top:1px solid var(--border)">
         <div class="provider-stat">
-          <div class="provider-stat-value">${done.length} <span style="font-size:0.7rem;color:var(--text-muted)">(+${planned.length} prévu)</span></div>
+          <div class="provider-stat-value">${done.length} <span style="font-size:0.7rem;color:var(--text-muted)">(+${upcoming} à venir)</span></div>
           <div class="provider-stat-label">Missions</div>
         </div>
         <div class="provider-stat">
