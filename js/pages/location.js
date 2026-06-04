@@ -686,7 +686,7 @@ const FB = 'https://emploi-du-temps-97818-default-rtdb.europe-west1.firebasedata
 let _pdPropId    = null;
 let _pdDisplayYm = '';
 
-const CAT_LABELS = { eau:'💧 Eau', electricite:'⚡ Électricité', menage:'🧹 Ménage', gardiennage:'🔒 Gardiennage', autre:'📦 Autre' };
+const CAT_LABELS = { eau:'💧 Eau', electricite:'⚡ Électricité', menage:'🧹 Ménage', gardiennage:'🔒 Gardiennage', internet:'📶 Internet', credit:'🏦 Crédit', autre:'📦 Autre' };
 
 async function _loadExpenses(propertyId) {
   try {
@@ -753,10 +753,13 @@ async function _renderPropertyDetail() {
   const allNightsStored = allInc.reduce((s,r) => s+(r.nightsRented||0), 0);
   const revPAN          = allNightsStored > 0 ? Math.round(totalRev/allNightsStored) : 0;
 
-  // Charges
-  const monthExp   = expenses.filter(e => e.yearMonth === displayYm);
-  const totalExp   = expenses.reduce((s,e) => s+(e.amount||0), 0);
-  const monthExpTotal = monthExp.reduce((s,e) => s+(e.amount||0), 0);
+  // Charges — séparation récurrentes / réelles
+  const recurring      = expenses.filter(e => e.isRecurring);
+  const actualMonth    = expenses.filter(e => !e.isRecurring && e.yearMonth === displayYm);
+  const recurringTotal = recurring.reduce((s,e) => s+(e.amount||0), 0);
+  const actualTotal    = actualMonth.reduce((s,e) => s+(e.amount||0), 0);
+  const totalChargesMonth = recurringTotal + actualTotal;
+  const allActualTotal = expenses.filter(e=>!e.isRecurring).reduce((s,e)=>s+(e.amount||0),0);
   const occColor   = propOcc >= 70 ? '#22c55e' : propOcc >= 40 ? '#f97316' : '#ef4444';
 
   // ── KPIs ──
@@ -779,12 +782,12 @@ async function _renderPropertyDetail() {
       <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">RevPAN</div>
     </div>
     <div style="background:#fef2f2;border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:1.3rem;font-weight:700;color:#dc2626">${Utils.formatMoney(totalExp)}</div>
-      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Total charges</div>
+      <div style="font-size:1.3rem;font-weight:700;color:#dc2626">−${Utils.formatMoney(totalChargesMonth)}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Charges ce mois</div>
     </div>
-    <div style="background:${totalRev-totalExp>=0?'#f0fdf4':'#fef2f2'};border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:1.3rem;font-weight:700;color:${totalRev-totalExp>=0?'#16a34a':'#dc2626'}">${Utils.formatMoney(totalRev-totalExp)}</div>
-      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Revenu net</div>
+    <div style="background:${monthRev-totalChargesMonth>=0?'#f0fdf4':'#fef2f2'};border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:1.3rem;font-weight:700;color:${monthRev-totalChargesMonth>=0?'#16a34a':'#dc2626'}">${Utils.formatMoney(monthRev-totalChargesMonth)}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Revenu net ce mois</div>
     </div>`;
 
   // ── Revenus par mois ──
@@ -802,28 +805,56 @@ async function _renderPropertyDetail() {
   }).join('');
   document.getElementById('pd-revenues').innerHTML = revRows || '<div style="color:var(--text-muted);font-size:0.85rem;padding:8px 0">Aucun revenu enregistré</div>';
 
-  // ── Charges ──
-  const expRows = expenses.sort((a,b)=>(b.yearMonth||'').localeCompare(a.yearMonth||'')).map(e => {
-    const [y,m] = (e.yearMonth||'').split('-');
-    const label = m ? `${Utils.MONTHS_LONG[+m-1]} ${y}` : '—';
-    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.84rem">
-      <span style="flex:1">${CAT_LABELS[e.category]||e.category||'—'}</span>
-      <span style="color:var(--text-muted);font-size:0.78rem">${label}</span>
-      <span style="font-weight:700;color:#dc2626;min-width:70px;text-align:right">−${Utils.formatMoney(e.amount||0)}</span>
-      ${e.notes ? `<span style="font-size:0.74rem;color:var(--text-muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${Utils.escapeHtml(e.notes)}">${Utils.escapeHtml(e.notes)}</span>` : ''}
-      <button class="btn btn-ghost btn-xs" onclick="window._locEditExpense('${e.id}')">✏</button>
-      <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="window._locDeleteExpense('${e.id}')">🗑</button>
+  // ── Charges — deux tableaux ──
+  const expRow = (e, badge) => `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:0.83rem">
+    <span style="flex:1">${CAT_LABELS[e.category]||e.category||'—'}</span>
+    ${badge}
+    <span style="font-weight:700;color:#dc2626;min-width:68px;text-align:right">−${Utils.formatMoney(e.amount||0)}</span>
+    ${e.notes?`<span style="font-size:0.72rem;color:var(--text-muted);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${Utils.escapeHtml(e.notes)}">${Utils.escapeHtml(e.notes)}</span>`:''}
+    <button class="btn btn-ghost btn-xs" onclick="window._locEditExpense('${e.id}')">✏</button>
+    <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="window._locDeleteExpense('${e.id}')">🗑</button>
+  </div>`;
+
+  const recRows = recurring.map(e => expRow(e, '<span style="font-size:0.68rem;background:#eff6ff;color:#3b82f6;border-radius:10px;padding:1px 7px">Mensuel</span>')).join('');
+  const actRows = actualMonth.map(e => expRow(e, '<span style="font-size:0.68rem;background:#f0fdf4;color:#16a34a;border-radius:10px;padding:1px 7px">Réel</span>')).join('');
+
+  const [dy2,dm2] = displayYm.split('-');
+  const monthLabel2 = `${Utils.MONTHS_LONG[+dm2-1]} ${dy2}`;
+
+  document.getElementById('pd-expenses').innerHTML = `
+    <!-- Base mensuelle récurrente -->
+    <div style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:0.72rem;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:.04em">Base mensuelle (estimation)</span>
+        <button class="btn btn-ghost btn-xs" onclick="window._locOpenExpenseForm(null, true)">+ Ajouter</button>
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px;font-style:italic">Reconduit automatiquement chaque mois — modifiable mois par mois dans "Réel"</div>
+      ${recRows || '<div style="color:var(--text-muted);font-size:0.82rem;padding:6px 0">Aucune charge récurrente</div>'}
+      ${recurring.length ? `<div style="text-align:right;font-size:0.82rem;font-weight:700;padding:6px 0;color:#3b82f6">Estimé mensuel : −${Utils.formatMoney(recurringTotal)}</div>` : ''}
+    </div>
+    <!-- Réel du mois -->
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:0.72rem;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.04em">Réel — ${monthLabel2}</span>
+        <button class="btn btn-ghost btn-xs" onclick="window._locOpenExpenseForm(null, false)">+ Ajouter</button>
+      </div>
+      ${actRows || `<div style="color:var(--text-muted);font-size:0.82rem;padding:6px 0;font-style:italic">Aucune charge réelle saisie — base mensuelle appliquée (${Utils.formatMoney(recurringTotal)})</div>`}
+      ${actualMonth.length ? `<div style="text-align:right;font-size:0.82rem;font-weight:700;padding:6px 0;color:#16a34a">Réel ce mois : −${Utils.formatMoney(actualTotal)}</div>` : ''}
+    </div>
+    <!-- Total -->
+    <div style="border-top:2px solid var(--border);padding-top:10px;margin-top:8px;display:flex;justify-content:space-between;font-size:0.88rem;font-weight:700">
+      <span>Total charges ${monthLabel2}</span>
+      <span style="color:#dc2626">−${Utils.formatMoney(totalChargesMonth)}</span>
     </div>`;
-  }).join('');
-  document.getElementById('pd-expenses').innerHTML = expRows || '<div style="color:var(--text-muted);font-size:0.85rem;padding:8px 0">Aucune charge enregistrée</div>';
 }
 
-function _locOpenExpenseForm(expense) {
-  const isEdit = !!expense;
-  const ym = expense?.yearMonth || (_locMonth || Utils.currentYearMonth());
+function _locOpenExpenseForm(expense, forceRecurring) {
+  const isEdit     = !!expense;
+  const isRecurring = expense ? !!expense.isRecurring : (forceRecurring === true);
+  const ym = expense?.yearMonth || (_pdDisplayYm || Utils.currentYearMonth());
   Modals._open(`
     <div class="modal-header">
-      <h3 style="font-size:0.9rem">${isEdit ? 'Modifier la charge' : 'Ajouter une charge'}</h3>
+      <h3 style="font-size:0.9rem">${isEdit ? 'Modifier la charge' : (isRecurring ? 'Charge récurrente mensuelle' : 'Charge réelle du mois')}</h3>
       <button class="modal-close" onclick="Modals.close()">✕</button>
     </div>
     <div class="modal-body" style="padding:20px;display:flex;flex-direction:column;gap:14px">
@@ -833,8 +864,17 @@ function _locOpenExpenseForm(expense) {
           ${Object.entries(CAT_LABELS).map(([v,l])=>`<option value="${v}" ${expense?.category===v?'selected':''}>${l}</option>`).join('')}
         </select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Mois</label>
+      <div class="form-group" style="background:var(--surface);border-radius:8px;padding:10px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:0.88rem">
+          <input type="checkbox" id="exp-recurring" ${isRecurring?'checked':''} onchange="document.getElementById('exp-ym-row').style.display=this.checked?'none':'block'">
+          <div>
+            <div style="font-weight:600">Charge mensuelle récurrente</div>
+            <div style="font-size:0.75rem;color:var(--text-muted)">Reconduite automatiquement chaque mois comme estimation</div>
+          </div>
+        </label>
+      </div>
+      <div class="form-group" id="exp-ym-row" style="display:${isRecurring?'none':'block'}">
+        <label class="form-label">Mois concerné</label>
         <input type="month" id="exp-ym" class="form-input" value="${ym}">
       </div>
       <div class="form-group">
@@ -854,16 +894,18 @@ function _locOpenExpenseForm(expense) {
 }
 
 async function _locSaveExpense() {
-  const id     = document.getElementById('exp-id').value || Utils.uuid();
-  const amount = parseFloat(document.getElementById('exp-amount').value);
+  const id          = document.getElementById('exp-id').value || Utils.uuid();
+  const amount      = parseFloat(document.getElementById('exp-amount').value);
+  const isRecurring = document.getElementById('exp-recurring')?.checked || false;
   if (!amount || isNaN(amount)) { alert('Montant requis.'); return; }
   const expense = {
     id, propertyId: _pdPropId,
-    category: document.getElementById('exp-cat').value,
-    yearMonth: document.getElementById('exp-ym').value,
+    category:    document.getElementById('exp-cat').value,
+    yearMonth:   isRecurring ? null : (document.getElementById('exp-ym')?.value || null),
+    isRecurring,
     amount,
-    notes: document.getElementById('exp-notes').value.trim(),
-    updatedAt: Date.now()
+    notes:       document.getElementById('exp-notes').value.trim(),
+    updatedAt:   Date.now()
   };
   Modals.close();
   await _saveExpenseFB(expense);
@@ -949,7 +991,9 @@ async function _generatePDF() {
     const rev   = mInc.reduce((s,r) => s+(r.amount||0), 0);
     const nights = allInc.filter(r=>r.startDate&&r.endDate).reduce((s,r)=>s+_nightsInMonth(r,ym),0);
     const occ   = dim > 0 ? Math.round(nights/dim*100) : 0;
-    const exp   = expenses.filter(e => e.yearMonth === ym).reduce((s,e) => s+(e.amount||0), 0);
+    const recExp  = expenses.filter(e => e.isRecurring).reduce((s,e) => s+(e.amount||0), 0);
+    const actExp  = expenses.filter(e => !e.isRecurring && e.yearMonth === ym).reduce((s,e) => s+(e.amount||0), 0);
+    const exp     = recExp + actExp;
     const net   = rev - exp;
     // RevPAN : utilise nightsRented stocké (fiable) plutôt que le calcul mensuel
     const storedNights = mInc.reduce((s,r) => s+(r.nightsRented||0), 0);
