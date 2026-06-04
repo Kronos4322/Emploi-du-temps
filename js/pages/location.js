@@ -374,25 +374,6 @@ function _renderCalendar() {
     }
   }
 
-  // Résumé du mois courant du calendrier
-  const ym        = `${_locCalYear}-${pad(_locCalMonth+1)}`;
-  const monthIncs = filtInc.filter(r => r.startDate && r.endDate && (
-    r.startDate.startsWith(ym) || r.endDate.startsWith(ym) ||
-    (r.startDate < ym+'-01' && r.endDate > ym+'-31')
-  ));
-  if (monthIncs.length > 0) {
-    const totalNights = monthIncs.reduce((s,r) => s+_nightsInMonth(r,ym), 0);
-    const totalRev    = monthIncs.reduce((s,r) => s+(r.amount||0), 0);
-    const occ = daysInM > 0 ? Math.round(totalNights/daysInM*100) : 0;
-    const occColor = occ >= 70 ? '#22c55e' : occ >= 40 ? '#f97316' : '#ef4444';
-    html += `<div class="loc-cal-summary">
-      <span>📅 <strong>${totalNights}</strong> nuit${totalNights>1?'s':''} louée${totalNights>1?'s':''}</span>
-      <span>💶 <strong>${Utils.formatMoney(totalRev)}</strong></span>
-      <span>📋 <strong>${monthIncs.length}</strong> réservation${monthIncs.length>1?'s':''}</span>
-      <span style="margin-left:auto;font-weight:700;color:${occColor}">${occ} % d'occupation</span>
-    </div>`;
-  }
-
   calEl.innerHTML = html;
 }
 
