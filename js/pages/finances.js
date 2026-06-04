@@ -155,6 +155,7 @@ function _activateRentalView() {
   _el('missions-done-table',       s => s.display = 'none');
   _el('rental-incomes-wrapper',    s => s.display = '');
   _el('fin-rental-kpi-card',       s => s.display = 'none');
+  _el('fin-pole-kpi-row',          s => s.display = 'none');
   _el('fin-unpaid-card',           s => s.display = 'none');
   _el('section-by-provider',       s => s.display = 'none');
   _el('section-cancelled',         s => s.display = 'none');
@@ -172,6 +173,24 @@ function _setKpiLabel(valueId, text) {
   if (!el) return;
   const label = el.closest?.('.kpi-content')?.querySelector('.kpi-label');
   if (label) label.textContent = text;
+}
+
+// ── Helper : rendu d'une ligne école dans le tableau de répartition ──────────
+
+function _mkSchoolRow(cid, d, companies, displayedRevenue) {
+  const co  = cid === '__no_school__' ? null : companies[cid];
+  const col = co ? co.color : '#94a3b8';
+  const pct = displayedRevenue > 0 ? Math.round(d.revenue / displayedRevenue * 100) : 0;
+  const name = cid === '__no_school__'
+    ? '<em style="color:var(--text-muted)">Sans école associée</em>'
+    : Utils.escapeHtml(co?.name || '—');
+  return `<tr>
+    <td><span class="school-dot" style="background:${col}"></span> ${name}</td>
+    <td class="cell-center">${d.done}${d.planned > 0 ? ` <span style="color:var(--text-muted);font-size:0.8rem">(+${d.planned} prévu)</span>` : ''}</td>
+    <td class="cell-center">${Utils.formatDuration(d.hours)}</td>
+    <td class="cell-money">${Utils.formatMoney(d.revenue)}</td>
+    <td><div class="progress-bar-wrapper"><div class="progress-bar" style="width:${pct}%;background:${col}"></div><span class="progress-label">${pct}%</span></div></td>
+  </tr>`;
 }
 
 // ── Render principal ─────────────────────────────────────────────────────────
@@ -241,13 +260,40 @@ function render() {
   const totalRevenue  = Math.round((missionRevenue + rentalTotal) * 100) / 100;
   const netMargin     = Math.round((totalRevenue - totalCosts) * 100) / 100;
 
-  // KPI card locatif (visible uniquement "tous les pôles" avec données)
-  const rentalKpiCard = document.getElementById('fin-rental-kpi-card');
-  if (rentalKpiCard) {
-    rentalKpiCard.style.display = (!_poleId && rentalTotal > 0) ? '' : 'none';
-    const valEl = document.getElementById('fin-rental-kpi-val');
-    if (valEl) valEl.textContent = Utils.formatMoney(rentalTotal);
+  // ── Ligne CA par pôle (mode "Tous les pôles") ──────────────────────────────
+  const poleKpiRow = document.getElementById('fin-pole-kpi-row');
+  const ownCosForKpi = Data.getOwnCompanies();
+  if (poleKpiRow) {
+    if (!_poleId) {
+      // Calculer le CA par pôle sur les missions du mois (réalisé + prévu)
+      const allMonthMs = [...doneMissions, ...plannedMissions];
+      const poleCards = ownCosForKpi.map(pole => {
+        const rev = Math.round(allMonthMs
+          .filter(ms => companies[ms.companyId]?.poleId === pole.id)
+          .reduce((s, ms) => s + (ms.duration||0)*(ms.billingRate||0), 0) * 100) / 100;
+        return `<div class="kpi-card">
+          <div class="kpi-icon" style="background:${pole.color}20;color:${pole.color}">💶</div>
+          <div class="kpi-content">
+            <div class="kpi-value">${Utils.formatMoney(rev)}</div>
+            <div class="kpi-label">CA ${Utils.escapeHtml(pole.name)}</div>
+          </div>
+        </div>`;
+      }).join('');
+      const rentalCard = rentalTotal > 0 ? `<div class="kpi-card">
+          <div class="kpi-icon kpi-green">🏠</div>
+          <div class="kpi-content">
+            <div class="kpi-value">${Utils.formatMoney(rentalTotal)}</div>
+            <div class="kpi-label">CA Location</div>
+          </div>
+        </div>` : '';
+      poleKpiRow.style.display = '';
+      poleKpiRow.innerHTML = poleCards + rentalCard;
+    } else {
+      poleKpiRow.style.display = 'none';
+    }
   }
+  // Toujours masquer le KPI card locatif seul (la ligne pôle le remplace)
+  _el('fin-rental-kpi-card', s => s.display = 'none');
 
   // Restaurer labels KPI normaux (label locatif si tous les pôles avec revenus)
   const caLabel = (!_poleId && rentalTotal > 0) ? 'CA total (missions + locatif)' : 'CA total (réalisé + prévu)';
@@ -304,31 +350,56 @@ function render() {
 
   const sectionCompany = document.getElementById('section-by-company');
   sectionCompany.style.display = (_companyId === '__none__' || byCompanyEntries.length === 0) ? 'none' : '';
-  document.getElementById('tbody-by-company').innerHTML = byCompanyEntries.map(([cid, d]) => {
-    if (cid === '__rental__') {
-      const pct = displayedRevenue > 0 ? Math.round(d.revenue / displayedRevenue * 100) : 0;
-      return `<tr style="background:var(--primary-light,#eff6ff)">
-        <td><span class="school-dot" style="background:#10b981"></span> 🏠 Revenus locatifs</td>
+
+  if (!_poleId) {
+    // ── Mode "Tous les pôles" : tableau groupé par pôle avec sous-totaux ──────
+    let tableHtml = '';
+    ownCosForKpi.forEach(pole => {
+      const poleEntries = byCompanyEntries.filter(([cid]) => {
+        if (cid === '__no_school__' || cid === '__rental__') return false;
+        return companies[cid]?.poleId === pole.id;
+      });
+      if (poleEntries.length === 0) return;
+      const poleSub = Math.round(poleEntries.reduce((s, [, d]) => s + d.revenue, 0) * 100) / 100;
+      const lightBg = Utils.lightenColor(pole.color, 0.93);
+      tableHtml += `<tr style="background:${lightBg};border-top:2px solid ${pole.color}50">
+        <td colspan="5" style="padding:6px 12px;font-size:0.82rem;font-weight:700;color:${pole.color}">
+          <span class="school-dot" style="background:${pole.color}"></span>
+          ${Utils.escapeHtml(pole.name)}
+          <span style="float:right;font-weight:600">${Utils.formatMoney(poleSub)}</span>
+        </td>
+      </tr>`;
+      tableHtml += poleEntries.map(([cid, d]) => _mkSchoolRow(cid, d, companies, displayedRevenue)).join('');
+    });
+    // Missions sans école associée
+    const nseEntry = byCompanyEntries.find(([cid]) => cid === '__no_school__');
+    if (nseEntry && nseEntry[1].done + nseEntry[1].planned > 0) {
+      tableHtml += _mkSchoolRow('__no_school__', nseEntry[1], companies, displayedRevenue);
+    }
+    // Revenus locatifs
+    if (rentalTotal > 0) {
+      const pct = displayedRevenue > 0 ? Math.round(rentalTotal / displayedRevenue * 100) : 0;
+      tableHtml += `<tr style="background:#f0fdf4;border-top:2px solid #10b98150">
+        <td colspan="5" style="padding:6px 12px;font-size:0.82rem;font-weight:700;color:#10b981">
+          🏠 Location
+          <span style="float:right;font-weight:600">${Utils.formatMoney(rentalTotal)}</span>
+        </td>
+      </tr>
+      <tr style="background:#f0fdf4">
+        <td><span class="school-dot" style="background:#10b981"></span> Revenus locatifs</td>
         <td class="cell-center" style="color:var(--text-muted)">—</td>
         <td class="cell-center" style="color:var(--text-muted)">—</td>
-        <td class="cell-money">${Utils.formatMoney(d.revenue)}</td>
+        <td class="cell-money">${Utils.formatMoney(rentalTotal)}</td>
         <td><div class="progress-bar-wrapper"><div class="progress-bar" style="width:${pct}%;background:#10b981"></div><span class="progress-label">${pct}%</span></div></td>
       </tr>`;
     }
-    const co  = cid === '__no_school__' ? null : companies[cid];
-    const col = co ? co.color : '#94a3b8';
-    const pct = displayedRevenue > 0 ? Math.round(d.revenue / displayedRevenue * 100) : 0;
-    const name = cid === '__no_school__'
-      ? '<em style="color:var(--text-muted)">Sans école associée</em>'
-      : Utils.escapeHtml(co?.name || '—');
-    return `<tr>
-      <td><span class="school-dot" style="background:${col}"></span> ${name}</td>
-      <td class="cell-center">${d.done}${d.planned > 0 ? ` <span style="color:var(--text-muted);font-size:0.8rem">(+${d.planned} prévu)</span>` : ''}</td>
-      <td class="cell-center">${Utils.formatDuration(d.hours)}</td>
-      <td class="cell-money">${Utils.formatMoney(d.revenue)}</td>
-      <td><div class="progress-bar-wrapper"><div class="progress-bar" style="width:${pct}%;background:${col}"></div><span class="progress-label">${pct}%</span></div></td>
-    </tr>`;
-  }).join('');
+    document.getElementById('tbody-by-company').innerHTML = tableHtml;
+  } else {
+    // ── Mode pôle spécifique : liste plate ────────────────────────────────────
+    document.getElementById('tbody-by-company').innerHTML = byCompanyEntries
+      .map(([cid, d]) => _mkSchoolRow(cid, d, companies, displayedRevenue))
+      .join('');
+  }
   document.getElementById('total-count').innerHTML   = `<strong>${doneMissions.length + plannedMissions.length}</strong>`;
   document.getElementById('total-hours').innerHTML   = `<strong>${Utils.formatDuration(hoursDone + hoursPlanned)}</strong>`;
   document.getElementById('total-revenue').innerHTML = `<strong>${Utils.formatMoney(displayedRevenue)}</strong>`;
