@@ -140,18 +140,26 @@
   <div id="loc-overlay" class="loc-drawer-overlay"></div>
 
   <!-- Drawer : Détail bien + Charges -->
-  <div id="property-detail-drawer" class="loc-drawer" style="width:620px">
-    <div class="loc-drawer-header">
-      <span class="loc-drawer-title" id="pd-title">Détail du bien</span>
-      <button class="loc-drawer-close" onclick="window._locCloseDrawers()">✕</button>
+  <div id="property-detail-drawer" class="loc-drawer" style="width:640px">
+    <div class="loc-drawer-header" style="flex-direction:column;align-items:stretch;gap:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span class="loc-drawer-title" id="pd-title">Détail du bien</span>
+        <button class="loc-drawer-close" onclick="window._locCloseDrawers()">✕</button>
+      </div>
+      <!-- Navigation mois -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:12px">
+        <button class="btn btn-ghost btn-sm" onclick="window._pdChangeMonth(-1)">‹</button>
+        <span id="pd-month-label" style="font-weight:600;font-size:0.9rem;min-width:130px;text-align:center">—</span>
+        <button class="btn btn-ghost btn-sm" onclick="window._pdChangeMonth(+1)">›</button>
+      </div>
     </div>
     <div class="loc-drawer-body">
-      <!-- KPIs -->
+      <!-- KPIs du mois -->
       <div id="pd-kpis" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:22px"></div>
 
       <!-- Revenus par mois -->
       <div style="margin-bottom:22px">
-        <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:8px">Revenus par mois</div>
+        <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:8px">Tous les revenus</div>
         <div id="pd-revenues"></div>
       </div>
 
@@ -166,6 +174,7 @@
     </div>
     <div class="loc-drawer-footer">
       <button class="btn btn-ghost" onclick="window._locOpenPropertyDrawer(window._pdPropId)">✏ Modifier le bien</button>
+      <button class="btn btn-ghost" onclick="window._downloadPropertyPDF()">📥 PDF</button>
       <div style="flex:1"></div>
       <button class="btn btn-ghost" onclick="window._locCloseDrawers()">Fermer</button>
     </div>

@@ -716,7 +716,8 @@ function _locAddIncomeForProp(propertyId) {
 // ── Détail bien + Charges ────────────────────────────────────
 
 const FB = 'https://emploi-du-temps-97818-default-rtdb.europe-west1.firebasedatabase.app/db';
-let _pdPropId = null;
+let _pdPropId    = null;
+let _pdDisplayYm = '';
 
 const CAT_LABELS = { eau:'💧 Eau', electricite:'⚡ Électricité', menage:'🧹 Ménage', gardiennage:'🔒 Gardiennage', autre:'📦 Autre' };
 
@@ -743,7 +744,9 @@ async function _deleteExpenseFB(id) {
 
 async function _openPropertyDetail(propertyId) {
   _locCloseDrawers();
-  _pdPropId = propertyId;
+  _pdPropId    = propertyId;
+  _pdDisplayYm = _locMonth || Utils.currentYearMonth();
+  window._pdPropId = _pdPropId;
   const prop = Data.getPropertyById(propertyId);
   if (!prop) return;
   document.getElementById('pd-title').textContent = prop.name;
@@ -754,13 +757,23 @@ async function _openPropertyDetail(propertyId) {
   await _renderPropertyDetail();
 }
 
+async function _pdChangeMonth(delta) {
+  const [y, m] = _pdDisplayYm.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  _pdDisplayYm = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  await _renderPropertyDetail();
+}
+
 async function _renderPropertyDetail() {
   if (!_pdPropId) return;
   const prop     = Data.getPropertyById(_pdPropId);
   const allInc   = Data.getRentalIncomes().filter(r => r.propertyId === _pdPropId);
   const expenses = await _loadExpenses(_pdPropId);
-  const displayYm = _locMonth || Utils.currentYearMonth();
+  const displayYm = _pdDisplayYm || Utils.currentYearMonth();
   const [py,pm]  = displayYm.split('-').map(Number);
+  // Mettre à jour le label du mois dans le header
+  const mlEl = document.getElementById('pd-month-label');
+  if (mlEl) mlEl.textContent = `${Utils.MONTHS_LONG[pm-1]} ${py}`;
   const daysInM  = new Date(py, pm, 0).getDate();
 
   // Revenus
@@ -902,6 +915,103 @@ async function _locDeleteExpense(id) {
   await _renderPropertyDetail();
 }
 
+async function _downloadPropertyPDF() {
+  const prop     = Data.getPropertyById(_pdPropId);
+  if (!prop) return;
+  const allInc   = Data.getRentalIncomes().filter(r => r.propertyId === _pdPropId);
+  const expenses = await _loadExpenses(_pdPropId);
+
+  // Collecter tous les mois avec données
+  const monthsSet = new Set();
+  allInc.forEach(r => { if (r.yearMonth) monthsSet.add(r.yearMonth); });
+  expenses.forEach(e => { if (e.yearMonth) monthsSet.add(e.yearMonth); });
+  const months = [...monthsSet].sort((a,b) => a.localeCompare(b));
+
+  const TYPE_LABELS = { airbnb:'Airbnb', booking:'Booking', 'long-term':'Longue durée', seasonal:'Saisonnier', other:'Autre' };
+
+  const rows = months.map(ym => {
+    const [y,m] = ym.split('-').map(Number);
+    const dim   = new Date(y, m, 0).getDate();
+    const mInc  = allInc.filter(r => r.yearMonth === ym);
+    const rev   = mInc.reduce((s,r) => s+(r.amount||0), 0);
+    const nights = allInc.filter(r=>r.startDate&&r.endDate).reduce((s,r)=>s+_nightsInMonth(r,ym),0);
+    const occ   = dim > 0 ? Math.round(nights/dim*100) : 0;
+    const exp   = expenses.filter(e => e.yearMonth === ym).reduce((s,e) => s+(e.amount||0), 0);
+    const net   = rev - exp;
+    const revpan = nights > 0 ? Math.round(rev/nights) : 0;
+    return { label:`${Utils.MONTHS_LONG[m-1]} ${y}`, nights, occ, rev, exp, net, revpan };
+  });
+
+  const totNights = rows.reduce((s,r)=>s+r.nights,0);
+  const totRev    = rows.reduce((s,r)=>s+r.rev,0);
+  const totExp    = rows.reduce((s,r)=>s+r.exp,0);
+  const totNet    = totRev - totExp;
+  const avgOcc    = rows.length > 0 ? Math.round(rows.reduce((s,r)=>s+r.occ,0)/rows.length) : 0;
+  const avgRevPAN = totNights > 0 ? Math.round(totRev/totNights) : 0;
+
+  const fmt = v => v.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+
+  const tableRows = rows.map(r => `<tr>
+    <td>${r.label}</td>
+    <td style="text-align:center">${r.nights}</td>
+    <td style="text-align:center">${r.occ} %</td>
+    <td style="text-align:right">${fmt(r.rev)}</td>
+    <td style="text-align:right;color:#dc2626">${r.exp>0?'−'+fmt(r.exp):'—'}</td>
+    <td style="text-align:right;font-weight:700;color:${r.net>=0?'#16a34a':'#dc2626'}">${fmt(r.net)}</td>
+    <td style="text-align:center">${r.revpan>0?r.revpan+' €':'—'}</td>
+  </tr>`).join('');
+
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+  <title>Rapport — ${prop.name}</title>
+  <style>
+    body{font-family:Arial,sans-serif;font-size:11pt;margin:20mm;color:#222}
+    h1{font-size:16pt;margin-bottom:4px}
+    h2{font-size:11pt;color:#555;font-weight:400;margin-top:0;margin-bottom:20px}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th{background:#f1f5f9;font-size:9pt;text-align:left;padding:7px 10px;border-bottom:2px solid #cbd5e1}
+    td{padding:7px 10px;border-bottom:1px solid #e2e8f0;font-size:10pt}
+    tr:hover td{background:#f8fafc}
+    .total{background:#f1f5f9;font-weight:700}
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+    .kpi{background:#f8fafc;border-radius:8px;padding:12px;text-align:center;border:1px solid #e2e8f0}
+    .kpi-val{font-size:15pt;font-weight:700}
+    .kpi-lbl{font-size:8pt;color:#64748b;margin-top:3px}
+    @media print{button{display:none}}
+  </style></head><body>
+  <h1>${prop.name}</h1>
+  <h2>${prop.address||''}${prop.address&&prop.type?' · ':''}${TYPE_LABELS[prop.type]||''} — Rapport de synthèse</h2>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-val" style="color:#2563eb">${fmt(totRev)}</div><div class="kpi-lbl">Revenus totaux</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:#dc2626">−${fmt(totExp)}</div><div class="kpi-lbl">Charges totales</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:${totNet>=0?'#16a34a':'#dc2626'}">${fmt(totNet)}</div><div class="kpi-lbl">Revenu net</div></div>
+    <div class="kpi"><div class="kpi-val">${avgOcc} %</div><div class="kpi-lbl">Taux occupation moyen</div></div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Mois</th><th style="text-align:center">Nuits</th><th style="text-align:center">Occupation</th>
+      <th style="text-align:right">Revenus</th><th style="text-align:right">Charges</th>
+      <th style="text-align:right">Net</th><th style="text-align:center">RevPAN</th>
+    </tr></thead>
+    <tbody>${tableRows}</tbody>
+    <tfoot><tr class="total">
+      <td>TOTAL / MOYENNE</td>
+      <td style="text-align:center">${totNights}</td>
+      <td style="text-align:center">${avgOcc} %</td>
+      <td style="text-align:right">${fmt(totRev)}</td>
+      <td style="text-align:right;color:#dc2626">−${fmt(totExp)}</td>
+      <td style="text-align:right;color:${totNet>=0?'#16a34a':'#dc2626'}">${fmt(totNet)}</td>
+      <td style="text-align:center">${avgRevPAN > 0 ? avgRevPAN+' €' : '—'}</td>
+    </tr></tfoot>
+  </table>
+  <p style="margin-top:20px;font-size:8pt;color:#94a3b8">Généré le ${new Date().toLocaleDateString('fr-FR')} — Emploi du temps</p>
+  <script>window.onload=function(){window.print()}<\/script>
+  </body></html>`;
+
+  const w = window.open('', '_blank', 'width=900,height=700');
+  w.document.write(html);
+  w.document.close();
+}
+
 // Expositions globales
 window._locCalcTotal          = _locCalcTotal;
 window._locOnPropertyChange   = _locOnPropertyChange;
@@ -917,7 +1027,8 @@ window._locAddIncomeForProp   = _locAddIncomeForProp;
 window._locExportCsv          = _exportCsv;
 window._locOpenPropertyDetail = _openPropertyDetail;
 window._locOpenExpenseForm    = _locOpenExpenseForm;
-window._pdPropId              = null; // exposé pour le bouton "Modifier le bien" dans le drawer détail
+window._pdChangeMonth         = _pdChangeMonth;
+window._downloadPropertyPDF  = _downloadPropertyPDF;
 window._locSaveExpense        = _locSaveExpense;
 window._locEditExpense        = _locEditExpense;
 window._locDeleteExpense      = _locDeleteExpense;
