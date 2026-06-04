@@ -627,10 +627,10 @@ window._generatePlanning = function() {
         <td class="td-time">${time}</td>
         <td class="td-dot"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${co?co.color:'#94a3b8'};flex-shrink:0"></span></td>
         <td class="td-title">
-          <span class="mission-title">${badge?`<span style="color:${bColor};font-weight:700;margin-right:4px">${badge}</span>`:''}${m.title}</span>
-          ${co?`<span class="mission-school">${co.name}</span>`:''}
-          ${loc?`<span class="mission-loc">📍 ${loc}</span>`:''}
-          ${provNames?`<span class="mission-prov">👤 ${provNames}</span>`:''}
+          <span class="mission-title">${badge?`<span style="color:${bColor};font-weight:700;margin-right:4px">${badge}</span>`:''}${Utils.escapeHtml(m.title)}</span>
+          ${co?`<span class="mission-school">${Utils.escapeHtml(co.name)}</span>`:''}
+          ${loc?`<span class="mission-loc">📍 ${Utils.escapeHtml(loc)}</span>`:''}
+          ${provNames?`<span class="mission-prov">👤 ${Utils.escapeHtml(provNames)}</span>`:''}
         </td>
         <td class="td-duration">${Utils.formatDuration(m.duration)}<br><span style="font-size:7.5pt;color:#94a3b8;font-weight:400">${m.billingRate||0}€/h</span></td>
         <td class="td-amount">${Utils.formatMoney(lineAmt)}</td>

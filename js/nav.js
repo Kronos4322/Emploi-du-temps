@@ -7,11 +7,15 @@
   const currentFile = (window.location.pathname.split('/').pop() || 'index.html') + window.location.search;
 
   function makeLink(href, icon, label) {
-    const base = href.split('?')[0];
+    const base        = href.split('?')[0];
     const currentBase = currentFile.split('?')[0];
     const currentPole = new URLSearchParams(currentFile.split('?')[1]||'').get('pole')||'';
     const hrefPole    = new URLSearchParams(href.split('?')[1]||'').get('pole')||'';
-    const isActive = base === currentBase && hrefPole === currentPole;
+    // Lien sans pole → actif dès que la page correspond (quel que soit le filtre pôle actif)
+    // Lien avec pole → actif uniquement si page ET pole correspondent
+    const isActive = hrefPole === ''
+      ? base === currentBase
+      : base === currentBase && hrefPole === currentPole;
     return `<a class="nav-link${isActive ? ' active' : ''}" href="${href}">
       <span class="nav-icon">${icon}</span>${label}
     </a>`;
@@ -41,16 +45,17 @@
     html += makeLink('ecoles.html',       '🏢', 'Sociétés & Écoles');
     html += makeLink('prestataires.html', '👤', 'Prestataires');
     html += makeLink('matieres.html',     '📖', 'Matières & Cours');
-    // Une section par société propre (Artémis, Astéria, etc.)
+    // Section pôle uniquement si étudiants / formations rattachés
     getOwnCompanies().forEach(co => {
+      if (!co._hasStudents) return;
       html += section(co.name);
-      if (co._hasStudents) {
-        html += makeLink('etudiants.html',  '🎓', 'Étudiants');
-        html += makeLink('formations.html', '📚', 'Formations');
-      }
-      html += makeLink(`facturation.html?pole=${co.id}`, '💶', 'Facturation');
-      html += makeLink(`finances.html?pole=${co.id}`,    '📊', 'Finances');
+      html += makeLink('etudiants.html',  '🎓', 'Étudiants');
+      html += makeLink('formations.html', '📚', 'Formations');
     });
+    // Facturation et Finances : une seule entrée, filtre disponible à l'intérieur
+    html += section('Gestion');
+    html += makeLink('facturation.html', '💶', 'Facturation');
+    html += makeLink('finances.html',    '📊', 'Finances');
     html += section('Personnel interne');
     html += makeLink('personnel.html', '👥', 'Salaires & Charges');
     html += section('Revenus personnels');

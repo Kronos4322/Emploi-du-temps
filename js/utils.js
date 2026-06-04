@@ -223,6 +223,8 @@ const Utils = {
     workshop:   { label: 'Atelier',           icon: '🛠' },
     vacation:   { label: 'Vacation',          icon: '📋' },
     admin:      { label: 'Administratif',     icon: '📁' },
+    personal:   { label: 'Personnel',         icon: '🧑' },
+    forfait:    { label: 'Forfait',           icon: '💰' },
     other:      { label: 'Autre',             icon: '📌' },
   },
 

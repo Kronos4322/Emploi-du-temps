@@ -10,14 +10,10 @@ let _locCalMonth   = new Date().getMonth(); // 0-11
 
 document.addEventListener('DOMContentLoaded', () => {
   Data.init();
-  _buildMonthFilter();
+  _locMonth = Utils.currentYearMonth(); // démarrer sur le mois courant
   _buildPropertyFilter();
   _renderPage();
 
-  document.getElementById('loc-filter-month').addEventListener('change', e => {
-    _locMonth = e.target.value;
-    _renderPage();
-  });
   document.getElementById('loc-filter-property').addEventListener('change', e => {
     _locPropertyId = e.target.value;
     _renderPage();
@@ -89,14 +85,27 @@ function _renderPage() {
   _renderProperties();
   _renderCalendar();
   _renderIncomes();
-  const el = document.getElementById('loc-month-label');
-  if (_locMonth) {
+  // Label nav mois (flèches)
+  const navLabel = document.getElementById('loc-month-nav-label');
+  if (navLabel && _locMonth) {
     const [y,m] = _locMonth.split('-');
-    el.textContent = `${Utils.MONTHS_LONG[+m-1]} ${y}`;
-  } else {
-    el.textContent = 'Tous les mois';
+    navLabel.textContent = `${Utils.MONTHS_LONG[+m-1]} ${y}`;
   }
+  // Label hidden (compatibilité)
+  const el = document.getElementById('loc-month-label');
+  if (el) el.textContent = _locMonth ? (() => { const [y,m]=_locMonth.split('-'); return `${Utils.MONTHS_LONG[+m-1]} ${y}`; })() : 'Tous les mois';
 }
+
+// ── Navigation mois principal ────────────────────────────────
+
+function _locNavMonth(delta) {
+  const [y, m] = (_locMonth || Utils.currentYearMonth()).split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  _locMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  _renderPage();
+}
+window._locMonthPrev = () => _locNavMonth(-1);
+window._locMonthNext = () => _locNavMonth(+1);
 
 // ── Navigation calendrier ────────────────────────────────────
 

@@ -29,9 +29,16 @@
       </div>
 
       <!-- Filtres -->
-      <div class="filters-bar" style="gap:8px;flex-wrap:wrap;margin-bottom:16px">
-        <select id="loc-filter-month" class="form-input filter-select"></select>
-        <select id="loc-filter-property" class="form-input filter-select">
+      <div class="filters-bar" style="gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+        <!-- Navigation mois -->
+        <div style="display:flex;align-items:center;gap:6px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:6px 10px;flex:1;min-width:200px">
+          <button class="btn btn-ghost btn-sm" onclick="window._locMonthPrev()">‹</button>
+          <span id="loc-month-nav-label" style="flex:1;text-align:center;font-weight:600;font-size:0.93rem">—</span>
+          <button class="btn btn-ghost btn-sm" onclick="window._locMonthNext()">›</button>
+        </div>
+        <!-- select caché (requis par le JS) -->
+        <select id="loc-filter-month" style="display:none"></select>
+        <select id="loc-filter-property" class="form-input filter-select" style="flex:1;min-width:160px">
           <option value="">Tous les biens</option>
         </select>
       </div>
@@ -108,10 +115,10 @@
         <div id="loc-calendar" style="padding-top:10px"></div>
       </details>
 
-      <!-- Elements cachés requis par le JS (renderIncomes) -->
+      <!-- Elements cachés requis par le JS -->
       <div style="display:none">
         <span id="loc-month-label"></span>
-        <tbody id="incomes-tbody"></tbody>
+        <table><tbody id="incomes-tbody"></tbody></table>
         <span id="incomes-total"></span>
       </div>
 
@@ -287,10 +294,10 @@
     </form>
   </div>
 
-  <script src="js/utils.js?v=10"></script>
+  <script src="js/utils.js?v=11"></script>
   <script src="js/data.js?v=38"></script>
   <script src="js/modals.js?v=18"></script>
-  <script src="js/nav.js?v=13"></script>
-  <script src="js/pages/location.js?v=6"></script>
+  <script src="js/nav.js?v=14"></script>
+  <script src="js/pages/location.js?v=7"></script>
 </body>
 </html>
