@@ -52,8 +52,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('filter-year').addEventListener('change', e => {
     _schoolYear = e.target.value; renderAnnual();
   });
-  ['chart-group','chart-split','chart-type','avg-period-start','avg-period-end'].forEach(id =>
-    document.getElementById(id).addEventListener('change', renderChart));
+  ['chart-group','chart-split','chart-type','avg-period-start','avg-period-end'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', renderChart);
+  });
   document.getElementById('btn-export-csv').addEventListener('click', () => {
     if (_poleId === RENTAL_POLE) _exportRentalCsv();
     else Data.exportToCsv(_yearMonth, { poleId: _poleId, companyId: _companyId });
@@ -788,20 +790,26 @@ function renderChart() {
   const _curSY = new Date().getMonth() >= 8 ? new Date().getFullYear() : new Date().getFullYear() - 1;
   const _syOpts = [];
   for (let y = 2024; y <= _curSY + 1; y++) _syOpts.push(`${y}-${y+1}`);
-  if (avgStartSel.children.length !== _syOpts.length) {
-    const prevS = avgStartSel.value, prevE = avgEndSel.value;
-    avgStartSel.innerHTML = _syOpts.map(o => `<option value="${o}">${o}</option>`).join('');
-    avgEndSel.innerHTML   = _syOpts.map(o => `<option value="${o}">${o}</option>`).join('');
-    avgStartSel.value = _syOpts.includes(prevS) ? prevS : _syOpts[0];
-    avgEndSel.value   = _syOpts.includes(prevE) ? prevE : (_syOpts[_syOpts.length - 2] || _syOpts[0]);
+  let avgStart = '', avgEnd = '';
+  if (avgStartSel && avgEndSel && _syOpts.length > 0) {
+    if (avgStartSel.children.length !== _syOpts.length) {
+      const prevS = avgStartSel.value, prevE = avgEndSel.value;
+      avgStartSel.innerHTML = _syOpts.map(o => `<option value="${o}">${o}</option>`).join('');
+      avgEndSel.innerHTML   = _syOpts.map(o => `<option value="${o}">${o}</option>`).join('');
+      avgStartSel.value = _syOpts.includes(prevS) ? prevS : _syOpts[0];
+      avgEndSel.value   = _syOpts.includes(prevE) ? prevE : (_syOpts[_syOpts.length - 2] || _syOpts[0]);
+    }
+    avgStart = avgStartSel.value || _syOpts[0];
+    avgEnd   = avgEndSel.value   || _syOpts[_syOpts.length - 1];
   }
-  const avgStart = avgStartSel.value;
-  const avgEnd   = avgEndSel.value;
-  const [_sYr]   = avgStart.split('-').map(Number);
-  const [_eYr]   = avgEnd.split('-').map(Number);
-  const inAvgPeriod = lbl => group === 'month'
-    ? lbl >= `${_sYr}-09` && lbl <= `${_eYr + 1}-08`
-    : lbl >= avgStart && lbl <= avgEnd;
+  const _sYr = avgStart ? parseInt(avgStart.split('-')[0]) : 2024;
+  const _eYr = avgEnd   ? parseInt(avgEnd.split('-')[0])   : _curSY;
+  const inAvgPeriod = lbl => {
+    if (!avgStart || !avgEnd) return true;
+    return group === 'month'
+      ? lbl >= `${_sYr}-09` && lbl <= `${_eYr + 1}-08`
+      : lbl >= avgStart && lbl <= avgEnd;
+  };
 
   if (ctype === 'pie') { renderPieChart(); return; }
   if (isRental || split === 'rental') { _renderRentalChart(group, ctype); return; }
