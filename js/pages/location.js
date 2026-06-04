@@ -3,6 +3,8 @@
 
 let _locMonth      = '';   // '' = tous les mois
 let _locPropertyId = '';
+let _locCalYear    = new Date().getFullYear();
+let _locCalMonth   = new Date().getMonth(); // 0-11
 
 // ── Init ─────────────────────────────────────────────────────
 
@@ -69,6 +71,7 @@ function _buildPropertyFilter() {
 function _renderPage() {
   _renderKpis();
   _renderProperties();
+  _renderCalendar();
   _renderIncomes();
   // Label de la section revenus
   if (_locMonth) {
@@ -78,6 +81,132 @@ function _renderPage() {
     document.getElementById('loc-month-label').textContent = 'Tous les mois';
   }
 }
+
+// ── Navigation calendrier ────────────────────────────────────
+window._locCalPrev = () => {
+  _locCalMonth--;
+  if (_locCalMonth < 0) { _locCalMonth = 11; _locCalYear--; }
+  _renderCalendar();
+};
+window._locCalNext = () => {
+  _locCalMonth++;
+  if (_locCalMonth > 11) { _locCalMonth = 0; _locCalYear++; }
+  _renderCalendar();
+};
+
+// ── Calendrier des réservations ──────────────────────────────
+function _renderCalendar() {
+  const calEl = document.getElementById('loc-calendar');
+  const lblEl = document.getElementById('loc-cal-label');
+  if (!calEl) return;
+
+  const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const DAYS_SH   = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+
+  lblEl.textContent = MONTHS_FR[_locCalMonth]+' '+_locCalYear;
+
+  const props    = Data.getProperties();
+  const propMap  = {}; props.forEach(p => propMap[p.id] = p);
+  const incomes  = Data.getRentalIncomes().filter(r => r.startDate && r.endDate);
+
+  // Filtrer par bien si sélectionné
+  const filtInc = _locPropertyId ? incomes.filter(r => r.propertyId === _locPropertyId) : incomes;
+
+  // Premier jour du mois (lundi = 0)
+  const firstDay = new Date(_locCalYear, _locCalMonth, 1);
+  const lastDay  = new Date(_locCalYear, _locCalMonth+1, 0);
+  const startWd  = (firstDay.getDay() + 6) % 7; // décalage lundi-first
+  const daysInM  = lastDay.getDate();
+
+  // Construire un map: 'YYYY-MM-DD' → liste de réservations
+  const dayMap = {};
+  filtInc.forEach(r => {
+    let d = new Date(r.startDate + 'T00:00:00');
+    const end = new Date(r.endDate + 'T00:00:00');
+    while (d < end) {
+      const key = d.toISOString().substring(0,10);
+      if (!dayMap[key]) dayMap[key] = [];
+      dayMap[key].push(r);
+      d.setDate(d.getDate()+1);
+    }
+  });
+
+  // En-tête jours
+  let html = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:8px">
+    ${DAYS_SH.map(d=>`<div style="text-align:center;font-size:0.68rem;font-weight:700;color:var(--text-muted);padding:4px">${d}</div>`).join('')}
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">`;
+
+  // Cellules vides avant le 1er
+  for (let i = 0; i < startWd; i++) html += '<div></div>';
+
+  const todayStr = Utils.today();
+  for (let day = 1; day <= daysInM; day++) {
+    const pad   = n => String(n).padStart(2,'0');
+    const dStr  = `${_locCalYear}-${pad(_locCalMonth+1)}-${pad(day)}`;
+    const bookings = dayMap[dStr] || [];
+    const isToday  = dStr === todayStr;
+
+    let cellStyle = `min-height:44px;border-radius:6px;padding:3px;position:relative;cursor:pointer;border:1px solid ${isToday?'#3b82f6':'var(--border)'}`;
+    let bg = 'var(--bg-card)';
+
+    // Colorier selon la réservation (première si plusieurs)
+    if (bookings.length > 0) {
+      const p = propMap[bookings[0].propertyId];
+      bg = p ? p.color+'22' : '#22c55e22';
+    }
+
+    const stripBars = bookings.map(r => {
+      const p = propMap[r.propertyId];
+      return `<div style="height:4px;border-radius:2px;background:${p?.color||'#22c55e'};margin-bottom:2px" title="${Utils.escapeHtml(p?.name||'')}"></div>`;
+    }).join('');
+
+    html += `<div style="${cellStyle};background:${bg}" onclick="window._locCalClick('${dStr}')">
+      <div style="font-size:0.75rem;font-weight:${isToday?700:400};color:${isToday?'#3b82f6':'var(--text)'}${bookings.length?' ;color:var(--text)':''}">${day}</div>
+      ${stripBars}
+    </div>`;
+  }
+  html += '</div>';
+
+  // Légende
+  if (props.length > 0) {
+    const legend = props.filter(p => p.active !== false)
+      .map(p => `<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;margin-right:12px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color}"></span>${Utils.escapeHtml(p.name)}</span>`).join('');
+    html += `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">${legend}</div>`;
+  }
+
+  // Résumé du mois
+  const monthPrefix = `${_locCalYear}-${String(_locCalMonth+1).padStart(2,'0')}`;
+  const monthInc = filtInc.filter(r => r.startDate?.startsWith(monthPrefix) || r.endDate?.startsWith(monthPrefix) ||
+    (r.startDate < monthPrefix+'-32' && r.endDate > monthPrefix+'-00'));
+  if (monthInc.length > 0) {
+    const totalNights = monthInc.reduce((s,r) => {
+      // Compter les nuits dans ce mois uniquement
+      let d = new Date(Math.max(new Date(r.startDate+'T00:00:00'), new Date(_locCalYear,_locCalMonth,1)));
+      const end = new Date(Math.min(new Date(r.endDate+'T00:00:00'), new Date(_locCalYear,_locCalMonth+1,0,23,59)));
+      let n = 0; while (d < end) { n++; d.setDate(d.getDate()+1); }
+      return s + n;
+    }, 0);
+    const totalRev = monthInc.reduce((s,r) => s+(r.amount||0), 0);
+    html += `<div style="margin-top:8px;background:var(--surface);border-radius:8px;padding:10px 14px;display:flex;gap:24px;font-size:0.85rem">
+      <span>📅 <strong>${totalNights}</strong> nuit${totalNights>1?'s':''} louée${totalNights>1?'s':''}</span>
+      <span>💶 <strong>${Utils.formatMoney(totalRev)}</strong></span>
+      <span>📋 <strong>${monthInc.length}</strong> réservation${monthInc.length>1?'s':''}</span>
+    </div>`;
+  }
+
+  calEl.innerHTML = html;
+}
+
+// Clic sur un jour du calendrier
+window._locCalClick = function(dateStr) {
+  // Si déjà une réservation ce jour → ouvrir pour modifier
+  const incomes = Data.getRentalIncomes().filter(r => r.startDate && r.endDate);
+  const booked  = incomes.find(r => r.startDate <= dateStr && r.endDate > dateStr);
+  if (booked) { _openIncomeDrawer(booked.id); return; }
+  // Sinon → nouvelle réservation avec cette date comme arrivée
+  _openIncomeDrawer(null, dateStr);
+};
 
 function _renderKpis() {
   const allIncomes = Data.getRentalIncomes();
@@ -270,11 +399,10 @@ function _locSaveProperty(e) {
 
 // ── Drawer Revenu ────────────────────────────────────────────
 
-function _openIncomeDrawer(id) {
+function _openIncomeDrawer(id, preDate) {
   _locCloseDrawers();
   const income = id ? Data.getRentalIncomeById(id) : null;
 
-  // Remplir la liste des biens
   const props = Data.getActiveProperties();
   const sel   = document.getElementById('inc-property');
   sel.innerHTML = props.map(p => `<option value="${p.id}">${Utils.escapeHtml(p.name)}</option>`).join('');
@@ -283,32 +411,49 @@ function _openIncomeDrawer(id) {
     return;
   }
 
-  document.getElementById('income-drawer-title').textContent = income ? 'Modifier le revenu' : 'Nouveau revenu';
-  document.getElementById('inc-id').value         = income?.id || '';
-  document.getElementById('inc-property').value   = income?.propertyId || props[0]?.id || '';
-  document.getElementById('inc-month').value      = income?.yearMonth || _locMonth;
-  document.getElementById('inc-amount').value     = income?.amount != null ? income.amount : '';
-  document.getElementById('inc-platform').value   = income?.platform || '';
-  document.getElementById('inc-nights').value     = income?.nightsRented != null ? income.nightsRented : '';
-  document.getElementById('inc-rate').value       = income?.ratePerNight != null ? income.ratePerNight : '';
-  document.getElementById('inc-status').value     = income?.status || 'received';
-  document.getElementById('inc-notes').value      = income?.notes || '';
+  // Dates par défaut
+  const defaultStart = income?.startDate || preDate || Utils.today();
+  const defaultEnd   = income?.endDate   || (preDate ? preDate : '');
+
+  document.getElementById('income-drawer-title').textContent = income ? 'Modifier la réservation' : 'Nouvelle réservation';
+  document.getElementById('inc-id').value           = income?.id || '';
+  document.getElementById('inc-property').value     = income?.propertyId || props[0]?.id || '';
+  document.getElementById('inc-start-date').value   = defaultStart;
+  document.getElementById('inc-end-date').value     = defaultEnd;
+  document.getElementById('inc-amount').value       = income?.amount != null ? income.amount : '';
+  document.getElementById('inc-platform').value     = income?.platform || '';
+  document.getElementById('inc-nights').value       = income?.nightsRented != null ? income.nightsRented : '';
+  document.getElementById('inc-rate').value         = income?.ratePerNight != null ? income.ratePerNight : '';
+  document.getElementById('inc-status').value       = income?.status || 'received';
+  document.getElementById('inc-notes').value        = income?.notes || '';
   document.getElementById('inc-calc-hint').textContent = '';
   _locCalcTotal();
 
   document.getElementById('income-drawer').classList.add('open');
   document.getElementById('loc-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('inc-amount').focus(), 50);
+  setTimeout(() => document.getElementById('inc-start-date').focus(), 50);
 }
 
 function _locCalcTotal() {
-  const nights = parseFloat(document.getElementById('inc-nights').value);
-  const rate   = parseFloat(document.getElementById('inc-rate').value);
-  const hint   = document.getElementById('inc-calc-hint');
-  if (!isNaN(nights) && !isNaN(rate) && nights > 0 && rate > 0) {
+  const startVal = document.getElementById('inc-start-date')?.value;
+  const endVal   = document.getElementById('inc-end-date')?.value;
+  const rate     = parseFloat(document.getElementById('inc-rate')?.value);
+  const hint     = document.getElementById('inc-calc-hint');
+
+  let nights = 0;
+  if (startVal && endVal && endVal > startVal) {
+    const start = new Date(startVal+'T00:00:00');
+    const end   = new Date(endVal+'T00:00:00');
+    nights = Math.round((end - start) / 86400000);
+    document.getElementById('inc-nights').value = nights;
+  }
+
+  if (nights > 0 && !isNaN(rate) && rate > 0) {
     const total = Math.round(nights * rate * 100) / 100;
     document.getElementById('inc-amount').value = total;
-    if (hint) hint.textContent = `${nights} nuits × ${rate} € = ${total} €`;
+    if (hint) hint.textContent = `${nights} nuit${nights>1?'s':''} × ${rate} € = ${total} €`;
+  } else if (nights > 0) {
+    if (hint) hint.textContent = `${nights} nuit${nights>1?'s':''}`;
   } else {
     if (hint) hint.textContent = '';
   }
@@ -319,10 +464,17 @@ function _locSaveIncome(e) {
   const id = document.getElementById('inc-id').value;
   const nightsVal = document.getElementById('inc-nights').value;
   const rateVal   = document.getElementById('inc-rate').value;
+  const startDate = document.getElementById('inc-start-date').value;
+  const endDate   = document.getElementById('inc-end-date').value;
+  // Dériver yearMonth depuis la date d'arrivée (pour compatibilité filtres)
+  const yearMonth = startDate ? startDate.substring(0,7) : '';
+
   const income = {
     id:            id || Utils.uuid(),
     propertyId:    document.getElementById('inc-property').value,
-    yearMonth:     document.getElementById('inc-month').value,
+    startDate,
+    endDate,
+    yearMonth,     // compatibilité avec l'ancien filtre par mois
     amount:        parseFloat(document.getElementById('inc-amount').value) || 0,
     platform:      document.getElementById('inc-platform').value.trim(),
     nightsRented:  nightsVal !== '' ? parseInt(nightsVal, 10) : null,

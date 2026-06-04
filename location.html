@@ -77,6 +77,19 @@
         </div>
       </details>
 
+      <!-- Calendrier des réservations -->
+      <details class="fin-section" open>
+        <summary style="display:flex;align-items:center;justify-content:space-between">
+          <span>Calendrier des réservations</span>
+          <div style="display:flex;gap:8px;align-items:center" onclick="event.stopPropagation()">
+            <button class="btn btn-ghost btn-sm" onclick="window._locCalPrev()">‹</button>
+            <span id="loc-cal-label" style="font-weight:600;min-width:130px;text-align:center">—</span>
+            <button class="btn btn-ghost btn-sm" onclick="window._locCalNext()">›</button>
+          </div>
+        </summary>
+        <div id="loc-calendar" style="padding-top:10px"></div>
+      </details>
+
       <!-- Revenus du mois -->
       <details class="fin-section" open>
         <summary>Revenus — <span id="loc-month-label">—</span></summary>
@@ -172,9 +185,15 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Mois *</label>
-            <input type="month" id="inc-month" class="form-input" required>
+            <label class="form-label">Arrivée *</label>
+            <input type="date" id="inc-start-date" class="form-input" required onchange="window._locCalcTotal()">
           </div>
+          <div class="form-group">
+            <label class="form-label">Départ *</label>
+            <input type="date" id="inc-end-date" class="form-input" required onchange="window._locCalcTotal()">
+          </div>
+        </div>
+        <div class="form-row">
           <div class="form-group">
             <label class="form-label">Plateforme</label>
             <input type="text" id="inc-platform" class="form-input" placeholder="Ex : Airbnb, Booking…" list="platform-list">
@@ -187,16 +206,13 @@
               <option value="Autre">
             </datalist>
           </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Nuits louées</label>
-            <input type="number" id="inc-nights" class="form-input" min="0" step="1" placeholder="0" oninput="window._locCalcTotal()">
-          </div>
           <div class="form-group">
             <label class="form-label">Tarif par nuit (€)</label>
             <input type="number" id="inc-rate" class="form-input" min="0" step="0.01" placeholder="0.00" oninput="window._locCalcTotal()">
           </div>
+        </div>
+        <div class="form-group" style="display:none">
+          <input type="number" id="inc-nights" value="0">
         </div>
         <!-- Total calculé automatiquement -->
         <div class="form-group">
@@ -235,6 +251,6 @@
   <script src="js/data.js?v=38"></script>
   <script src="js/modals.js?v=18"></script>
   <script src="js/nav.js?v=13"></script>
-  <script src="js/pages/location.js?v=2"></script>
+  <script src="js/pages/location.js?v=3"></script>
 </body>
 </html>
