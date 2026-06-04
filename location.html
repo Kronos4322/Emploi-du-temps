@@ -139,6 +139,38 @@
   <!-- Overlay commun -->
   <div id="loc-overlay" class="loc-drawer-overlay"></div>
 
+  <!-- Drawer : Détail bien + Charges -->
+  <div id="property-detail-drawer" class="loc-drawer" style="width:620px">
+    <div class="loc-drawer-header">
+      <span class="loc-drawer-title" id="pd-title">Détail du bien</span>
+      <button class="loc-drawer-close" onclick="window._locCloseDrawers()">✕</button>
+    </div>
+    <div class="loc-drawer-body">
+      <!-- KPIs -->
+      <div id="pd-kpis" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:22px"></div>
+
+      <!-- Revenus par mois -->
+      <div style="margin-bottom:22px">
+        <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:8px">Revenus par mois</div>
+        <div id="pd-revenues"></div>
+      </div>
+
+      <!-- Charges -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Charges</div>
+          <button class="btn btn-ghost btn-sm" onclick="window._locOpenExpenseForm(null)">+ Ajouter une charge</button>
+        </div>
+        <div id="pd-expenses"></div>
+      </div>
+    </div>
+    <div class="loc-drawer-footer">
+      <button class="btn btn-ghost" onclick="window._locOpenPropertyDrawer(window._pdPropId)">✏ Modifier le bien</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost" onclick="window._locCloseDrawers()">Fermer</button>
+    </div>
+  </div>
+
   <!-- Drawer : Ajouter / modifier un bien -->
   <div id="property-drawer" class="loc-drawer">
     <div class="loc-drawer-header">

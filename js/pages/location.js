@@ -214,7 +214,7 @@ function _renderProperties() {
     // Couleur de la barre d'occupation : vert si >70%, orange si >40%, rouge sinon
     const occColor = propOcc >= 70 ? '#22c55e' : propOcc >= 40 ? '#f97316' : '#ef4444';
 
-    return `<div class="property-card" style="border-left-color:${p.color||'#94a3b8'}${isInactive?';opacity:0.7':''}">
+    return `<div class="property-card" style="border-left-color:${p.color||'#94a3b8'}${isInactive?';opacity:0.7':''};cursor:pointer" onclick="window._locOpenPropertyDetail('${p.id}')">
       <div class="property-card-header">
         <div class="property-color-dot" style="background:${p.color||'#94a3b8'}"></div>
         <div style="flex:1;min-width:0">
@@ -254,7 +254,7 @@ function _renderProperties() {
 
       ${upcomingLabel ? `<div style="margin-top:8px;font-size:0.75rem;color:var(--primary);font-weight:600">📅 ${upcomingLabel}</div>` : ''}
 
-      <div class="property-actions" style="margin-top:10px">
+      <div class="property-actions" style="margin-top:10px" onclick="event.stopPropagation()">
         <button class="btn btn-ghost btn-sm" onclick="window._locOpenPropertyDrawer('${p.id}')">✏ Modifier</button>
         <button class="btn btn-ghost btn-sm" onclick="window._locAddIncomeForProp('${p.id}')">+ Revenu</button>
         <button class="btn btn-ghost btn-sm" style="color:var(--danger);margin-left:auto" onclick="window._locDeleteProperty('${p.id}')">🗑</button>
@@ -352,21 +352,10 @@ function _renderCalendar() {
       ? `<div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:${propColor}"></div>`
       : '';
 
-    // Badge arrivée
-    const checkinBadge = checkins.length > 0
-      ? `<span style="display:block;font-size:0.55rem;font-weight:700;background:${propMap[checkins[0].propertyId]?.color||'#dc2626'};color:#fff;border-radius:3px;padding:1px 4px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">→ Arrivée</span>`
-      : '';
-
-    // Badge départ
-    const checkoutBadge = checkouts.length > 0
-      ? `<span style="display:block;font-size:0.55rem;font-weight:700;background:#94a3b8;color:#fff;border-radius:3px;padding:1px 4px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">← Départ</span>`
-      : '';
-
     const cellStyle = `min-height:48px;border-radius:6px;padding:5px 5px 4px;cursor:pointer;border:${isToday?'2px solid #3b82f6':'1px solid rgba(0,0,0,0.08)'};background:${bg};position:relative;overflow:hidden;transition:box-shadow .15s`;
 
     html += `<div style="${cellStyle}" onclick="window._locCalClick('${dStr}')">
       <div style="font-size:0.76rem;font-weight:${isToday||nightSold?700:400};color:${isToday?'#3b82f6':numColor};line-height:1">${day}</div>
-      ${checkinBadge}${checkoutBadge}
       ${strip}
     </div>`;
   }
@@ -714,13 +703,203 @@ function _exportCsv() {
 // ── Raccourcis ───────────────────────────────────────────────
 
 function _locCloseDrawers() {
-  document.getElementById('property-drawer').classList.remove('open');
-  document.getElementById('income-drawer').classList.remove('open');
+  ['property-drawer','income-drawer','property-detail-drawer'].forEach(id => {
+    document.getElementById(id)?.classList.remove('open');
+  });
   document.getElementById('loc-overlay').classList.remove('open');
 }
 
 function _locAddIncomeForProp(propertyId) {
   _openIncomeDrawer(null, null, propertyId);
+}
+
+// ── Détail bien + Charges ────────────────────────────────────
+
+const FB = 'https://emploi-du-temps-97818-default-rtdb.europe-west1.firebasedatabase.app/db';
+let _pdPropId = null;
+
+const CAT_LABELS = { eau:'💧 Eau', electricite:'⚡ Électricité', menage:'🧹 Ménage', gardiennage:'🔒 Gardiennage', autre:'📦 Autre' };
+
+async function _loadExpenses(propertyId) {
+  try {
+    const d = await (await fetch(`${FB}/propertyExpenses.json`)).json();
+    return (d || []).filter(e => e && e.propertyId === propertyId);
+  } catch { return []; }
+}
+
+async function _saveExpenseFB(expense) {
+  const all = await (await fetch(`${FB}/propertyExpenses.json`)).json() || [];
+  const idx = all.findIndex(e => e?.id === expense.id);
+  if (idx >= 0) all[idx] = expense; else all.push(expense);
+  await fetch(`${FB}/propertyExpenses.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(all) });
+  await fetch(`${FB}/_updatedAt.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:Date.now().toString() });
+}
+
+async function _deleteExpenseFB(id) {
+  const all = ((await (await fetch(`${FB}/propertyExpenses.json`)).json()) || []).filter(e => e?.id !== id);
+  await fetch(`${FB}/propertyExpenses.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(all) });
+  await fetch(`${FB}/_updatedAt.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:Date.now().toString() });
+}
+
+async function _openPropertyDetail(propertyId) {
+  _locCloseDrawers();
+  _pdPropId = propertyId;
+  const prop = Data.getPropertyById(propertyId);
+  if (!prop) return;
+  document.getElementById('pd-title').textContent = prop.name;
+  document.getElementById('pd-title').style.borderLeft = `4px solid ${prop.color||'#94a3b8'}`;
+  document.getElementById('pd-title').style.paddingLeft = '10px';
+  document.getElementById('property-detail-drawer').classList.add('open');
+  document.getElementById('loc-overlay').classList.add('open');
+  await _renderPropertyDetail();
+}
+
+async function _renderPropertyDetail() {
+  if (!_pdPropId) return;
+  const prop     = Data.getPropertyById(_pdPropId);
+  const allInc   = Data.getRentalIncomes().filter(r => r.propertyId === _pdPropId);
+  const expenses = await _loadExpenses(_pdPropId);
+  const displayYm = _locMonth || Utils.currentYearMonth();
+  const [py,pm]  = displayYm.split('-').map(Number);
+  const daysInM  = new Date(py, pm, 0).getDate();
+
+  // Revenus
+  const monthInc   = allInc.filter(r => r.yearMonth === displayYm);
+  const monthRev   = monthInc.reduce((s,r) => s+(r.amount||0), 0);
+  const totalRev   = allInc.reduce((s,r) => s+(r.amount||0), 0);
+  const monthNights = allInc.filter(r=>r.startDate&&r.endDate).reduce((s,r)=>s+_nightsInMonth(r,displayYm),0);
+  const propOcc    = daysInM > 0 ? Math.round(monthNights/daysInM*100) : 0;
+  const revPAN     = monthNights > 0 ? Math.round(monthRev/monthNights) : 0;
+
+  // Charges
+  const monthExp   = expenses.filter(e => e.yearMonth === displayYm);
+  const totalExp   = expenses.reduce((s,e) => s+(e.amount||0), 0);
+  const monthExpTotal = monthExp.reduce((s,e) => s+(e.amount||0), 0);
+  const occColor   = propOcc >= 70 ? '#22c55e' : propOcc >= 40 ? '#f97316' : '#ef4444';
+
+  // ── KPIs ──
+  document.getElementById('pd-kpis').innerHTML = `
+    <div style="background:var(--surface);border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:1.3rem;font-weight:700;color:var(--primary)">${Utils.formatMoney(monthRev)}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Revenus ce mois</div>
+    </div>
+    <div style="background:var(--surface);border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:1.3rem;font-weight:700">${Utils.formatMoney(totalRev)}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Total revenus</div>
+    </div>
+    <div style="background:var(--surface);border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:1.3rem;font-weight:700;color:${occColor}">${propOcc} %</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Taux occupation</div>
+      <div style="height:4px;background:var(--border);border-radius:2px;margin-top:6px"><div style="height:4px;width:${propOcc}%;background:${occColor};border-radius:2px"></div></div>
+    </div>
+    <div style="background:var(--surface);border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:1.3rem;font-weight:700">${revPAN > 0 ? revPAN+'€' : '—'}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">RevPAN</div>
+    </div>
+    <div style="background:#fef2f2;border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:1.3rem;font-weight:700;color:#dc2626">${Utils.formatMoney(totalExp)}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Total charges</div>
+    </div>
+    <div style="background:${totalRev-totalExp>=0?'#f0fdf4':'#fef2f2'};border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:1.3rem;font-weight:700;color:${totalRev-totalExp>=0?'#16a34a':'#dc2626'}">${Utils.formatMoney(totalRev-totalExp)}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Revenu net</div>
+    </div>`;
+
+  // ── Revenus par mois ──
+  const byMonth = {};
+  allInc.forEach(r => { const k=r.yearMonth||'?'; if(!byMonth[k]) byMonth[k]=[]; byMonth[k].push(r); });
+  const revRows = Object.keys(byMonth).sort((a,b)=>b.localeCompare(a)).map(ym => {
+    const [y,m] = ym.split('-');
+    const sub   = byMonth[ym].reduce((s,r)=>s+(r.amount||0),0);
+    const nights = byMonth[ym].reduce((s,r)=>s+(r.nightsRented||0),0);
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.85rem">
+      <span style="font-weight:600">${Utils.MONTHS_LONG[+m-1]} ${y}</span>
+      <span style="color:var(--text-muted)">${nights} nuit${nights>1?'s':''}</span>
+      <span style="font-weight:700;color:var(--primary)">${Utils.formatMoney(sub)}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('pd-revenues').innerHTML = revRows || '<div style="color:var(--text-muted);font-size:0.85rem;padding:8px 0">Aucun revenu enregistré</div>';
+
+  // ── Charges ──
+  const expRows = expenses.sort((a,b)=>(b.yearMonth||'').localeCompare(a.yearMonth||'')).map(e => {
+    const [y,m] = (e.yearMonth||'').split('-');
+    const label = m ? `${Utils.MONTHS_LONG[+m-1]} ${y}` : '—';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.84rem">
+      <span style="flex:1">${CAT_LABELS[e.category]||e.category||'—'}</span>
+      <span style="color:var(--text-muted);font-size:0.78rem">${label}</span>
+      <span style="font-weight:700;color:#dc2626;min-width:70px;text-align:right">−${Utils.formatMoney(e.amount||0)}</span>
+      ${e.notes ? `<span style="font-size:0.74rem;color:var(--text-muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${Utils.escapeHtml(e.notes)}">${Utils.escapeHtml(e.notes)}</span>` : ''}
+      <button class="btn btn-ghost btn-xs" onclick="window._locEditExpense('${e.id}')">✏</button>
+      <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="window._locDeleteExpense('${e.id}')">🗑</button>
+    </div>`;
+  }).join('');
+  document.getElementById('pd-expenses').innerHTML = expRows || '<div style="color:var(--text-muted);font-size:0.85rem;padding:8px 0">Aucune charge enregistrée</div>';
+}
+
+function _locOpenExpenseForm(expense) {
+  const isEdit = !!expense;
+  const ym = expense?.yearMonth || (_locMonth || Utils.currentYearMonth());
+  Modals._open(`
+    <div class="modal-header">
+      <h3 style="font-size:0.9rem">${isEdit ? 'Modifier la charge' : 'Ajouter une charge'}</h3>
+      <button class="modal-close" onclick="Modals.close()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:20px;display:flex;flex-direction:column;gap:14px">
+      <div class="form-group">
+        <label class="form-label">Catégorie</label>
+        <select id="exp-cat" class="form-input">
+          ${Object.entries(CAT_LABELS).map(([v,l])=>`<option value="${v}" ${expense?.category===v?'selected':''}>${l}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mois</label>
+        <input type="month" id="exp-ym" class="form-input" value="${ym}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Montant (€)</label>
+        <input type="number" id="exp-amount" class="form-input" min="0" step="0.01" value="${expense?.amount||''}" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <input type="text" id="exp-notes" class="form-input" value="${Utils.escapeHtml(expense?.notes||'')}" placeholder="Optionnel">
+      </div>
+      <input type="hidden" id="exp-id" value="${expense?.id||''}">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="Modals.close()">Annuler</button>
+      <button class="btn btn-primary" onclick="window._locSaveExpense()">Enregistrer</button>
+    </div>`);
+}
+
+async function _locSaveExpense() {
+  const id     = document.getElementById('exp-id').value || Utils.uuid();
+  const amount = parseFloat(document.getElementById('exp-amount').value);
+  if (!amount || isNaN(amount)) { alert('Montant requis.'); return; }
+  const expense = {
+    id, propertyId: _pdPropId,
+    category: document.getElementById('exp-cat').value,
+    yearMonth: document.getElementById('exp-ym').value,
+    amount,
+    notes: document.getElementById('exp-notes').value.trim(),
+    updatedAt: Date.now()
+  };
+  Modals.close();
+  await _saveExpenseFB(expense);
+  await _renderPropertyDetail();
+  Utils.toast('Charge enregistrée.', 'success');
+}
+
+function _locEditExpense(id) {
+  _loadExpenses(_pdPropId).then(all => {
+    const exp = all.find(e => e.id === id);
+    if (exp) _locOpenExpenseForm(exp);
+  });
+}
+
+async function _locDeleteExpense(id) {
+  if (!confirm('Supprimer cette charge ?')) return;
+  await _deleteExpenseFB(id);
+  await _renderPropertyDetail();
 }
 
 // Expositions globales
@@ -736,3 +915,9 @@ window._locDeleteIncome       = _locDeleteIncome;
 window._locMarkReceived       = _locMarkReceived;
 window._locAddIncomeForProp   = _locAddIncomeForProp;
 window._locExportCsv          = _exportCsv;
+window._locOpenPropertyDetail = _openPropertyDetail;
+window._locOpenExpenseForm    = _locOpenExpenseForm;
+window._pdPropId              = null; // exposé pour le bouton "Modifier le bien" dans le drawer détail
+window._locSaveExpense        = _locSaveExpense;
+window._locEditExpense        = _locEditExpense;
+window._locDeleteExpense      = _locDeleteExpense;
