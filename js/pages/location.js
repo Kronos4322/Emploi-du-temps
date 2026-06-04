@@ -370,7 +370,6 @@ function _renderCalendar() {
           <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${p.color}"></span>
           ${Utils.escapeHtml(p.name)}
         </span>`).join('')}
-        <span style="font-size:0.72rem;color:var(--text-muted);margin-left:4px">→ Arrivée &nbsp; ← Départ</span>
       </div>`;
     }
   }
