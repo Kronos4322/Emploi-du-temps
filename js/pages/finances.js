@@ -101,12 +101,13 @@ function buildFilters() {
       return `<option value="${ym}" ${ym===_yearMonth?'selected':''}>${Utils.MONTHS_LONG[+m-1]} ${y}</option>`;
     }).join('');
 
+  const polesLabel = ownCos.length > 0 ? ownCos.map(c => Utils.escapeHtml(c.name)).join(' + ') : 'Tous les pôles';
+  const _poleIcon  = c => { const n = (c.name||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); if (n.includes('artem')) return '🎓'; if (n.includes('aster')) return '🌍'; return '🏢'; };
   document.getElementById('filter-pole').innerHTML =
-    '<option value="">Tous les pôles</option>' +
-    ownCos.map(c => `<option value="${c.id}" ${_poleId===c.id?'selected':''}>${Utils.escapeHtml(c.name)}</option>`).join('') +
+    '<option value="">📊 Tous les pôles</option>' +
+    ownCos.map(c => `<option value="${c.id}" ${_poleId===c.id?'selected':''}>${_poleIcon(c)} ${Utils.escapeHtml(c.name)}</option>`).join('') +
     `<option value="${RENTAL_POLE}" ${_poleId===RENTAL_POLE?'selected':''}>🏠 Location</option>`;
 
-  const polesLabel = ownCos.length > 0 ? ownCos.map(c => Utils.escapeHtml(c.name)).join(' + ') : 'Tous les pôles';
   document.getElementById('chart-split').innerHTML =
     `<option value="poles">${polesLabel}</option>` +
     ownCos.map(c => `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`).join('') +
@@ -114,20 +115,29 @@ function buildFilters() {
     '<option value="rental">🏠 Location seule</option>';
 
   const checksDiv = document.getElementById('filter-provider-checks');
+  const _updateProvSummary = () => {
+    const summaryEl = document.getElementById('filter-provider-summary');
+    if (!summaryEl) return;
+    const total = Data.getActiveProviders().length;
+    if (_providerIds.length === 0)     summaryEl.textContent = '— aucun';
+    else if (_providerIds.length === total) summaryEl.textContent = '— tous';
+    else summaryEl.textContent = `— ${_providerIds.length}/${total} sélectionné${_providerIds.length > 1 ? 's' : ''}`;
+  };
   const renderProvChecks = () => {
     checksDiv.innerHTML =
-      '<span style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap">Prestataires :</span>' +
-      '<button style="font-size:0.75rem;padding:2px 8px;border-radius:12px;border:1px solid var(--border);cursor:pointer;background:var(--primary);color:#fff" onclick="window._allProvs()">Tous</button>' +
-      '<button style="font-size:0.75rem;padding:2px 8px;border-radius:12px;border:1px solid var(--border);cursor:pointer" onclick="window._noneProvs()">Aucun</button>' +
+      '<button style="font-size:0.75rem;padding:2px 8px;border-radius:12px;border:1px solid var(--border);cursor:pointer;background:var(--primary);color:#fff;white-space:nowrap" onclick="window._allProvs()">Tous</button>' +
+      '<button style="font-size:0.75rem;padding:2px 8px;border-radius:12px;border:1px solid var(--border);cursor:pointer;white-space:nowrap" onclick="window._noneProvs()">Aucun</button>' +
       Data.getActiveProviders().map(p => `
         <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.82rem;white-space:nowrap">
           <input type="checkbox" value="${p.id}" ${_providerIds.includes(p.id)?'checked':''} onchange="window._onProvCheck()">
           ${Utils.escapeHtml(p.lastName + ' ' + p.firstName)}
         </label>`).join('');
+    _updateProvSummary();
   };
   renderProvChecks();
   window._onProvCheck = () => {
     _providerIds = [...checksDiv.querySelectorAll('input:checked')].map(i => i.value);
+    _updateProvSummary();
     renderProviderCosts(); renderChart();
   };
   window._allProvs  = () => { _providerIds = Data.getActiveProviders().map(p => p.id); renderProvChecks(); renderProviderCosts(); renderChart(); };

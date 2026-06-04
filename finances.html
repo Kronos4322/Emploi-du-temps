@@ -45,7 +45,12 @@
         </div>
         <select id="filter-pole"    class="form-input filter-select"></select>
         <select id="filter-company" class="form-input filter-select"></select>
-        <div id="filter-provider-checks" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);min-height:38px"></div>
+        <details id="filter-provider-details" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);min-width:180px">
+          <summary style="padding:5px 10px;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:var(--text-muted);list-style:none;user-select:none;outline:none">
+            👤 Prestataires &nbsp;<span id="filter-provider-summary" style="font-weight:600;color:var(--text);font-size:0.82rem"></span>
+          </summary>
+          <div id="filter-provider-checks" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 10px 8px;border-top:1px solid var(--border)"></div>
+        </details>
       </div>
 
       <!-- 1. KPIs + Rapport mensuel -->
