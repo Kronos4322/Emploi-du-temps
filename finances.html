@@ -96,20 +96,6 @@
               <div class="kpi-label">Heures prévues</div>
             </div>
           </div>
-          <div class="kpi-card" id="fin-unpaid-card">
-            <div class="kpi-icon kpi-orange">⚠</div>
-            <div class="kpi-content">
-              <div class="kpi-value" id="fin-unpaid">—</div>
-              <div class="kpi-label" id="fin-unpaid-label">Non payé</div>
-            </div>
-          </div>
-          <div class="kpi-card" id="fin-rental-kpi-card" style="display:none">
-            <div class="kpi-icon kpi-green">🏠</div>
-            <div class="kpi-content">
-              <div class="kpi-value" id="fin-rental-kpi-val">—</div>
-              <div class="kpi-label">Revenus locatifs</div>
-            </div>
-          </div>
         </div>
 
         <div id="section-by-company">
@@ -244,6 +230,10 @@
             <option value="line">Courbes</option>
             <option value="pie">Camembert</option>
           </select>
+          <span style="color:var(--text-muted);font-size:0.85rem;margin-left:6px">| Moy. de</span>
+          <select id="avg-period-start" class="form-input filter-select" style="width:auto"></select>
+          <span style="color:var(--text-muted);font-size:0.85rem">à</span>
+          <select id="avg-period-end" class="form-input filter-select" style="width:auto"></select>
         </div>
         <canvas id="fin-chart" height="100"></canvas>
       </details>

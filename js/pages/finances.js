@@ -3,6 +3,19 @@
 
 const RENTAL_POLE = '__rental__';
 
+const RENTAL_STATUS_BADGES = {
+  received: '<span class="badge badge-success">✓ Reçu</span>',
+  pending:  '<span class="badge badge-warning">⏳ En attente</span>',
+  partial:  '<span class="badge badge-danger">⚠ Partiel</span>',
+};
+
+function _matchesPole(m, coMap) {
+  if (!_poleId) return true;
+  const co = coMap[m.companyId];
+  if (!co) return false;
+  return co.role === 'own' ? co.id === _poleId : co.poleId === _poleId;
+}
+
 const _finUrlParams = new URLSearchParams(window.location.search);
 let _yearMonth   = Utils.currentYearMonth();
 let _companyId   = '';
@@ -39,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('filter-year').addEventListener('change', e => {
     _schoolYear = e.target.value; renderAnnual();
   });
-  ['chart-group','chart-split','chart-type'].forEach(id =>
+  ['chart-group','chart-split','chart-type','avg-period-start','avg-period-end'].forEach(id =>
     document.getElementById(id).addEventListener('change', renderChart));
   document.getElementById('btn-export-csv').addEventListener('click', () => {
     if (_poleId === RENTAL_POLE) _exportRentalCsv();
@@ -116,10 +129,12 @@ function buildFilters() {
     ownCos.map(c => `<option value="${c.id}" ${_poleId===c.id?'selected':''}>${_poleIcon(c)} ${Utils.escapeHtml(c.name)}</option>`).join('') +
     `<option value="${RENTAL_POLE}" ${_poleId===RENTAL_POLE?'selected':''}>🏠 Location</option>`;
 
+  const _poleIconStr = c => { const n=(c.name||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); if(n.includes('artem')) return '🎓'; if(n.includes('aster')) return '🌍'; return '🏢'; };
+  const polesLabelFull = ownCos.length > 0 ? ownCos.map(c => `${_poleIconStr(c)} ${Utils.escapeHtml(c.name).toUpperCase()}`).join(' + ') : '📊 TOUS LES PÔLES';
   document.getElementById('chart-split').innerHTML =
-    `<option value="poles">${polesLabel}</option>` +
-    ownCos.map(c => `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`).join('') +
-    '<option value="schools">Par école</option>' +
+    `<option value="poles">${polesLabelFull}</option>` +
+    ownCos.map(c => `<option value="${c.id}">${_poleIconStr(c)} ${Utils.escapeHtml(c.name).toUpperCase()}</option>`).join('') +
+    '<option value="schools">🏫 Par école</option>' +
     '<option value="rental">🏠 Location seule</option>';
 
   const checksDiv = document.getElementById('filter-provider-checks');
@@ -160,8 +175,6 @@ function _activateMissionsView() {
   _el('rental-by-prop-wrapper',    s => s.display = 'none');
   _el('missions-done-table',       s => s.display = '');
   _el('rental-incomes-wrapper',    s => s.display = 'none');
-  _el('fin-rental-kpi-card',       s => s.display = 'none');
-  _el('fin-unpaid-card',           s => s.display = '');
   const hpCard = document.getElementById('fin-hours-planned')?.closest?.('.kpi-card');
   if (hpCard) hpCard.style.display = '';
 }
@@ -172,9 +185,7 @@ function _activateRentalView() {
   _el('rental-by-prop-wrapper',    s => s.display = '');
   _el('missions-done-table',       s => s.display = 'none');
   _el('rental-incomes-wrapper',    s => s.display = '');
-  _el('fin-rental-kpi-card',       s => s.display = 'none');
   _el('fin-pole-kpi-row',          s => s.display = 'none');
-  _el('fin-unpaid-card',           s => s.display = 'none');
   _el('section-by-provider',       s => s.display = 'none');
   _el('section-cancelled',         s => s.display = 'none');
   const hpCard = document.getElementById('fin-hours-planned')?.closest?.('.kpi-card');
@@ -234,18 +245,9 @@ function render() {
   const providers = {}; Data.getProviders().forEach(p => providers[p.id] = p);
   const [y, m]    = _yearMonth.split('-');
 
-  const filterByPole = ms => {
-    if (!_poleId) return true;
-    const co = companies[ms.companyId];
-    if (!co) return false;
-    if (co.role === 'own') return co.id === _poleId;
-    if (co.poleId) return co.poleId === _poleId;
-    return false;
-  };
-
   let doneMissions    = stats.done.filter(ms => ms.missionType !== 'personal');
   let plannedMissions = stats.planned.filter(ms => ms.missionType !== 'personal');
-  if (_poleId) { doneMissions = doneMissions.filter(filterByPole); plannedMissions = plannedMissions.filter(filterByPole); }
+  if (_poleId) { doneMissions = doneMissions.filter(m => _matchesPole(m, companies)); plannedMissions = plannedMissions.filter(m => _matchesPole(m, companies)); }
   if (_companyId === '__none__') { doneMissions = []; plannedMissions = []; }
 
   const poleLabel   = _poleId ? (' — ' + (companies[_poleId]?.name || '')) : '';
@@ -264,14 +266,6 @@ function render() {
   const totalCosts  = Math.round((_calcCosts(doneMissions) + _calcCosts(plannedMissions)) * 100) / 100;
   const hoursDone   = doneMissions.reduce((s,ms) => s + (ms.duration||0), 0);
   const hoursPlanned= plannedMissions.reduce((s,ms) => s + (ms.duration||0), 0);
-  // "Non payé" : missions réalisées ET auto-done (passées mais pas encore marquées "done")
-  const _today = Utils.today();
-  const unpaidM = doneMissions.filter(ms =>
-    ms.paymentStatus !== 'paid' &&
-    (ms.status === 'done' || (ms.status === 'planned' && ms.date && ms.date < _today))
-  );
-  const unpaidAmt   = unpaidM.reduce((s,ms) => s + (ms.duration||0)*(ms.billingRate||0), 0);
-
   // Intégration revenus locatifs pour "Tous les pôles"
   const rentalIncomes = !_poleId ? Data.getRentalIncomesByMonth(_yearMonth) : [];
   const rentalTotal   = rentalIncomes.reduce((s, r) => s + (r.amount || 0), 0);
@@ -310,9 +304,6 @@ function render() {
       poleKpiRow.style.display = 'none';
     }
   }
-  // Toujours masquer le KPI card locatif seul (la ligne pôle le remplace)
-  _el('fin-rental-kpi-card', s => s.display = 'none');
-
   // Restaurer labels KPI normaux (label locatif si tous les pôles avec revenus)
   const caLabel = (!_poleId && rentalTotal > 0) ? 'CA total (missions + locatif)' : 'CA total (réalisé + prévu)';
   _setKpiLabel('fin-revenue',       caLabel);
@@ -331,10 +322,6 @@ function render() {
   marginCard.className = 'kpi-card kpi-large' + (netMargin > 0 ? ' kpi-positive' : netMargin < 0 ? ' kpi-negative' : '');
   const _marginIcon = marginCard.querySelector('.kpi-icon');
   if (_marginIcon) _marginIcon.className = 'kpi-icon ' + (netMargin > 0 ? 'kpi-green' : netMargin < 0 ? 'kpi-red' : 'kpi-gray');
-
-  document.getElementById('fin-unpaid').textContent       = Utils.formatMoney(unpaidAmt);
-  document.getElementById('fin-unpaid-label').textContent = `${unpaidM.length} mission${unpaidM.length !== 1 ? 's' : ''} non payée${unpaidM.length !== 1 ? 's' : ''}`;
-  document.getElementById('fin-unpaid-card').className = unpaidAmt > 0 ? 'kpi-card kpi-alert-card' : 'kpi-card kpi-success-card';
 
   // Répartition par école
   const titleEl = document.getElementById('section-by-company-title');
@@ -462,7 +449,6 @@ function render() {
       const co  = companies[ms.companyId || ms.schoolId];
       const col = co ? co.color : '#94a3b8';
       const rev = (ms.duration||0) * (ms.billingRate||0);
-      const isAutoDone = ms.status === 'planned';
       const PAY = {
         unpaid:   '<span class="badge badge-danger">Non payé</span>',
         invoiced: '<span class="badge badge-invoiced">Facturé (non payé)</span>',
@@ -471,12 +457,9 @@ function render() {
       const rateLabel  = ms.missionType === 'forfait'
         ? '<span style="font-size:0.75rem;color:var(--text-muted);background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1px 7px">Forfait</span>'
         : `${Utils.formatMoney(ms.billingRate)}/h`;
-      const autoBadge = isAutoDone
-        ? ' <span style="font-size:0.7rem;background:var(--warning-light);color:var(--warning);border:1px solid var(--warning);border-radius:10px;padding:1px 6px">Auto</span>'
-        : '';
       return `<tr class="table-row" onclick="Modals.openMission('${ms.id}',null,()=>render())">
         <td>${Utils.formatDate(ms.date)}</td>
-        <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(ms.title)}${autoBadge}</td>
+        <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(ms.title)}</td>
         <td>${co ? Utils.escapeHtml(co.name) : '—'}</td>
         <td>${Utils.formatDuration(ms.duration)}</td>
         <td class="cell-money">${rateLabel}</td>
@@ -487,7 +470,7 @@ function render() {
 
   // Missions annulées
   let cancelledMissions = stats.cancelled.filter(ms => ms.missionType !== 'personal');
-  if (_poleId) cancelledMissions = cancelledMissions.filter(filterByPole);
+  if (_poleId) cancelledMissions = cancelledMissions.filter(m => _matchesPole(m, companies));
   if (_companyId && _companyId !== '__none__') cancelledMissions = cancelledMissions.filter(ms => ms.companyId === _companyId);
   if (_companyId === '__none__') cancelledMissions = [];
   const cancelSection = document.getElementById('section-cancelled');
@@ -593,11 +576,6 @@ function renderRentalFull() {
   document.getElementById('done-section-title').textContent = `Détail des revenus (${filtered.length})`;
   document.getElementById('rental-incomes-wrapper').style.display = '';
 
-  const STATUS_BADGES = {
-    received: '<span class="badge badge-success">✓ Reçu</span>',
-    pending:  '<span class="badge badge-warning">⏳ En attente</span>',
-    partial:  '<span class="badge badge-danger">⚠ Partiel</span>',
-  };
   document.getElementById('tbody-rental-incomes').innerHTML = filtered.length === 0
     ? '<tr><td colspan="6" class="empty-state-cell">Aucun revenu locatif ce mois.</td></tr>'
     : filtered.map(r => {
@@ -608,7 +586,7 @@ function renderRentalFull() {
         <td>${Utils.escapeHtml(r.platform || '—')}</td>
         <td class="cell-center">${r.nightsRented || '—'}</td>
         <td class="cell-money">${Utils.formatMoney(r.amount || 0)}</td>
-        <td>${STATUS_BADGES[r.status] || r.status || ''}</td>
+        <td>${RENTAL_STATUS_BADGES[r.status] || r.status || ''}</td>
         <td style="font-size:0.82rem;color:var(--text-muted)">${Utils.escapeHtml(r.notes || '')}</td>
       </tr>`;
     }).join('');
@@ -751,15 +729,8 @@ function renderProviderCosts() {
 
   const [sy, ey]  = _schoolYear.split('-');
   const dateStart = `${sy}-09-01`, dateEnd = `${ey}-08-31`;
-  const _pcCoMap  = {}; Data.getCompanies().forEach(c => _pcCoMap[c.id] = c);
-  const _pcFilter = m => {
-    if (!_poleId) return true;
-    const co = _pcCoMap[m.companyId];
-    if (!co) return false;
-    if (co.role === 'own') return co.id === _poleId;
-    return co.poleId === _poleId;
-  };
-  const allM   = Data.getMissions().filter(m => m.status !== 'cancelled' && _pcFilter(m));
+  const _pcCoMap = {}; Data.getCompanies().forEach(c => _pcCoMap[c.id] = c);
+  const allM     = Data.getMissions().filter(m => m.status !== 'cancelled' && _matchesPole(m, _pcCoMap));
   const monthM = allM.filter(m => m.date && m.date.startsWith(_yearMonth));
   const yearM  = allM.filter(m => m.date && m.date >= dateStart && m.date <= dateEnd);
   const provMap = {}; Data.getProviders().forEach(p => provMap[p.id] = p);
@@ -811,12 +782,35 @@ function renderChart() {
   const ctype   = document.getElementById('chart-type').value;
   const isRental = (_poleId === RENTAL_POLE);
 
+  // Peupler les selects de période pour la moyenne (années sep→août)
+  const avgStartSel = document.getElementById('avg-period-start');
+  const avgEndSel   = document.getElementById('avg-period-end');
+  const _curSY = new Date().getMonth() >= 8 ? new Date().getFullYear() : new Date().getFullYear() - 1;
+  const _syOpts = [];
+  for (let y = 2024; y <= _curSY + 1; y++) _syOpts.push(`${y}-${y+1}`);
+  if (avgStartSel.children.length !== _syOpts.length) {
+    const prevS = avgStartSel.value, prevE = avgEndSel.value;
+    avgStartSel.innerHTML = _syOpts.map(o => `<option value="${o}">${o}</option>`).join('');
+    avgEndSel.innerHTML   = _syOpts.map(o => `<option value="${o}">${o}</option>`).join('');
+    avgStartSel.value = _syOpts.includes(prevS) ? prevS : _syOpts[0];
+    avgEndSel.value   = _syOpts.includes(prevE) ? prevE : (_syOpts[_syOpts.length - 2] || _syOpts[0]);
+  }
+  const avgStart = avgStartSel.value;
+  const avgEnd   = avgEndSel.value;
+  const [_sYr]   = avgStart.split('-').map(Number);
+  const [_eYr]   = avgEnd.split('-').map(Number);
+  const inAvgPeriod = lbl => group === 'month'
+    ? lbl >= `${_sYr}-09` && lbl <= `${_eYr + 1}-08`
+    : lbl >= avgStart && lbl <= avgEnd;
+
   if (ctype === 'pie') { renderPieChart(); return; }
   if (isRental || split === 'rental') { _renderRentalChart(group, ctype); return; }
 
   const coMap       = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
   const ownCos      = Data.getOwnCompanies();
-  const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled' && m.date && m.missionType !== 'personal');
+  const allMissions = Data.getMissions().filter(m =>
+    (m.status === 'done' || m.status === 'planned') && m.date && m.missionType !== 'personal'
+  );
 
   // Labels temporels
   let labels = [];
@@ -842,13 +836,7 @@ function renderChart() {
     return `${rm>=9?ry:ry-1}-${rm>=9?ry+1:ry}`;
   };
 
-  const poleFilterFn = m => {
-    if (!_poleId) return true;
-    const co = coMap[m.companyId];
-    if (!co) return false;
-    return co.role === 'own' ? co.id === _poleId : co.poleId === _poleId;
-  };
-  let missions = allMissions.filter(poleFilterFn);
+  let missions = allMissions.filter(m => _matchesPole(m, coMap));
   if (_companyId && _companyId !== '__none__') missions = missions.filter(m => m.companyId === _companyId);
   const noSchools = _companyId === '__none__';
 
@@ -858,9 +846,9 @@ function renderChart() {
   if (!noSchools) {
     // makePoleDataset travaille sur allMissions (pas missions filtré par _companyId)
     // pour toujours afficher le CA réel du pôle, indépendamment du filtre école actif
-    const makePoleDataset = (pole, i) => ({
-      label: pole.name,
-      data: labels.map(lbl => {
+    const makePoleDataset = (pole, i) => {
+      const baseColor = pole.color || COLORS[i];
+      const data = labels.map(lbl => {
         const ms = allMissions.filter(m => {
           if (mKey(m) !== lbl) return false;
           const co = coMap[m.companyId];
@@ -868,11 +856,15 @@ function renderChart() {
           return co.role === 'own' ? co.id === pole.id : co.poleId === pole.id;
         });
         return Math.round(ms.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0)*100)/100;
-      }),
-      backgroundColor: (pole.color||COLORS[i])+'99',
-      borderColor: pole.color||COLORS[i],
-      borderWidth: 2, fill: ctype==='line',
-    });
+      });
+      return {
+        label: pole.name, data,
+        backgroundColor: labels.map(lbl => lbl === _yearMonth ? baseColor : baseColor+'99'),
+        borderColor: labels.map(lbl => lbl === _yearMonth ? baseColor : baseColor+'99'),
+        borderWidth: labels.map(lbl => lbl === _yearMonth ? 3 : 2),
+        fill: ctype === 'line',
+      };
+    };
 
     if (split === 'poles') {
       if (ownCos.length > 1) {
@@ -900,19 +892,19 @@ function renderChart() {
         datasets.push({
           label: barLabel,
           data: totalMonthlyRev,
-          backgroundColor: '#8b5cf699', borderColor: '#8b5cf6', borderWidth: 2,
+          backgroundColor: labels.map(lbl => lbl === _yearMonth ? '#8b5cf6' : '#8b5cf699'),
+          borderColor: labels.map(lbl => lbl === _yearMonth ? '#6d28d9' : '#8b5cf6'),
+          borderWidth: labels.map(lbl => lbl === _yearMonth ? 3 : 2),
           fill: ctype === 'line', pointRadius: ctype === 'line' ? 3 : 0, tension: 0.3,
         });
 
         // ── Moyenne missions uniquement (orange) ──────────────────────────────
-        const fM = missionMonthlyRev.findIndex(v => v > 0);
-        const lM = missionMonthlyRev.reduce((last, v, i) => v > 0 ? i : last, -1);
-        if (fM >= 0) {
-          const sliceM = missionMonthlyRev.slice(fM, lM + 1);
-          const avgM   = Math.round(sliceM.reduce((s,v)=>s+v,0)/sliceM.length*100)/100;
+        const periodMIdx = labels.map((lbl,i) => inAvgPeriod(lbl) && missionMonthlyRev[i] > 0 ? i : -1).filter(i=>i>=0);
+        if (periodMIdx.length > 0) {
+          const avgM = Math.round(periodMIdx.reduce((s,i)=>s+missionMonthlyRev[i],0)/periodMIdx.length*100)/100;
           datasets.push({
             label: `Moy. missions (${Utils.formatMoney(avgM)})`,
-            data: missionMonthlyRev.map((_, i) => (i>=fM&&i<=lM)?avgM:null),
+            data: labels.map((lbl) => inAvgPeriod(lbl) ? avgM : null),
             borderColor: '#f97316', borderWidth: 2, borderDash: [8,4],
             backgroundColor: 'transparent', pointRadius: 0, tension: 0, fill: false,
             type: 'line', order: -1, spanGaps: false,
@@ -921,14 +913,12 @@ function renderChart() {
 
         // ── Moyenne totale avec location (teal) — seulement si données locatives
         if (hasRental) {
-          const fT = totalMonthlyRev.findIndex(v => v > 0);
-          const lT = totalMonthlyRev.reduce((last, v, i) => v > 0 ? i : last, -1);
-          if (fT >= 0) {
-            const sliceT = totalMonthlyRev.slice(fT, lT + 1);
-            const avgT   = Math.round(sliceT.reduce((s,v)=>s+v,0)/sliceT.length*100)/100;
+          const periodTIdx = labels.map((lbl,i) => inAvgPeriod(lbl) && totalMonthlyRev[i] > 0 ? i : -1).filter(i=>i>=0);
+          if (periodTIdx.length > 0) {
+            const avgT = Math.round(periodTIdx.reduce((s,i)=>s+totalMonthlyRev[i],0)/periodTIdx.length*100)/100;
             datasets.push({
               label: `Moy. totale (${Utils.formatMoney(avgT)})`,
-              data: totalMonthlyRev.map((_, i) => (i>=fT&&i<=lT)?avgT:null),
+              data: labels.map((lbl) => inAvgPeriod(lbl) ? avgT : null),
               borderColor: '#10b981', borderWidth: 2, borderDash: [5,3],
               backgroundColor: 'transparent', pointRadius: 0, tension: 0, fill: false,
               type: 'line', order: -2, spanGaps: false,
@@ -957,7 +947,7 @@ function renderChart() {
   if (_providerIds.length > 0) {
     const allProvM = allMissions.filter(m => {
       const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
-      return pids.some(pid => _providerIds.includes(pid)) && poleFilterFn(m);
+      return pids.some(pid => _providerIds.includes(pid)) && _matchesPole(m, coMap);
     });
     const costData = labels.map(lbl => Math.round(allProvM.filter(m=>mKey(m)===lbl).reduce((s,m)=>s+(m.duration||0)*(m.providerRate||0),0)*100)/100);
     const revData  = labels.map(lbl => Math.round(allProvM.filter(m=>mKey(m)===lbl).reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0)*100)/100);
@@ -994,9 +984,9 @@ function _renderRentalChart(group, ctype) {
 
   let labels = [];
   if (group === 'month') {
-    const firstYm = filtered.map(r => r.yearMonth).sort()[0];
-    const start   = new Date(firstYm + '-01');
-    const end     = new Date(); end.setMonth(end.getMonth() + 3);
+    const _fm   = Data.getMissions().filter(m => m.date).map(m => m.date).sort()[0];
+    const start = _fm ? new Date(_fm.slice(0,7)+'-01') : new Date(new Date().getFullYear()-1, 8, 1);
+    const end   = new Date(); end.setMonth(end.getMonth() + 18);
     for (let d = new Date(start); d <= end; d.setMonth(d.getMonth()+1))
       labels.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
   } else {
@@ -1017,7 +1007,11 @@ function _renderRentalChart(group, ctype) {
     if (data.every(v=>v===0)) return;
     // Utiliser la couleur de la propriété si définie et non-orange par défaut, sinon teal
     const col = (prop.color && prop.color !== '#f97316') ? prop.color : LOC_COLORS[i % LOC_COLORS.length];
-    datasets.push({ label: prop.name, data, backgroundColor: col+'99', borderColor: col, borderWidth: 2, fill: false });
+    datasets.push({
+      label: prop.name, data,
+      backgroundColor: labels.map(lbl => lbl === _yearMonth ? col : col+'99'),
+      borderColor: col, borderWidth: labels.map(lbl => lbl === _yearMonth ? 3 : 2), fill: false,
+    });
   });
   if (props.length > 1) {
     const td = labels.map(lbl => Math.round(filtered.filter(r=>rKey(r)===lbl).reduce((s,r)=>s+(r.amount||0),0)*100)/100);
@@ -1062,14 +1056,10 @@ function renderPieChart() {
 
   // Camembert missions
   const coMap       = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
-  const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled' && m.date && m.missionType !== 'personal');
-  const poleFilterFn = m => {
-    if (!_poleId) return true;
-    const co = coMap[m.companyId];
-    if (!co) return false;
-    return co.role === 'own' ? co.id === _poleId : co.poleId === _poleId;
-  };
-  let missions = allMissions.filter(poleFilterFn);
+  const allMissions = Data.getMissions().filter(m =>
+    (m.status === 'done' || m.status === 'planned') && m.date && m.missionType !== 'personal'
+  );
+  let missions = allMissions.filter(m => _matchesPole(m, coMap));
   if (_companyId === '__none__') missions = [];
   else if (_companyId) missions = missions.filter(m => m.companyId === _companyId);
 
@@ -1160,11 +1150,6 @@ function renderRentalSection() {
   document.getElementById('rental-count').textContent   = propIds.length;
   document.getElementById('rental-pending').textContent = Utils.formatMoney(pending);
 
-  const STATUS = {
-    received: '<span class="badge badge-success">✓ Reçu</span>',
-    pending:  '<span class="badge badge-warning">⏳ En attente</span>',
-    partial:  '<span class="badge badge-danger">⚠ Partiel</span>',
-  };
   document.getElementById('rental-tbody').innerHTML = incomes.map(r => {
     const prop = propMap[r.propertyId];
     const col  = prop?.color || '#94a3b8';
@@ -1173,7 +1158,7 @@ function renderRentalSection() {
       <td>${Utils.escapeHtml(r.platform||'—')}</td>
       <td class="cell-center">${r.nightsRented||'—'}</td>
       <td class="cell-money">${Utils.formatMoney(r.amount||0)}</td>
-      <td>${STATUS[r.status]||r.status||''}</td>
+      <td>${RENTAL_STATUS_BADGES[r.status]||r.status||''}</td>
       <td class="cell-center"><a href="location.html" style="font-size:0.8rem;color:var(--primary)">Voir</a></td>
     </tr>`;
   }).join('');
