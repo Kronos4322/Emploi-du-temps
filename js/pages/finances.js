@@ -394,21 +394,25 @@ function render() {
     if (nseEntry && nseEntry[1].done + nseEntry[1].planned > 0) {
       tableHtml += _mkSchoolRow('__no_school__', nseEntry[1], companies, displayedRevenue);
     }
-    // Revenus locatifs
+    // Revenus locatifs — couleurs teal distinctes, cohérentes avec l'identité Location
     if (rentalTotal > 0) {
-      const pct = displayedRevenue > 0 ? Math.round(rentalTotal / displayedRevenue * 100) : 0;
-      tableHtml += `<tr style="background:#f0fdf4;border-top:2px solid #10b98150">
-        <td colspan="5" style="padding:6px 12px;font-size:0.82rem;font-weight:700;color:#10b981">
+      const pct    = displayedRevenue > 0 ? Math.round(rentalTotal / displayedRevenue * 100) : 0;
+      const locBg  = '#ccfbf1'; // teal-100 — fond plus saturé pour distinguer des lignes blanches
+      const locHdr = '#0d9488'; // teal-600 — texte header lisible
+      const locRow = '#f0fdfa'; // teal-50 — fond ligne data, légèrement différent du header
+      tableHtml += `<tr style="background:${locBg};border-top:2px solid #10b98180">
+        <td colspan="5" style="padding:6px 12px;font-size:0.82rem;font-weight:700;color:${locHdr}">
+          <span class="school-dot" style="background:#10b981"></span>
           🏠 Location
-          <span style="float:right;font-weight:600">${Utils.formatMoney(rentalTotal)}</span>
+          <span style="float:right;font-weight:600;color:${locHdr}">${Utils.formatMoney(rentalTotal)}</span>
         </td>
       </tr>
-      <tr style="background:#f0fdf4">
-        <td><span class="school-dot" style="background:#10b981"></span> Revenus locatifs</td>
+      <tr style="background:${locRow}">
+        <td style="padding-left:24px"><span class="school-dot" style="background:#10b981;opacity:0.6"></span> <span style="color:var(--text-muted);font-style:italic">Revenus locatifs</span></td>
         <td class="cell-center" style="color:var(--text-muted)">—</td>
         <td class="cell-center" style="color:var(--text-muted)">—</td>
-        <td class="cell-money">${Utils.formatMoney(rentalTotal)}</td>
-        <td><div class="progress-bar-wrapper"><div class="progress-bar" style="width:${pct}%;background:#10b981"></div><span class="progress-label">${pct}%</span></div></td>
+        <td class="cell-money" style="color:${locHdr};font-weight:600">${Utils.formatMoney(rentalTotal)}</td>
+        <td><div class="progress-bar-wrapper"><div class="progress-bar" style="width:${pct}%;background:#10b981"></div><span class="progress-label" style="color:${locHdr}">${pct}%</span></div></td>
       </tr>`;
     }
     document.getElementById('tbody-by-company').innerHTML = tableHtml;
@@ -872,44 +876,66 @@ function renderChart() {
 
     if (split === 'poles') {
       if (ownCos.length > 1) {
-        const allMonthlyRev = labels.map(lbl =>
+        // Missions par mois (tous pôles)
+        const missionMonthlyRev = labels.map(lbl =>
           Math.round(missions.filter(m => mKey(m) === lbl).reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0)*100)/100
         );
-        // Label dynamique selon les pôles réels
+
+        // Revenus locatifs par mois (si "tous les pôles")
+        let rentalMonthly = labels.map(() => 0);
+        let hasRental = false;
+        if (!_poleId) {
+          const allRental = Data.getRentalIncomes();
+          rentalMonthly = labels.map(lbl =>
+            Math.round(allRental.filter(r => rKey(r) === lbl).reduce((s,r) => s+(r.amount||0), 0)*100)/100
+          );
+          hasRental = rentalMonthly.some(v => v > 0);
+        }
+
+        // Barres = missions + location (accumulé)
+        const totalMonthlyRev = labels.map((_, i) => Math.round((missionMonthlyRev[i] + rentalMonthly[i]) * 100) / 100);
         const totalLabel = ownCos.map(c => c.name).join(' + ');
+        const barLabel   = hasRental ? `Total (${totalLabel} + Location)` : `Total (${totalLabel})`;
+
         datasets.push({
-          label: `Total (${totalLabel})`,
-          data: allMonthlyRev,
+          label: barLabel,
+          data: totalMonthlyRev,
           backgroundColor: '#8b5cf699', borderColor: '#8b5cf6', borderWidth: 2,
           fill: ctype === 'line', pointRadius: ctype === 'line' ? 3 : 0, tension: 0.3,
         });
-        // Moyenne
-        const first = allMonthlyRev.findIndex(v => v > 0);
-        const last  = allMonthlyRev.reduce((l, v, i) => v > 0 ? i : l, -1);
-        if (first >= 0) {
-          const slice = allMonthlyRev.slice(first, last + 1);
-          const avg   = Math.round(slice.reduce((s,v)=>s+v,0)/slice.length*100)/100;
+
+        // ── Moyenne missions uniquement (orange) ──────────────────────────────
+        const fM = missionMonthlyRev.findIndex(v => v > 0);
+        const lM = missionMonthlyRev.reduce((last, v, i) => v > 0 ? i : last, -1);
+        if (fM >= 0) {
+          const sliceM = missionMonthlyRev.slice(fM, lM + 1);
+          const avgM   = Math.round(sliceM.reduce((s,v)=>s+v,0)/sliceM.length*100)/100;
           datasets.push({
-            label: `Moyenne mensuelle (${Utils.formatMoney(avg)})`,
-            data: allMonthlyRev.map((_, i) => (i>=first&&i<=last)?avg:null),
+            label: `Moy. missions (${Utils.formatMoney(avgM)})`,
+            data: missionMonthlyRev.map((_, i) => (i>=fM&&i<=lM)?avgM:null),
             borderColor: '#f97316', borderWidth: 2, borderDash: [8,4],
             backgroundColor: 'transparent', pointRadius: 0, tension: 0, fill: false,
             type: 'line', order: -1, spanGaps: false,
           });
         }
-        // Dataset locatif si "tous les pôles"
-        if (!_poleId) {
-          const allRental  = Data.getRentalIncomes();
-          const rentalData = labels.map(lbl => Math.round(allRental.filter(r => rKey(r) === lbl).reduce((s,r) => s+(r.amount||0), 0)*100)/100);
-          if (rentalData.some(v => v > 0)) {
+
+        // ── Moyenne totale avec location (teal) — seulement si données locatives
+        if (hasRental) {
+          const fT = totalMonthlyRev.findIndex(v => v > 0);
+          const lT = totalMonthlyRev.reduce((last, v, i) => v > 0 ? i : last, -1);
+          if (fT >= 0) {
+            const sliceT = totalMonthlyRev.slice(fT, lT + 1);
+            const avgT   = Math.round(sliceT.reduce((s,v)=>s+v,0)/sliceT.length*100)/100;
             datasets.push({
-              label: '🏠 Location',
-              data: rentalData,
-              backgroundColor: '#10b98160', borderColor: '#10b981', borderWidth: 2,
-              borderDash: [5,3], fill: false, type: 'line', pointRadius: 3, tension: 0.3,
+              label: `Moy. totale (${Utils.formatMoney(avgT)})`,
+              data: totalMonthlyRev.map((_, i) => (i>=fT&&i<=lT)?avgT:null),
+              borderColor: '#10b981', borderWidth: 2, borderDash: [5,3],
+              backgroundColor: 'transparent', pointRadius: 0, tension: 0, fill: false,
+              type: 'line', order: -2, spanGaps: false,
             });
           }
         }
+
       } else {
         ownCos.forEach((pole, i) => datasets.push(makePoleDataset(pole, i)));
       }
