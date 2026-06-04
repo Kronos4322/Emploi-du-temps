@@ -241,12 +241,22 @@
       <!-- 4. Bilan annuel (en dernier) -->
       <details class="fin-section">
         <summary>Bilan annuel — <span id="annual-year-label">2025-2026</span>
-          <span style="display:flex;align-items:center;gap:8px;font-weight:normal;font-size:0.85rem">
+          <span style="display:flex;align-items:center;gap:8px;font-weight:normal;font-size:0.85rem;flex-wrap:wrap">
             <select id="filter-year" class="form-input filter-select" style="width:auto" onclick="event.stopPropagation()"></select>
+            <span style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;flex-shrink:0" onclick="event.stopPropagation()">
+              <button id="btn-annual-bilan" onclick="event.stopPropagation();setAnnualMode('bilan')" style="padding:3px 10px;border:none;background:var(--primary);color:#fff;cursor:pointer;font-size:0.8rem">Bilan</button>
+              <button id="btn-annual-compare" onclick="event.stopPropagation();setAnnualMode('compare')" style="padding:3px 10px;border:none;background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.8rem">Comparaison</button>
+            </span>
+            <span id="compare-year-wrap" style="display:none;align-items:center;gap:4px" onclick="event.stopPropagation()">
+              <span style="color:var(--text-muted)">vs</span>
+              <select id="filter-compare-year" class="form-input filter-select" style="width:auto"></select>
+            </span>
             <span id="annual-poles-summary" style="color:var(--text-muted)"></span>
           </span>
         </summary>
-        <div class="report-table-wrapper">
+
+        <!-- Vue bilan (défaut) -->
+        <div id="annual-bilan-view" class="report-table-wrapper">
           <table class="data-table">
             <thead><tr>
               <th>École / Client</th><th class="cell-money">Tarif/h</th>
@@ -261,6 +271,31 @@
               <td class="cell-money" id="annual-total-revenue"><strong>—</strong></td>
               <td></td>
             </tr></tfoot>
+          </table>
+        </div>
+
+        <!-- Vue comparaison -->
+        <div id="annual-compare-view" style="display:none" class="report-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th rowspan="2">École / Client</th>
+                <th colspan="3" class="cell-center" id="compare-header-a" style="border-bottom:1px solid var(--border)">—</th>
+                <th colspan="3" class="cell-center" id="compare-header-b" style="border-bottom:1px solid var(--border)">—</th>
+                <th rowspan="2" class="cell-center">Δ Heures</th>
+                <th rowspan="2" class="cell-center">Statut</th>
+              </tr>
+              <tr>
+                <th class="cell-center" style="font-size:0.78rem">Missions</th>
+                <th class="cell-center" style="font-size:0.78rem">Heures</th>
+                <th class="cell-money" style="font-size:0.78rem">CA</th>
+                <th class="cell-center" style="font-size:0.78rem">Missions</th>
+                <th class="cell-center" style="font-size:0.78rem">Heures</th>
+                <th class="cell-money" style="font-size:0.78rem">CA</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-compare"></tbody>
+            <tfoot><tr class="table-total" id="tfoot-compare"></tr></tfoot>
           </table>
         </div>
       </details>

@@ -51,7 +51,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('filter-year').addEventListener('change', e => {
     _schoolYear = e.target.value; renderAnnual();
+    if (document.getElementById('annual-compare-view')?.style.display !== 'none') renderAnnualComparison();
   });
+  const _cySel = document.getElementById('filter-compare-year');
+  if (_cySel) _cySel.addEventListener('change', renderAnnualComparison);
   ['chart-group','chart-split','chart-type','avg-period-start','avg-period-end'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', renderChart);
@@ -117,6 +120,14 @@ function buildFilters() {
 
   document.getElementById('filter-year').innerHTML =
     schoolYears.map(sy => `<option value="${sy}" ${sy===_schoolYear?'selected':''}>Année scolaire ${sy}</option>`).join('');
+
+  const compareYearSel = document.getElementById('filter-compare-year');
+  if (compareYearSel) {
+    const prevCY = compareYearSel.value;
+    const defaultCY = `${curSY+1}-${curSY+2}`;
+    compareYearSel.innerHTML = schoolYears.map(sy => `<option value="${sy}">${sy}</option>`).join('');
+    compareYearSel.value = schoolYears.includes(prevCY) ? prevCY : (schoolYears.includes(defaultCY) ? defaultCY : schoolYears[0]);
+  }
 
   document.getElementById('filter-month').innerHTML =
     months.map(ym => {
@@ -720,6 +731,135 @@ function renderAnnual() {
     }
     summaryEl.textContent = parts.join('  |  ');
   }
+}
+
+// ── Mode bilan / comparaison ─────────────────────────────────────────────────
+
+function setAnnualMode(mode) {
+  const isBilan = mode === 'bilan';
+  document.getElementById('annual-bilan-view').style.display   = isBilan ? '' : 'none';
+  document.getElementById('annual-compare-view').style.display = isBilan ? 'none' : '';
+  const wrap = document.getElementById('compare-year-wrap');
+  if (wrap) wrap.style.display = isBilan ? 'none' : 'flex';
+  const btnB = document.getElementById('btn-annual-bilan');
+  const btnC = document.getElementById('btn-annual-compare');
+  if (btnB) { btnB.style.background = isBilan ? 'var(--primary)' : 'transparent'; btnB.style.color = isBilan ? '#fff' : 'var(--text-muted)'; }
+  if (btnC) { btnC.style.background = isBilan ? 'transparent' : 'var(--primary)'; btnC.style.color = isBilan ? 'var(--text-muted)' : '#fff'; }
+  if (!isBilan) renderAnnualComparison();
+}
+
+function renderAnnualComparison() {
+  const [syA, eyA] = _schoolYear.split('-');
+  const dateStartA = `${syA}-09-01`, dateEndA = `${eyA}-08-31`;
+  const ymStartA = dateStartA.slice(0,7), ymEndA = dateEndA.slice(0,7);
+
+  const compareYearSel = document.getElementById('filter-compare-year');
+  const compareYear = compareYearSel?.value || `${parseInt(syA)+1}-${parseInt(eyA)+1}`;
+  const [syB, eyB] = compareYear.split('-');
+  const dateStartB = `${syB}-09-01`, dateEndB = `${eyB}-08-31`;
+  const ymStartB = dateStartB.slice(0,7), ymEndB = dateEndB.slice(0,7);
+
+  const hA = document.getElementById('compare-header-a');
+  const hB = document.getElementById('compare-header-b');
+  if (hA) hA.textContent = _schoolYear;
+  if (hB) hB.textContent = compareYear;
+
+  const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
+
+  const aggMissions = (dateStart, dateEnd) => {
+    let ms = Data.getMissions().filter(m =>
+      m.date && m.date >= dateStart && m.date <= dateEnd && m.status !== 'cancelled' && m.missionType !== 'personal'
+    );
+    if (_poleId) ms = ms.filter(m => coMap[m.companyId]?.poleId === _poleId);
+    const by = {};
+    ms.forEach(m => {
+      if (!m.companyId) return;
+      if (!by[m.companyId]) by[m.companyId] = { count: 0, hours: 0, revenue: 0 };
+      by[m.companyId].count++;
+      by[m.companyId].hours   += m.duration || 0;
+      by[m.companyId].revenue += (m.duration || 0) * (m.billingRate || 0);
+    });
+    return by;
+  };
+
+  const dataA = aggMissions(dateStartA, dateEndA);
+  const dataB = aggMissions(dateStartB, dateEndB);
+  const allIds = [...new Set([...Object.keys(dataA), ...Object.keys(dataB)])];
+
+  const rows = allIds
+    .map(id => {
+      const co = coMap[id];
+      if (!co || co.role === 'own') return null;
+      const a = dataA[id] || { count: 0, hours: 0, revenue: 0 };
+      const b = dataB[id] || { count: 0, hours: 0, revenue: 0 };
+      return { co, a, b, inA: a.hours > 0, inB: b.hours > 0 };
+    })
+    .filter(Boolean)
+    .sort((x, y) => {
+      const xMissing = x.inA && !x.inB, yMissing = y.inA && !y.inB;
+      if (xMissing !== yMissing) return xMissing ? -1 : 1;
+      return y.a.revenue - x.a.revenue;
+    });
+
+  let totA = {count:0,hours:0,revenue:0}, totB = {count:0,hours:0,revenue:0};
+
+  const tbody = document.getElementById('tbody-compare');
+  if (!tbody) return;
+  tbody.innerHTML = rows.map(({co, a, b, inA, inB}) => {
+    totA.count += a.count; totA.hours += a.hours; totA.revenue += a.revenue;
+    totB.count += b.count; totB.hours += b.hours; totB.revenue += b.revenue;
+    const deltaH = b.hours - a.hours;
+    let statut, statColor;
+    if (inA && inB)   { statut = '✓ Actif';             statColor = 'var(--success)'; }
+    else if (inA)     { statut = '⚠ Non repositionné';  statColor = '#f97316'; }
+    else              { statut = '🆕 Nouveau';            statColor = '#3b82f6'; }
+    const rowBg = (!inB && inA) ? 'background:rgba(249,115,22,0.07)' : (!inA && inB) ? 'background:rgba(59,130,246,0.07)' : '';
+    const dStr  = deltaH === 0 ? '—' : `${deltaH > 0 ? '+' : '-'}${Utils.formatDuration(Math.abs(deltaH))}`;
+    const dCol  = deltaH > 0 ? 'var(--success)' : deltaH < 0 ? 'var(--danger)' : 'var(--text-muted)';
+    return `<tr style="${rowBg}">
+      <td><span class="school-dot" style="background:${co.color||'#94a3b8'}"></span> ${Utils.escapeHtml(co.name)}</td>
+      <td class="cell-center">${a.count||'—'}</td>
+      <td class="cell-center">${a.hours>0?Utils.formatDuration(a.hours):'—'}</td>
+      <td class="cell-money">${a.revenue>0?Utils.formatMoney(a.revenue):'—'}</td>
+      <td class="cell-center">${b.count||'—'}</td>
+      <td class="cell-center">${b.hours>0?Utils.formatDuration(b.hours):'—'}</td>
+      <td class="cell-money">${b.revenue>0?Utils.formatMoney(b.revenue):'—'}</td>
+      <td class="cell-center" style="color:${dCol};font-weight:600">${dStr}</td>
+      <td class="cell-center" style="color:${statColor};font-size:0.82rem;font-weight:600">${statut}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="9" class="empty-state-cell">Aucune donnée sur ces périodes.</td></tr>';
+
+  // Revenus locatifs (si tous pôles)
+  if (!_poleId) {
+    const rentA = Data.getRentalIncomes().filter(r=>r.yearMonth>=ymStartA&&r.yearMonth<=ymEndA).reduce((s,r)=>s+(r.amount||0),0);
+    const rentB = Data.getRentalIncomes().filter(r=>r.yearMonth>=ymStartB&&r.yearMonth<=ymEndB).reduce((s,r)=>s+(r.amount||0),0);
+    if (rentA > 0 || rentB > 0) {
+      totA.revenue += rentA; totB.revenue += rentB;
+      const dR = rentB - rentA;
+      tbody.innerHTML += `<tr style="background:var(--primary-light,#eff6ff)">
+        <td><span class="school-dot" style="background:#10b981"></span> 🏠 Revenus locatifs</td>
+        <td class="cell-center">—</td><td class="cell-center">—</td>
+        <td class="cell-money">${rentA>0?Utils.formatMoney(rentA):'—'}</td>
+        <td class="cell-center">—</td><td class="cell-center">—</td>
+        <td class="cell-money">${rentB>0?Utils.formatMoney(rentB):'—'}</td>
+        <td class="cell-center" style="color:${dR>=0?'var(--success)':'var(--danger)'};font-weight:600">${dR===0?'—':(dR>0?'+':'-')+Utils.formatMoney(Math.abs(dR))}</td>
+        <td></td>
+      </tr>`;
+    }
+  }
+
+  const totDH = totB.hours - totA.hours;
+  const tfoot = document.getElementById('tfoot-compare');
+  if (tfoot) tfoot.innerHTML = `
+    <td><strong>Total</strong></td>
+    <td class="cell-center"><strong>${totA.count}</strong></td>
+    <td class="cell-center"><strong>${Utils.formatDuration(totA.hours)}</strong></td>
+    <td class="cell-money"><strong>${Utils.formatMoney(totA.revenue)}</strong></td>
+    <td class="cell-center"><strong>${totB.count}</strong></td>
+    <td class="cell-center"><strong>${Utils.formatDuration(totB.hours)}</strong></td>
+    <td class="cell-money"><strong>${Utils.formatMoney(totB.revenue)}</strong></td>
+    <td class="cell-center" style="color:${totDH>=0?'var(--success)':'var(--danger)'};font-weight:700">${totDH>=0?'+':'-'}${Utils.formatDuration(Math.abs(totDH))}</td>
+    <td></td>`;
 }
 
 // ── Charges prestataires ─────────────────────────────────────────────────────
