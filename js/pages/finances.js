@@ -26,7 +26,15 @@ document.addEventListener('DOMContentLoaded', () => {
     _companyId = e.target.value; render(); renderChart();
   });
   document.getElementById('filter-pole').addEventListener('change', e => {
-    _poleId = e.target.value; buildCompanyFilter(); render(); renderAnnual(); renderChart();
+    const prevPole = _poleId;
+    _poleId = e.target.value;
+    // Synchroniser automatiquement le split du graphique avec le mode sélectionné
+    const splitEl = document.getElementById('chart-split');
+    if (splitEl) {
+      if (_poleId === RENTAL_POLE) splitEl.value = 'rental';       // Location → afficher location
+      else if (prevPole === RENTAL_POLE) splitEl.value = 'poles';  // retour missions → total pôles
+    }
+    buildCompanyFilter(); render(); renderAnnual(); renderChart();
   });
   document.getElementById('filter-year').addEventListener('change', e => {
     _schoolYear = e.target.value; renderAnnual();
@@ -844,10 +852,17 @@ function renderChart() {
   let datasets = [];
 
   if (!noSchools) {
+    // makePoleDataset travaille sur allMissions (pas missions filtré par _companyId)
+    // pour toujours afficher le CA réel du pôle, indépendamment du filtre école actif
     const makePoleDataset = (pole, i) => ({
       label: pole.name,
       data: labels.map(lbl => {
-        const ms = missions.filter(m => mKey(m) === lbl && coMap[m.companyId]?.poleId === pole.id);
+        const ms = allMissions.filter(m => {
+          if (mKey(m) !== lbl) return false;
+          const co = coMap[m.companyId];
+          if (!co) return false;
+          return co.role === 'own' ? co.id === pole.id : co.poleId === pole.id;
+        });
         return Math.round(ms.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0)*100)/100;
       }),
       backgroundColor: (pole.color||COLORS[i])+'99',
@@ -968,16 +983,19 @@ function _renderRentalChart(group, ctype) {
     const [ry, rm] = r.yearMonth.split('-').map(Number);
     return `${rm>=9?ry:ry-1}-${rm>=9?ry+1:ry}`;
   };
-  const COLORS  = ['#10b981','#3b82f6','#f97316','#8b5cf6','#ef4444','#06b6d4','#f59e0b','#84cc16'];
+  // Palette Location : teal/vert cohérent avec l'identité visuelle Location (#10b981)
+  const LOC_COLORS = ['#10b981','#0891b2','#059669','#14b8a6','#22c55e','#06b6d4','#0284c7','#16a34a'];
   const datasets = [];
   props.forEach((prop, i) => {
     const data = labels.map(lbl => Math.round(filtered.filter(r=>r.propertyId===prop.id&&rKey(r)===lbl).reduce((s,r)=>s+(r.amount||0),0)*100)/100);
     if (data.every(v=>v===0)) return;
-    datasets.push({ label: prop.name, data, backgroundColor: (prop.color||COLORS[i%COLORS.length])+'99', borderColor: prop.color||COLORS[i%COLORS.length], borderWidth: 2, fill: false });
+    // Utiliser la couleur de la propriété si définie et non-orange par défaut, sinon teal
+    const col = (prop.color && prop.color !== '#f97316') ? prop.color : LOC_COLORS[i % LOC_COLORS.length];
+    datasets.push({ label: prop.name, data, backgroundColor: col+'99', borderColor: col, borderWidth: 2, fill: false });
   });
   if (props.length > 1) {
     const td = labels.map(lbl => Math.round(filtered.filter(r=>rKey(r)===lbl).reduce((s,r)=>s+(r.amount||0),0)*100)/100);
-    if (td.some(v=>v>0)) datasets.unshift({ label: 'Total', data: td, backgroundColor: '#64748b99', borderColor: '#64748b', borderWidth: 2, fill: false, type: 'line', pointRadius: 3, tension: 0.3 });
+    if (td.some(v=>v>0)) datasets.unshift({ label: 'Total Location', data: td, backgroundColor: '#10b98160', borderColor: '#10b981', borderWidth: 2, fill: false, type: 'line', pointRadius: 3, tension: 0.3 });
   }
   const MONTHS_ABBR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
   const readableLabels = labels.map(lbl => { if(group==='month'){const[y,m]=lbl.split('-');return`${MONTHS_ABBR[+m-1]} ${y}`;}return`AS ${lbl}`; });
