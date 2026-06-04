@@ -919,19 +919,17 @@ function renderChart() {
           });
         }
 
-        // ── Moyenne totale avec location (teal) — seulement si données locatives
-        if (hasRental) {
-          const periodTIdx = labels.map((lbl,i) => inAvgPeriod(lbl) && totalMonthlyRev[i] > 0 ? i : -1).filter(i=>i>=0);
-          if (periodTIdx.length > 0) {
-            const avgT = Math.round(periodTIdx.reduce((s,i)=>s+totalMonthlyRev[i],0)/periodTIdx.length*100)/100;
-            datasets.push({
-              label: `Moy. totale (${Utils.formatMoney(avgT)})`,
-              data: labels.map((lbl) => inAvgPeriod(lbl) ? avgT : null),
-              borderColor: '#10b981', borderWidth: 2, borderDash: [5,3],
-              backgroundColor: 'transparent', pointRadius: 0, tension: 0, fill: false,
-              type: 'line', order: -2, spanGaps: false,
-            });
-          }
+        // ── Moyenne totale missions + location (teal) — toujours affichée
+        const periodTIdx = labels.map((lbl,i) => inAvgPeriod(lbl) && totalMonthlyRev[i] > 0 ? i : -1).filter(i=>i>=0);
+        if (periodTIdx.length > 0) {
+          const avgT = Math.round(periodTIdx.reduce((s,i)=>s+totalMonthlyRev[i],0)/periodTIdx.length*100)/100;
+          datasets.push({
+            label: `Moy. totale (${Utils.formatMoney(avgT)})`,
+            data: labels.map((lbl) => inAvgPeriod(lbl) ? avgT : null),
+            borderColor: '#10b981', borderWidth: 2, borderDash: [5,3],
+            backgroundColor: 'transparent', pointRadius: 0, tension: 0, fill: false,
+            type: 'line', order: -2, spanGaps: false,
+          });
         }
 
       } else {
