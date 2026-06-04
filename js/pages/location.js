@@ -136,8 +136,9 @@ function _renderKpis() {
   const nightsBooked = filtered.filter(r => r.startDate && r.endDate).reduce((s,r) => s+_nightsInMonth(r,displayYm), 0);
   const occupancy  = daysInMonth > 0 ? Math.round(nightsBooked/daysInMonth*100) : 0;
 
-  // RevPAN — revenu par nuit effectivement louée
-  const revPAN = nightsBooked > 0 ? Math.round(dispMonthTotal/nightsBooked) : 0;
+  // RevPAN global — utilise nightsRented stocké (fiable)
+  const allNightsStored = filtered.reduce((s,r) => s+(r.nightsRented||0), 0);
+  const revPAN = allNightsStored > 0 ? Math.round(filtered.reduce((s,r)=>s+(r.amount||0),0)/allNightsStored) : 0;
 
   // Label KPI mois
   const monthLabel = document.getElementById('loc-kpi-month-label');
@@ -634,6 +635,14 @@ function _locDeleteProperty(id) {
     : `Supprimer "${prop.name}" ?`;
   if (!confirm(msg)) return;
   Data.deleteProperty(id);
+  // Supprimer aussi les charges de ce bien dans Firebase
+  fetch(`${FB}/propertyExpenses.json`)
+    .then(r => r.json())
+    .then(raw => {
+      const filtered = (Array.isArray(raw) ? raw : []).filter(e => e?.propertyId !== id);
+      return fetch(`${FB}/propertyExpenses.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(filtered) });
+    })
+    .catch(() => {});
   _buildPropertyFilter();
   _locPropertyId = '';
   _renderPage();
@@ -691,22 +700,41 @@ const CAT_LABELS = { eau:'💧 Eau', electricite:'⚡ Électricité', menage:'�
 async function _loadExpenses(propertyId) {
   try {
     const d = await (await fetch(`${FB}/propertyExpenses.json`)).json();
-    return (d || []).filter(e => e && e.propertyId === propertyId);
-  } catch { return []; }
+    return (Array.isArray(d) ? d : [])
+      .filter(e => e && e.propertyId === propertyId)
+      .map(e => ({ isRecurring: false, ...e })); // migration : champ absent = non-récurrent
+  } catch (err) {
+    console.warn('Erreur chargement charges:', err);
+    return [];
+  }
 }
 
 async function _saveExpenseFB(expense) {
-  const all = await (await fetch(`${FB}/propertyExpenses.json`)).json() || [];
-  const idx = all.findIndex(e => e?.id === expense.id);
-  if (idx >= 0) all[idx] = expense; else all.push(expense);
-  await fetch(`${FB}/propertyExpenses.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(all) });
-  await fetch(`${FB}/_updatedAt.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:Date.now().toString() });
+  try {
+    const raw = await (await fetch(`${FB}/propertyExpenses.json`)).json();
+    const all = Array.isArray(raw) ? raw : [];
+    const idx = all.findIndex(e => e?.id === expense.id);
+    if (idx >= 0) all[idx] = expense; else all.push(expense);
+    const r = await fetch(`${FB}/propertyExpenses.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(all) });
+    if (!r.ok) throw new Error('Erreur Firebase ' + r.status);
+    await fetch(`${FB}/_updatedAt.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:Date.now().toString() });
+  } catch (err) {
+    Utils.toast('Erreur lors de la sauvegarde : ' + err.message, 'error');
+    throw err;
+  }
 }
 
 async function _deleteExpenseFB(id) {
-  const all = ((await (await fetch(`${FB}/propertyExpenses.json`)).json()) || []).filter(e => e?.id !== id);
-  await fetch(`${FB}/propertyExpenses.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(all) });
-  await fetch(`${FB}/_updatedAt.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:Date.now().toString() });
+  try {
+    const raw = await (await fetch(`${FB}/propertyExpenses.json`)).json();
+    const all = (Array.isArray(raw) ? raw : []).filter(e => e?.id !== id);
+    const r = await fetch(`${FB}/propertyExpenses.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(all) });
+    if (!r.ok) throw new Error('Erreur Firebase ' + r.status);
+    await fetch(`${FB}/_updatedAt.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:Date.now().toString() });
+  } catch (err) {
+    Utils.toast('Erreur lors de la suppression : ' + err.message, 'error');
+    throw err;
+  }
 }
 
 async function _openPropertyDetail(propertyId) {
@@ -759,7 +787,6 @@ async function _renderPropertyDetail() {
   const recurringTotal = recurring.reduce((s,e) => s+(e.amount||0), 0);
   const actualTotal    = actualMonth.reduce((s,e) => s+(e.amount||0), 0);
   const totalChargesMonth = recurringTotal + actualTotal;
-  const allActualTotal = expenses.filter(e=>!e.isRecurring).reduce((s,e)=>s+(e.amount||0),0);
   const occColor   = propOcc >= 70 ? '#22c55e' : propOcc >= 40 ? '#f97316' : '#ef4444';
 
   // ── KPIs ──
@@ -917,7 +944,8 @@ function _locEditExpense(id) {
   _loadExpenses(_pdPropId).then(all => {
     const exp = all.find(e => e.id === id);
     if (exp) _locOpenExpenseForm(exp);
-  });
+    else Utils.toast('Charge introuvable.', 'info');
+  }).catch(() => Utils.toast('Erreur chargement charge.', 'error'));
 }
 
 async function _locDeleteExpense(id) {
