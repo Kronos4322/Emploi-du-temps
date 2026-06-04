@@ -23,7 +23,8 @@
       <div class="page-header">
         <h1 class="page-title">Calendrier</h1>
         <div class="page-actions">
-          <button class="btn btn-primary" id="btn-new-course">+ Nouveau cours</button>
+          <button class="btn btn-ghost" id="btn-new-personal" style="border-color:#a78bfa;color:#7c3aed">🧑 + Personnel</button>
+          <button class="btn btn-primary" id="btn-new-course">+ Nouvelle mission</button>
         </div>
       </div>
 
@@ -69,6 +70,7 @@
             <div id="cal-stud-list"></div>
           </div>
         </div>
+        <button id="btn-filter-personal" class="btn btn-ghost btn-sm" onclick="window._calTogglePersonal()" style="border-color:#a78bfa;color:#7c3aed">🧑 Personnel <span id="lbl-personal">✓</span></button>
         <button class="btn btn-ghost btn-sm" onclick="window._calReset()">✕ Tout réinitialiser</button>
       </div>
 
@@ -98,9 +100,9 @@
 
   <script src="js/utils.js?v=11"></script>
   <script src="js/data.js?v=38"></script>
-  <script src="js/modals.js?v=18"></script>
+  <script src="js/modals.js?v=19"></script>
   <script src="js/nav.js?v=14"></script>
-  <script src="js/pages/calendrier.js?v=6"></script>
+  <script src="js/pages/calendrier.js?v=7"></script>
 
 </body>
 </html>

@@ -3,16 +3,23 @@
 
 let _view = 'week';
 let _date = Utils.today();
-let _filterPoles    = null; // pôles (entreprises propres)
-let _filterCos      = null; // écoles clientes
+let _filterPoles    = null;
+let _filterCos      = null;
 let _filterProviders = null;
 let _filterStudents  = null;
+let _filterPersonal  = true; // afficher les événements personnels par défaut
+
+// Couleurs dédiées aux événements personnels
+const PERSONAL_COLOR = '#8b5cf6';
+const PERSONAL_BG    = '#f5f3ff';
+const PERSONAL_FG    = '#5b21b6';
 
 function _initFilters() {
   _filterPoles     = new Set(Data.getOwnCompanies().map(c=>c.id));
   _filterCos       = new Set(Data.getCompanies().filter(c=>c.role!=='own').map(c=>c.id));
   _filterProviders = new Set(Data.getProviders().map(p=>p.id));
   _filterStudents  = new Set(Data.getStudents().filter(s=>s.status!=='inactive').map(s=>s.id));
+  _filterPersonal  = true;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -23,6 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btn-new-course').addEventListener('click', () =>
     Modals.openMission(null, _date, () => renderCalendar()));
+
+  document.getElementById('btn-new-personal').addEventListener('click', () =>
+    Modals.openMission(null, _date, () => renderCalendar(), { missionType: 'personal' }));
 
   document.getElementById('cal-prev').addEventListener('click',  () => { navPrev(); renderCalendar(); });
   document.getElementById('cal-next').addEventListener('click',  () => { navNext(); renderCalendar(); });
@@ -117,49 +127,68 @@ window._calSelectAllProv  = () => { _filterProviders=new Set(Data.getProviders()
 window._calSelectNoneProv = () => { _filterProviders=new Set();                                                                                  buildFilters(); renderCalendar(); };
 window._calSelectAllStud  = () => { _filterStudents=new Set(Data.getStudents().filter(s=>s.status!=='inactive').map(s=>s.id));                   buildFilters(); renderCalendar(); };
 window._calSelectNoneStud = () => { _filterStudents=new Set();                                                                                   buildFilters(); renderCalendar(); };
-window._calReset = () => { _initFilters(); buildFilters(); renderCalendar(); };
+window._calReset = () => { _initFilters(); buildFilters(); _updatePersonalBtn(); renderCalendar(); };
+
+window._calTogglePersonal = () => {
+  _filterPersonal = !_filterPersonal;
+  _updatePersonalBtn();
+  renderCalendar();
+};
+function _updatePersonalBtn() {
+  const btn = document.getElementById('btn-filter-personal');
+  const lbl = document.getElementById('lbl-personal');
+  if (!btn || !lbl) return;
+  if (_filterPersonal) {
+    btn.style.cssText = 'border-color:#a78bfa;color:#7c3aed;background:#f5f3ff';
+    lbl.textContent = '✓';
+  } else {
+    btn.style.cssText = 'border-color:#cbd5e1;color:#94a3b8;background:transparent';
+    lbl.textContent = '✗';
+  }
+}
 
 function getFilteredMissions(start, end) {
-  let missions = Data.getMissionsByDateRange(start, end);
+  const all = Data.getMissionsByDateRange(start, end);
+
+  // ── Événements personnels : traités séparément, non soumis aux filtres pôle/école ──
+  const personal = _filterPersonal ? all.filter(m => m.missionType === 'personal') : [];
+  let   missions = all.filter(m => m.missionType !== 'personal');
+
   const allProvCt = Data.getProviders().length;
   const allStudCt = Data.getStudents().filter(s=>s.status!=='inactive').length;
   const allP = _filterProviders.size >= allProvCt;
   const allS = _filterStudents.size  >= allStudCt;
 
+  let filtered;
   if (!allP || !allS) {
-    // Filtre perso (prov/stud spécifiques) → override pôle/école
-    return missions.filter(m => {
+    // Filtre prestataire/étudiant spécifique → override pôle/école
+    filtered = missions.filter(m => {
       const mp = !allP && (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])).some(pid => _filterProviders.has(pid));
       const ms = !allS && (m.studentIds||[]).some(id=>_filterStudents.has(id));
       return mp || ms;
     });
+  } else {
+    const polesAll   = _filterPoles.size >= Data.getOwnCompanies().length;
+    const schoolsAll = _filterCos.size   >= Data.getCompanies().filter(c=>c.role!=='own').length;
+    if (polesAll && schoolsAll) {
+      filtered = missions;
+    } else {
+      const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
+      filtered = missions.filter(m => {
+        const co = coMap[m.companyId]; if (!co) return false;
+        const poleOk = polesAll || (
+          co.role === 'own'  ? _filterPoles.has(co.id) :
+          co.poleId          ? _filterPoles.has(co.poleId) :
+          true
+        );
+        const coOk = schoolsAll || _filterCos.has(m.companyId) ||
+          (co.role === 'own' && _filterPoles.has(co.id));
+        return poleOk && coOk;
+      });
+    }
   }
 
-  // Tous prov + tous étudiants → filtre pôle + école
-  const polesAll  = _filterPoles.size >= Data.getOwnCompanies().length;
-  const schoolsAll = _filterCos.size  >= Data.getCompanies().filter(c=>c.role!=='own').length;
-  if (polesAll && schoolsAll) return missions;
-
-  const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
-  return missions.filter(m => {
-    const co = coMap[m.companyId]; if (!co) return false;
-    // Pôle OK :
-    //  - société own → vérifie si son propre ID est dans le filtre pôle
-    //  - école avec poleId → vérifie le pôle parent
-    //  - école sans poleId → toujours OK (non-rattachée = visible dans tous les pôles)
-    const poleOk = polesAll || (
-      co.role === 'own'  ? _filterPoles.has(co.id) :
-      co.poleId          ? _filterPoles.has(co.poleId) :
-      true               // école non-rattachée → passe toujours
-    );
-    // École OK :
-    //  - toutes sélectionnées → OK
-    //  - école cliente → vérifier si elle est dans le filtre
-    //  - société own → visible seulement si son pôle est sélectionné
-    const coOk = schoolsAll || _filterCos.has(m.companyId) ||
-      (co.role === 'own' && _filterPoles.has(co.id));
-    return poleOk && coOk;
-  });
+  return [...filtered, ...personal];
 }
 
 function navPrev() {
@@ -248,10 +277,15 @@ function hasConflict(mission, allMissions) {
 }
 
 function missionBlock(c, companies, allMissions) {
-  const co      = companies[c.companyId];
-  const color   = co ? co.color : '#94a3b8';
-  const bg      = c.status === 'cancelled' ? '#e2e8f0' : color;
-  const fg      = c.status === 'cancelled' ? '#94a3b8' : Utils.contrastColor(color);
+  const isPersonal = c.missionType === 'personal';
+  const co      = isPersonal ? null : companies[c.companyId];
+  const color   = isPersonal ? PERSONAL_COLOR : (co ? co.color : '#94a3b8');
+  const bg      = c.status === 'cancelled' ? '#e2e8f0' : (isPersonal ? PERSONAL_BG : color);
+  const fg      = c.status === 'cancelled' ? '#94a3b8' : (isPersonal ? PERSONAL_FG : Utils.contrastColor(color));
+  const border  = isPersonal
+    ? `border:1px dashed ${PERSONAL_COLOR};border-left:3px solid ${PERSONAL_COLOR}`
+    : `border-left:3px solid ${color}`;
+
   const startM  = Math.max(Utils.timeToMinutes(c.startTime) - MIN_H * 60, 0);
   const endM    = Math.min(Utils.timeToMinutes(c.endTime)   - MIN_H * 60, TOTAL_MINS);
   const top     = (startM / TOTAL_MINS * 100).toFixed(2);
@@ -259,13 +293,14 @@ function missionBlock(c, companies, allMissions) {
   const strike  = c.status === 'cancelled' ? 'text-decoration:line-through' : '';
   const icon    = {cancelled:'✕', postponed:'⚠', moved:'↕', done:'✓'}[c.status] || '';
   const typeIco = Utils.getMissionTypeIcon(c.missionType);
-  const conflict = hasConflict(c, allMissions);
+  const conflict = !isPersonal && hasConflict(c, allMissions);
 
   return `<div class="course-block"
-       style="top:${top}%;height:${height}%;background:${bg};color:${fg};border-left:3px solid ${color}"
+       style="top:${top}%;height:${height}%;background:${bg};color:${fg};${border}"
        onclick="event.stopPropagation();Modals.openMission('${c.id}',null,()=>renderCalendar())"
        title="${Utils.escapeHtml(c.title)} — ${c.startTime}–${c.endTime}">
     ${conflict ? '<span class="block-conflict">⚠ Conflit</span>' : ''}
+    ${isPersonal ? `<span class="block-badge" style="background:#ede9fe;color:#7c3aed;border:1px solid #c4b5fd">Personnel</span>` : ''}
     <div class="block-title" style="${strike}">${icon ? `<span class="block-status-icon">${icon}</span>` : ''}${typeIco} ${Utils.escapeHtml(c.title)}</div>
     ${c.subjectId ? (()=>{ const subj = (Data.getSubjects()||[]).find(s=>s.id===c.subjectId); return subj ? `<div class="block-time" style="opacity:0.85">📖 ${Utils.escapeHtml(subj.name)}</div>` : ''; })() : ''}
     ${(c.studentIds||[]).length > 0 ? (()=>{
@@ -273,7 +308,7 @@ function missionBlock(c, companies, allMissions) {
       return stus.length ? `<div class="block-time" style="opacity:0.85">👤 ${Utils.escapeHtml(stus.join(', '))}${(c.studentIds||[]).length>2?' +'+((c.studentIds||[]).length-2):''}</div>` : '';
     })() : ''}
     <div class="block-time">${c.startTime}–${c.endTime}</div>
-    ${c.type === 'visio' ? '<div class="block-badge">Visio</div>' : ''}
+    ${c.type === 'visio' && !isPersonal ? '<div class="block-badge">Visio</div>' : ''}
   </div>`;
 }
 
@@ -373,11 +408,13 @@ function renderMonth() {
     const hasConf = conflictDates.has(iso);
     const MAX = 4;
     const events = dayM.slice(0,MAX).map(m => {
-      const co  = companies[m.companyId];
-      const col = co ? co.color : '#94a3b8';
-      const bg  = m.status === 'cancelled' ? '#e2e8f0' : col;
-      const fg  = m.status === 'cancelled' ? '#94a3b8' : Utils.contrastColor(col);
-      return `<div class="month-event" style="background:${bg};color:${fg};${m.status==='cancelled'?'text-decoration:line-through':''}"
+      const isP = m.missionType === 'personal';
+      const co  = isP ? null : companies[m.companyId];
+      const col = isP ? PERSONAL_COLOR : (co ? co.color : '#94a3b8');
+      const bg  = m.status === 'cancelled' ? '#e2e8f0' : (isP ? PERSONAL_BG : col);
+      const fg  = m.status === 'cancelled' ? '#94a3b8' : (isP ? PERSONAL_FG : Utils.contrastColor(col));
+      const bdr = isP ? `border:1px dashed ${PERSONAL_COLOR}` : '';
+      return `<div class="month-event" style="background:${bg};color:${fg};${m.status==='cancelled'?'text-decoration:line-through':''};${bdr}"
                    onclick="event.stopPropagation();Modals.openMission('${m.id}',null,()=>renderCalendar())"
                    title="${Utils.escapeHtml(m.title)} — ${m.startTime||''}${m.endTime?' → '+m.endTime:''}">${Utils.getMissionTypeIcon(m.missionType)} ${Utils.escapeHtml(m.title)}</div>`;
     }).join('');

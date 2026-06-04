@@ -72,7 +72,7 @@ const Modals = {
     const preBillingRate = preCo?.defaultBillingRate || settings.defaultBillingRate || 50;
 
     const m = mission || {
-      title: '', missionType: 'course', subject: '', level: '', type: 'presential',
+      title: '', missionType: defaults.missionType || 'course', subject: '', level: '', type: 'presential',
       companyId: preCompany,
       providerId: defaults.providerId || '',
       providerIds: defaults.providerIds || (defaults.providerId ? [defaults.providerId] : []),
