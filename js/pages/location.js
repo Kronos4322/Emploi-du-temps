@@ -361,19 +361,6 @@ function _renderCalendar() {
   }
   html += '</div>';
 
-  // Légende
-  if (props.length > 0) {
-    const activeProp = props.filter(p => p.active !== false);
-    if (activeProp.length > 0) {
-      html += `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:10px">
-        ${activeProp.map(p => `<span style="display:inline-flex;align-items:center;gap:5px;font-size:0.75rem">
-          <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${p.color}"></span>
-          ${Utils.escapeHtml(p.name)}
-        </span>`).join('')}
-      </div>`;
-    }
-  }
-
   calEl.innerHTML = html;
 }
 
@@ -760,9 +747,11 @@ async function _renderPropertyDetail() {
   const monthInc   = allInc.filter(r => r.yearMonth === displayYm);
   const monthRev   = monthInc.reduce((s,r) => s+(r.amount||0), 0);
   const totalRev   = allInc.reduce((s,r) => s+(r.amount||0), 0);
-  const monthNights = allInc.filter(r=>r.startDate&&r.endDate).reduce((s,r)=>s+_nightsInMonth(r,displayYm),0);
-  const propOcc    = daysInM > 0 ? Math.round(monthNights/daysInM*100) : 0;
-  const revPAN     = monthNights > 0 ? Math.round(monthRev/monthNights) : 0;
+  const monthNights    = allInc.filter(r=>r.startDate&&r.endDate).reduce((s,r)=>s+_nightsInMonth(r,displayYm),0);
+  const propOcc        = daysInM > 0 ? Math.round(monthNights/daysInM*100) : 0;
+  // RevPAN global : utilise nightsRented stocké (pas le calcul mensuel qui découpe les séjours)
+  const allNightsStored = allInc.reduce((s,r) => s+(r.nightsRented||0), 0);
+  const revPAN          = allNightsStored > 0 ? Math.round(totalRev/allNightsStored) : 0;
 
   // Charges
   const monthExp   = expenses.filter(e => e.yearMonth === displayYm);
@@ -895,20 +884,56 @@ async function _locDeleteExpense(id) {
   await _renderPropertyDetail();
 }
 
-async function _downloadPropertyPDF() {
+function _downloadPropertyPDF() {
   const prop = Data.getPropertyById(_pdPropId);
   if (!prop) return;
+  const allInc = Data.getRentalIncomes().filter(r => r.propertyId === _pdPropId);
+  const allYms = [...new Set(allInc.map(r=>r.yearMonth).filter(Boolean))].sort();
+  const defFrom = allYms[0] || Utils.currentYearMonth();
+  const defTo   = allYms[allYms.length-1] || Utils.currentYearMonth();
+
+  Modals._open(`
+    <div class="modal-header">
+      <h3 style="font-size:0.9rem">📥 Générer le rapport PDF</h3>
+      <button class="modal-close" onclick="Modals.close()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:20px;display:flex;flex-direction:column;gap:14px">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Mois de début</label>
+          <input type="month" id="pdf-from" class="form-input" value="${defFrom}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mois de fin</label>
+          <input type="month" id="pdf-to" class="form-input" value="${defTo}">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="Modals.close()">Annuler</button>
+      <button class="btn btn-primary" onclick="window._generatePDF()">Générer</button>
+    </div>`);
+}
+
+async function _generatePDF() {
+  const fromYm = document.getElementById('pdf-from')?.value;
+  const toYm   = document.getElementById('pdf-to')?.value;
+  if (!fromYm || !toYm || toYm < fromYm) { alert('Période invalide.'); return; }
+  Modals.close();
+
   // Ouvrir la fenêtre AVANT tout await — sinon le popup blocker l'intercepte
   const w = window.open('', '_blank', 'width=960,height=750');
   if (!w) { Utils.toast('Autorisez les popups pour ce site pour générer le PDF.', 'info'); return; }
   w.document.write('<html><body style="font-family:Arial;padding:30px;color:#555">Génération du rapport…</body></html>');
+
+  const prop     = Data.getPropertyById(_pdPropId);
   const allInc   = Data.getRentalIncomes().filter(r => r.propertyId === _pdPropId);
   const expenses = await _loadExpenses(_pdPropId);
 
-  // Collecter tous les mois avec données
+  // Collecter les mois dans la plage choisie
   const monthsSet = new Set();
-  allInc.forEach(r => { if (r.yearMonth) monthsSet.add(r.yearMonth); });
-  expenses.forEach(e => { if (e.yearMonth) monthsSet.add(e.yearMonth); });
+  allInc.forEach(r => { if (r.yearMonth && r.yearMonth >= fromYm && r.yearMonth <= toYm) monthsSet.add(r.yearMonth); });
+  expenses.forEach(e => { if (e.yearMonth && e.yearMonth >= fromYm && e.yearMonth <= toYm) monthsSet.add(e.yearMonth); });
   const months = [...monthsSet].sort((a,b) => a.localeCompare(b));
 
   const TYPE_LABELS = { airbnb:'Airbnb', booking:'Booking', 'long-term':'Longue durée', seasonal:'Saisonnier', other:'Autre' };
@@ -922,7 +947,9 @@ async function _downloadPropertyPDF() {
     const occ   = dim > 0 ? Math.round(nights/dim*100) : 0;
     const exp   = expenses.filter(e => e.yearMonth === ym).reduce((s,e) => s+(e.amount||0), 0);
     const net   = rev - exp;
-    const revpan = nights > 0 ? Math.round(rev/nights) : 0;
+    // RevPAN : utilise nightsRented stocké (fiable) plutôt que le calcul mensuel
+    const storedNights = mInc.reduce((s,r) => s+(r.nightsRented||0), 0);
+    const revpan = storedNights > 0 ? Math.round(rev/storedNights) : 0;
     return { label:`${Utils.MONTHS_LONG[m-1]} ${y}`, nights, occ, rev, exp, net, revpan };
   });
 
@@ -1013,6 +1040,7 @@ window._locOpenPropertyDetail = _openPropertyDetail;
 window._locOpenExpenseForm    = _locOpenExpenseForm;
 window._pdChangeMonth         = _pdChangeMonth;
 window._downloadPropertyPDF  = _downloadPropertyPDF;
+window._generatePDF          = _generatePDF;
 window._locSaveExpense        = _locSaveExpense;
 window._locEditExpense        = _locEditExpense;
 window._locDeleteExpense      = _locDeleteExpense;
