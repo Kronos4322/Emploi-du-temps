@@ -22,6 +22,7 @@
       <div class="page-header">
         <h1 class="page-title">🏠 Location</h1>
         <div class="page-actions">
+          <button class="btn btn-ghost" id="btn-export-csv">↓ Export CSV</button>
           <button class="btn btn-ghost" id="btn-add-property">+ Ajouter un bien</button>
           <button class="btn btn-primary" id="btn-add-income">+ Ajouter un revenu</button>
         </div>
@@ -36,15 +37,15 @@
       </div>
 
       <!-- KPIs -->
-      <div class="kpi-grid" id="loc-kpis" style="margin-bottom:20px">
-        <div class="kpi-card kpi-large">
+      <div class="kpi-grid kpi-finance" id="loc-kpis" style="margin-bottom:20px">
+        <div class="kpi-card">
           <div class="kpi-icon kpi-green">💶</div>
           <div class="kpi-content">
             <div class="kpi-value" id="loc-kpi-total">—</div>
-            <div class="kpi-label">Revenus du mois</div>
+            <div class="kpi-label" id="loc-kpi-month-label">Revenus du mois</div>
           </div>
         </div>
-        <div class="kpi-card kpi-large">
+        <div class="kpi-card">
           <div class="kpi-icon kpi-teal">📅</div>
           <div class="kpi-content">
             <div class="kpi-value" id="loc-kpi-year">—</div>
@@ -63,6 +64,23 @@
           <div class="kpi-content">
             <div class="kpi-value" id="loc-kpi-pending">—</div>
             <div class="kpi-label">En attente de réception</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-purple">📊</div>
+          <div class="kpi-content">
+            <div class="kpi-value" id="loc-kpi-occ">—</div>
+            <div class="kpi-label">Taux d'occupation</div>
+            <div class="property-occ-bar" style="margin-top:5px">
+              <div id="loc-kpi-occ-bar" class="property-occ-bar-fill" style="width:0%;background:#8b5cf6"></div>
+            </div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-gray">💰</div>
+          <div class="kpi-content">
+            <div class="kpi-value" id="loc-kpi-revpan">—</div>
+            <div class="kpi-label">RevPAN (€/nuit)</div>
           </div>
         </div>
       </div>
@@ -90,16 +108,17 @@
         <div id="loc-calendar" style="padding-top:10px"></div>
       </details>
 
-      <!-- Revenus du mois -->
+      <!-- Revenus -->
       <details class="fin-section" open>
         <summary>Revenus — <span id="loc-month-label">—</span></summary>
         <div class="report-table-wrapper">
           <table class="data-table">
             <thead><tr>
               <th>Bien</th>
-              <th>Plateforme</th>
-              <th class="cell-center">Nuits louées</th>
+              <th>Période</th>
+              <th class="cell-center">Nuits</th>
               <th class="cell-money">Montant</th>
+              <th>Plateforme</th>
               <th>Statut</th>
               <th>Notes</th>
               <th class="cell-center">Actions</th>
@@ -108,7 +127,7 @@
             <tfoot><tr class="table-total">
               <td colspan="3"><strong>Total</strong></td>
               <td class="cell-money" id="incomes-total"><strong>—</strong></td>
-              <td colspan="3"></td>
+              <td colspan="4"></td>
             </tr></tfoot>
           </table>
         </div>
@@ -153,6 +172,11 @@
           </div>
         </div>
         <div class="form-group">
+          <label class="form-label">Tarif par défaut (€/nuit)</label>
+          <input type="number" id="prop-default-rate" class="form-input" min="0" step="0.01" placeholder="Ex : 65.00">
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px">Pré-remplit automatiquement lors d'une nouvelle réservation.</div>
+        </div>
+        <div class="form-group">
           <label class="form-label">Notes</label>
           <textarea id="prop-notes" class="form-input" rows="3" placeholder="Informations complémentaires…"></textarea>
         </div>
@@ -174,14 +198,14 @@
   <!-- Drawer : Ajouter / modifier un revenu -->
   <div id="income-drawer" class="loc-drawer">
     <div class="loc-drawer-header">
-      <span class="loc-drawer-title" id="income-drawer-title">Nouveau revenu</span>
+      <span class="loc-drawer-title" id="income-drawer-title">Nouvelle réservation</span>
       <button class="loc-drawer-close" onclick="window._locCloseDrawers()">✕</button>
     </div>
     <form id="income-form" onsubmit="window._locSaveIncome(event)">
       <div class="loc-drawer-body">
         <div class="form-group">
           <label class="form-label">Bien *</label>
-          <select id="inc-property" class="form-input" required></select>
+          <select id="inc-property" class="form-input" required onchange="window._locOnPropertyChange()"></select>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -195,8 +219,12 @@
         </div>
         <div class="form-row">
           <div class="form-group">
+            <label class="form-label">Tarif par nuit (€)</label>
+            <input type="number" id="inc-rate" class="form-input" min="0" step="0.01" placeholder="0.00" oninput="window._locCalcTotal()">
+          </div>
+          <div class="form-group">
             <label class="form-label">Plateforme</label>
-            <input type="text" id="inc-platform" class="form-input" placeholder="Ex : Airbnb, Booking…" list="platform-list">
+            <input type="text" id="inc-platform" class="form-input" placeholder="Airbnb, Booking…" list="platform-list">
             <datalist id="platform-list">
               <option value="Airbnb">
               <option value="Booking.com">
@@ -206,32 +234,24 @@
               <option value="Autre">
             </datalist>
           </div>
-          <div class="form-group">
-            <label class="form-label">Tarif par nuit (€)</label>
-            <input type="number" id="inc-rate" class="form-input" min="0" step="0.01" placeholder="0.00" oninput="window._locCalcTotal()">
-          </div>
         </div>
         <div class="form-group" style="display:none">
           <input type="number" id="inc-nights" value="0">
         </div>
-        <!-- Total calculé automatiquement -->
         <div class="form-group">
           <label class="form-label" style="display:flex;align-items:center;justify-content:space-between">
             <span>Montant total encaissé (€) *</span>
-            <span id="inc-calc-hint" style="font-size:0.78rem;color:var(--text-muted);font-weight:400"></span>
+            <span id="inc-calc-hint" style="font-size:0.78rem;color:var(--primary);font-weight:600"></span>
           </label>
           <input type="number" id="inc-amount" class="form-input" min="0" step="0.01" required placeholder="0.00"
-            style="font-weight:600;font-size:1rem">
-          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px">
-            Rempli automatiquement si vous indiquez nuits × tarif. Modifiable manuellement.
-          </div>
+            style="font-weight:700;font-size:1.05rem">
         </div>
         <div class="form-group">
           <label class="form-label">Statut du paiement</label>
           <select id="inc-status" class="form-input">
-            <option value="received">Reçu</option>
-            <option value="pending">En attente</option>
-            <option value="partial">Partiel</option>
+            <option value="received">✓ Reçu</option>
+            <option value="pending">⏳ En attente</option>
+            <option value="partial">⚠ Partiel</option>
           </select>
         </div>
         <div class="form-group">
@@ -251,6 +271,6 @@
   <script src="js/data.js?v=38"></script>
   <script src="js/modals.js?v=18"></script>
   <script src="js/nav.js?v=13"></script>
-  <script src="js/pages/location.js?v=3"></script>
+  <script src="js/pages/location.js?v=5"></script>
 </body>
 </html>

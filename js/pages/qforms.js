@@ -105,9 +105,10 @@ window.QForms = {
 QForms.FORMS.fiche_rens = {
   title: "Fiche d'analyse du besoin — Ind. 4 · ART-FAB-001",
   html(s, sv, co, fn, orgName = '', respName = '') {
+    const autoRef = sv.num_dossier || `${(orgName||'ART').slice(0,3).toUpperCase()}-${new Date().getFullYear()}-${(s.id||'').slice(-3).toUpperCase()}`;
     return `
     ${_hdr(`${orgName||'Artémis Prépa'} — FICHE D'ANALYSE DU BESOIN`,"Indicateur 4 Qualiopi · Réf. ART-FAB-001 · À compléter avant toute inscription")}
-    ${_g2(_row('N° dossier',_f('num_dossier',sv,'ART-2025-XXX')), _row('Date',_f('date',sv,'','date')))}
+    ${_g2(_row('N° dossier',_f('num_dossier',{...sv,num_dossier:autoRef},'')), _row('Date',_f('date',sv,'','date')))}
     ${_sec('A — Identification du bénéficiaire')}
     ${_g2(_row('Nom',_f('nom',sv,s.lastName)), _row('Prénom',_f('prenom',sv,s.firstName)),
       _row('Email',_f('email',sv,s.email||'','email')), _row('Téléphone',_f('tel',sv,s.phone||'')),

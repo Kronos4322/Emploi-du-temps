@@ -1681,3 +1681,41 @@ label {
   .loc-drawer { width: 100vw; }
   .properties-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Location — Améliorations v2 ─────────────────────────── */
+
+/* Property card avec bordure gauche colorée */
+.property-card { border-left: 4px solid var(--border); }
+.property-occ-bar { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; margin: 8px 0 2px; }
+.property-occ-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+.property-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); text-align: center; }
+.property-kpi-val { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+.property-kpi-lbl { font-size: 0.66rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-top: 1px; }
+
+/* Calendrier v2 */
+.cal-header-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 5px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.cal-day {
+  min-height: 52px; border-radius: 6px; padding: 5px 5px 4px;
+  cursor: pointer; border: 1px solid var(--border);
+  background: var(--bg-card); transition: box-shadow .15s;
+  position: relative; overflow: hidden;
+}
+.cal-day:hover { box-shadow: 0 2px 10px rgba(0,0,0,.12); z-index: 1; }
+.cal-day.is-today { border-color: #3b82f6; border-width: 2px; }
+.cal-day.is-weekend { background: var(--surface); }
+.cal-day-num { font-size: 0.76rem; font-weight: 400; color: var(--text); line-height: 1; position: relative; z-index: 1; }
+.cal-day.is-today .cal-day-num { color: #3b82f6; font-weight: 700; }
+.cal-day-badges { margin-top: 4px; display: flex; flex-direction: column; gap: 2px; position: relative; z-index: 1; }
+.cal-badge { font-size: 0.58rem; font-weight: 600; border-radius: 3px; padding: 1px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; display: block; }
+.cal-badge-checkin { border-radius: 0 3px 3px 0; }
+.cal-badge-checkout { border-radius: 3px 0 0 3px; opacity: 0.8; }
+.cal-occ-strip { position: absolute; bottom: 0; left: 0; right: 0; height: 4px; }
+
+/* Tableau revenus */
+.loc-period-cell { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
+.loc-nights-badge { display: inline-block; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1px 7px; font-size: 0.73rem; font-weight: 600; color: var(--text-muted); }
+
+/* Barre de résumé du calendrier */
+.loc-cal-summary { display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.83rem; margin-top: 10px; padding: 10px 16px; background: var(--surface); border-radius: 8px; border: 1px solid var(--border); align-items: center; }
+.loc-cal-summary strong { color: var(--text); }
