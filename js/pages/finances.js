@@ -33,8 +33,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   ['chart-group','chart-split','chart-type'].forEach(id =>
     document.getElementById(id).addEventListener('change', renderChart));
-  document.getElementById('btn-export-csv').addEventListener('click', () =>
-    Data.exportToCsv(_yearMonth, { poleId: _poleId === RENTAL_POLE ? '' : _poleId, companyId: _companyId }));
+  document.getElementById('btn-export-csv').addEventListener('click', () => {
+    if (_poleId === RENTAL_POLE) _exportRentalCsv();
+    else Data.exportToCsv(_yearMonth, { poleId: _poleId, companyId: _companyId });
+  });
   document.getElementById('btn-print').addEventListener('click', () => window.print());
   document.getElementById('btn-prev-month').addEventListener('click', () => {
     const [y, m] = _yearMonth.split('-');
@@ -76,8 +78,10 @@ function buildFilters() {
   const now    = new Date();
   const months = [];
   const end    = new Date(now.getFullYear(), now.getMonth() + 18, 1);
-  const firstMission = Data.getMissions().map(m => m.date).filter(Boolean).sort()[0];
-  const stopYm = firstMission ? firstMission.slice(0,7) : `${now.getFullYear()-1}-09`;
+  const firstMission  = Data.getMissions().map(m => m.date).filter(Boolean).sort()[0];
+  const firstRental   = Data.getRentalIncomes().map(r => r.yearMonth).filter(Boolean).sort()[0];
+  const firstActivity = [firstMission?.slice(0,7), firstRental].filter(Boolean).sort()[0];
+  const stopYm = firstActivity || `${now.getFullYear()-1}-09`;
   for (let d = new Date(end); ; d.setMonth(d.getMonth() - 1)) {
     const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     months.push(ym);
@@ -102,8 +106,9 @@ function buildFilters() {
     ownCos.map(c => `<option value="${c.id}" ${_poleId===c.id?'selected':''}>${Utils.escapeHtml(c.name)}</option>`).join('') +
     `<option value="${RENTAL_POLE}" ${_poleId===RENTAL_POLE?'selected':''}>🏠 Location</option>`;
 
+  const polesLabel = ownCos.length > 0 ? ownCos.map(c => Utils.escapeHtml(c.name)).join(' + ') : 'Tous les pôles';
   document.getElementById('chart-split').innerHTML =
-    '<option value="poles">Artémis + Astéria</option>' +
+    `<option value="poles">${polesLabel}</option>` +
     ownCos.map(c => `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`).join('') +
     '<option value="schools">Par école</option>' +
     '<option value="rental">🏠 Location seule</option>';
@@ -222,7 +227,12 @@ function render() {
   const totalCosts  = Math.round((_calcCosts(doneMissions) + _calcCosts(plannedMissions)) * 100) / 100;
   const hoursDone   = doneMissions.reduce((s,ms) => s + (ms.duration||0), 0);
   const hoursPlanned= plannedMissions.reduce((s,ms) => s + (ms.duration||0), 0);
-  const unpaidM     = doneMissions.filter(ms => ms.paymentStatus !== 'paid' && ms.status === 'done');
+  // "Non payé" : missions réalisées ET auto-done (passées mais pas encore marquées "done")
+  const _today = Utils.today();
+  const unpaidM = doneMissions.filter(ms =>
+    ms.paymentStatus !== 'paid' &&
+    (ms.status === 'done' || (ms.status === 'planned' && ms.date && ms.date < _today))
+  );
   const unpaidAmt   = unpaidM.reduce((s,ms) => s + (ms.duration||0)*(ms.billingRate||0), 0);
 
   // Intégration revenus locatifs pour "Tous les pôles"
@@ -239,10 +249,11 @@ function render() {
     if (valEl) valEl.textContent = Utils.formatMoney(rentalTotal);
   }
 
-  // Restaurer labels KPI normaux
-  _setKpiLabel('fin-revenue',       'CA total (réalisé + prévu)');
+  // Restaurer labels KPI normaux (label locatif si tous les pôles avec revenus)
+  const caLabel = (!_poleId && rentalTotal > 0) ? 'CA total (missions + locatif)' : 'CA total (réalisé + prévu)';
+  _setKpiLabel('fin-revenue',       caLabel);
   _setKpiLabel('fin-costs',         'Charges prestataires (réalisé + prévu)');
-  _setKpiLabel('fin-margin',        'Marge nette');
+  _setKpiLabel('fin-margin',        (!_poleId && rentalTotal > 0) ? 'Marge nette (missions + locatif)' : 'Marge nette');
   _setKpiLabel('fin-hours-done',    'Heures réalisées');
   _setKpiLabel('fin-hours-planned', 'Heures prévues');
 
@@ -284,11 +295,26 @@ function render() {
   const byCompanyEntries = Object.entries(allByCompany)
     .filter(([,d]) => d.done + d.planned > 0)
     .sort((a, b) => b[1].revenue - a[1].revenue);
+
+  // Ajouter ligne locative si "tous les pôles" avec des revenus → rend le footer cohérent avec le KPI
+  if (!_poleId && rentalTotal > 0) {
+    byCompanyEntries.push(['__rental__', { hours: 0, revenue: rentalTotal, done: 0, planned: 0 }]);
+  }
   const displayedRevenue = byCompanyEntries.reduce((s, [, d]) => s + d.revenue, 0);
 
   const sectionCompany = document.getElementById('section-by-company');
   sectionCompany.style.display = (_companyId === '__none__' || byCompanyEntries.length === 0) ? 'none' : '';
   document.getElementById('tbody-by-company').innerHTML = byCompanyEntries.map(([cid, d]) => {
+    if (cid === '__rental__') {
+      const pct = displayedRevenue > 0 ? Math.round(d.revenue / displayedRevenue * 100) : 0;
+      return `<tr style="background:var(--primary-light,#eff6ff)">
+        <td><span class="school-dot" style="background:#10b981"></span> 🏠 Revenus locatifs</td>
+        <td class="cell-center" style="color:var(--text-muted)">—</td>
+        <td class="cell-center" style="color:var(--text-muted)">—</td>
+        <td class="cell-money">${Utils.formatMoney(d.revenue)}</td>
+        <td><div class="progress-bar-wrapper"><div class="progress-bar" style="width:${pct}%;background:#10b981"></div><span class="progress-label">${pct}%</span></div></td>
+      </tr>`;
+    }
     const co  = cid === '__no_school__' ? null : companies[cid];
     const col = co ? co.color : '#94a3b8';
     const pct = displayedRevenue > 0 ? Math.round(d.revenue / displayedRevenue * 100) : 0;
@@ -380,6 +406,9 @@ function render() {
       <span>${Utils.escapeHtml(ms.title)}</span>
       <span>${Utils.formatDuration(ms.duration)}</span>
     </div>`).join('');
+
+  // Charges prestataires : recharger si la section est ouverte et des prestataires sont sélectionnés
+  if (_providerIds.length > 0) renderProviderCosts();
 
   // Section locatif en bas (uniquement "tous les pôles")
   renderRentalSection();
@@ -505,8 +534,12 @@ function renderAnnual() {
   const ymStart   = dateStart.slice(0, 7);
   const ymEnd     = dateEnd.slice(0, 7);
 
+  // Mettre à jour les en-têtes du tableau annuel selon le mode
+  const annualThead = document.querySelector('#tbody-annual')?.closest('table')?.querySelector('thead tr');
+
   // ─ Mode Location ─
   if (_poleId === RENTAL_POLE) {
+    if (annualThead) annualThead.innerHTML = '<th>Bien</th><th class="cell-money">—</th><th class="cell-center">Entrées</th><th class="cell-center">Mois actifs</th><th class="cell-money">CA total</th><th>Type</th>';
     const propMap   = {}; Data.getProperties().forEach(p => propMap[p.id] = p);
     const allRental = Data.getRentalIncomes().filter(r => r.yearMonth >= ymStart && r.yearMonth <= ymEnd);
     const filtered  = _companyId ? allRental.filter(r => r.propertyId === _companyId) : allRental;
@@ -544,6 +577,7 @@ function renderAnnual() {
   }
 
   // ─ Mode missions ─
+  if (annualThead) annualThead.innerHTML = '<th>École / Client</th><th class="cell-money">Tarif/h</th><th class="cell-center">Missions</th><th class="cell-center">Heures</th><th class="cell-money">CA total</th><th>Via</th>';
   const coMap  = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
   const ownCos = Data.getOwnCompanies();
 
@@ -950,6 +984,32 @@ function _buildDoughnut(sorted, COLORS) {
       }
     }
   });
+}
+
+// ── Export CSV revenus locatifs ───────────────────────────────────────────────
+
+function _exportRentalCsv() {
+  const propMap = {}; Data.getProperties().forEach(p => propMap[p.id] = p);
+  let incomes = Data.getRentalIncomes();
+  if (_companyId) incomes = incomes.filter(r => r.propertyId === _companyId);
+  incomes.sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
+
+  const STATUS_FR = { received: 'Reçu', pending: 'En attente', partial: 'Partiel' };
+  const rows = [['Mois', 'Bien', 'Plateforme', 'Nuits louées', 'Montant (€)', 'Statut', 'Notes']];
+  incomes.forEach(r => {
+    const prop = propMap[r.propertyId];
+    rows.push([
+      r.yearMonth || '',
+      prop?.name || '',
+      r.platform || '',
+      r.nightsRented ?? '',
+      (r.amount || 0).toFixed(2).replace('.', ','),
+      STATUS_FR[r.status] || r.status || '',
+      r.notes || '',
+    ]);
+  });
+  const name = _companyId && propMap[_companyId] ? `-${propMap[_companyId].name.replace(/\s+/g,'_')}` : '';
+  window._downloadCSV(rows, `revenus-locatifs${name}.csv`);
 }
 
 // ── Section locative en bas (mode "Tous les pôles" uniquement) ───────────────
