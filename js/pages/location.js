@@ -930,11 +930,15 @@ async function _generatePDF() {
   const allInc   = Data.getRentalIncomes().filter(r => r.propertyId === _pdPropId);
   const expenses = await _loadExpenses(_pdPropId);
 
-  // Collecter les mois dans la plage choisie
-  const monthsSet = new Set();
-  allInc.forEach(r => { if (r.yearMonth && r.yearMonth >= fromYm && r.yearMonth <= toYm) monthsSet.add(r.yearMonth); });
-  expenses.forEach(e => { if (e.yearMonth && e.yearMonth >= fromYm && e.yearMonth <= toYm) monthsSet.add(e.yearMonth); });
-  const months = [...monthsSet].sort((a,b) => a.localeCompare(b));
+  // Générer TOUS les mois de la plage sélectionnée
+  const months = [];
+  let _cur = fromYm;
+  while (_cur <= toYm) {
+    months.push(_cur);
+    const [_y,_m] = _cur.split('-').map(Number);
+    const _next = new Date(_y, _m, 1);
+    _cur = `${_next.getFullYear()}-${String(_next.getMonth()+1).padStart(2,'0')}`;
+  }
 
   const TYPE_LABELS = { airbnb:'Airbnb', booking:'Booking', 'long-term':'Longue durée', seasonal:'Saisonnier', other:'Autre' };
 
