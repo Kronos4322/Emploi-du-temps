@@ -896,8 +896,12 @@ async function _locDeleteExpense(id) {
 }
 
 async function _downloadPropertyPDF() {
-  const prop     = Data.getPropertyById(_pdPropId);
+  const prop = Data.getPropertyById(_pdPropId);
   if (!prop) return;
+  // Ouvrir la fenêtre AVANT tout await — sinon le popup blocker l'intercepte
+  const w = window.open('', '_blank', 'width=960,height=750');
+  if (!w) { Utils.toast('Autorisez les popups pour ce site pour générer le PDF.', 'info'); return; }
+  w.document.write('<html><body style="font-family:Arial;padding:30px;color:#555">Génération du rapport…</body></html>');
   const allInc   = Data.getRentalIncomes().filter(r => r.propertyId === _pdPropId);
   const expenses = await _loadExpenses(_pdPropId);
 
@@ -987,7 +991,7 @@ async function _downloadPropertyPDF() {
   <script>window.onload=function(){window.print()}<\/script>
   </body></html>`;
 
-  const w = window.open('', '_blank', 'width=900,height=700');
+  w.document.open();
   w.document.write(html);
   w.document.close();
 }
