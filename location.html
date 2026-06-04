@@ -108,30 +108,12 @@
         <div id="loc-calendar" style="padding-top:10px"></div>
       </details>
 
-      <!-- Revenus -->
-      <details class="fin-section" open>
-        <summary>Revenus — <span id="loc-month-label">—</span></summary>
-        <div class="report-table-wrapper">
-          <table class="data-table">
-            <thead><tr>
-              <th>Bien</th>
-              <th>Période</th>
-              <th class="cell-center">Nuits</th>
-              <th class="cell-money">Montant</th>
-              <th>Plateforme</th>
-              <th>Statut</th>
-              <th>Notes</th>
-              <th class="cell-center">Actions</th>
-            </tr></thead>
-            <tbody id="incomes-tbody"></tbody>
-            <tfoot><tr class="table-total">
-              <td colspan="3"><strong>Total</strong></td>
-              <td class="cell-money" id="incomes-total"><strong>—</strong></td>
-              <td colspan="4"></td>
-            </tr></tfoot>
-          </table>
-        </div>
-      </details>
+      <!-- Elements cachés requis par le JS (renderIncomes) -->
+      <div style="display:none">
+        <span id="loc-month-label"></span>
+        <tbody id="incomes-tbody"></tbody>
+        <span id="incomes-total"></span>
+      </div>
 
     </main>
   </div>
