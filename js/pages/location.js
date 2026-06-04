@@ -1026,7 +1026,8 @@ async function _generatePDF() {
     // RevPAN : utilise nightsRented stocké (fiable) plutôt que le calcul mensuel
     const storedNights = mInc.reduce((s,r) => s+(r.nightsRented||0), 0);
     const revpan = storedNights > 0 ? Math.round(rev/storedNights) : 0;
-    return { label:`${Utils.MONTHS_LONG[m-1]} ${y}`, nights, occ, rev, exp, net, revpan };
+    const rentab = rev > 0 ? Math.round(net/rev*100) : null;
+    return { label:`${Utils.MONTHS_LONG[m-1]} ${y}`, nights, occ, rev, exp, net, revpan, rentab };
   });
 
   const totNights = rows.reduce((s,r)=>s+r.nights,0);
@@ -1034,9 +1035,13 @@ async function _generatePDF() {
   const totExp    = rows.reduce((s,r)=>s+r.exp,0);
   const totNet    = totRev - totExp;
   const avgOcc    = rows.length > 0 ? Math.round(rows.reduce((s,r)=>s+r.occ,0)/rows.length) : 0;
-  const avgRevPAN = totNights > 0 ? Math.round(totRev/totNights) : 0;
+  const avgRevPAN  = totNights > 0 ? Math.round(totRev/totNights) : 0;
+  const totRentab  = totRev > 0 ? Math.round(totNet/totRev*100) : null;
 
   const fmt = v => v.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+
+  const rentabColor = v => v === null ? '#888' : v >= 60 ? '#16a34a' : v >= 30 ? '#f97316' : '#dc2626';
+  const rentabFmt   = v => v === null ? '—' : `${v} %`;
 
   const tableRows = rows.map(r => `<tr>
     <td>${r.label}</td>
@@ -1046,6 +1051,7 @@ async function _generatePDF() {
     <td style="text-align:right;color:#dc2626">${r.exp>0?'−'+fmt(r.exp):'—'}</td>
     <td style="text-align:right;font-weight:700;color:${r.net>=0?'#16a34a':'#dc2626'}">${fmt(r.net)}</td>
     <td style="text-align:center">${r.revpan>0?r.revpan+' €':'—'}</td>
+    <td style="text-align:center;font-weight:700;color:${rentabColor(r.rentab)}">${rentabFmt(r.rentab)}</td>
   </tr>`).join('');
 
   const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
@@ -1059,7 +1065,7 @@ async function _generatePDF() {
     td{padding:7px 10px;border-bottom:1px solid #e2e8f0;font-size:10pt}
     tr:hover td{background:#f8fafc}
     .total{background:#f1f5f9;font-weight:700}
-    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+    .kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px}
     .kpi{background:#f8fafc;border-radius:8px;padding:12px;text-align:center;border:1px solid #e2e8f0}
     .kpi-val{font-size:15pt;font-weight:700}
     .kpi-lbl{font-size:8pt;color:#64748b;margin-top:3px}
@@ -1072,12 +1078,13 @@ async function _generatePDF() {
     <div class="kpi"><div class="kpi-val" style="color:#dc2626">−${fmt(totExp)}</div><div class="kpi-lbl">Charges totales</div></div>
     <div class="kpi"><div class="kpi-val" style="color:${totNet>=0?'#16a34a':'#dc2626'}">${fmt(totNet)}</div><div class="kpi-lbl">Revenu net</div></div>
     <div class="kpi"><div class="kpi-val">${avgOcc} %</div><div class="kpi-lbl">Taux occupation moyen</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:${rentabColor(totRentab)}">${rentabFmt(totRentab)}</div><div class="kpi-lbl">Rentabilité globale</div></div>
   </div>
   <table>
     <thead><tr>
       <th>Mois</th><th style="text-align:center">Nuits</th><th style="text-align:center">Occupation</th>
       <th style="text-align:right">Revenus</th><th style="text-align:right">Charges</th>
-      <th style="text-align:right">Net</th><th style="text-align:center">RevPAN</th>
+      <th style="text-align:right">Net</th><th style="text-align:center">RevPAN</th><th style="text-align:center">Rentabilité</th>
     </tr></thead>
     <tbody>${tableRows}</tbody>
     <tfoot><tr class="total">
@@ -1088,6 +1095,7 @@ async function _generatePDF() {
       <td style="text-align:right;color:#dc2626">−${fmt(totExp)}</td>
       <td style="text-align:right;color:${totNet>=0?'#16a34a':'#dc2626'}">${fmt(totNet)}</td>
       <td style="text-align:center">${avgRevPAN > 0 ? avgRevPAN+' €' : '—'}</td>
+      <td style="text-align:center;font-weight:700;color:${rentabColor(totRentab)}">${rentabFmt(totRentab)}</td>
     </tr></tfoot>
   </table>
   <p style="margin-top:20px;font-size:8pt;color:#94a3b8">Généré le ${new Date().toLocaleDateString('fr-FR')} — Emploi du temps</p>
