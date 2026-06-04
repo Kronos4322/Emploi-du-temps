@@ -308,10 +308,10 @@ function _renderCalendar() {
   });
 
   // En-tête
-  let html = `<div class="cal-header-grid">
+  let html = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:6px">
     ${DAYS_SH.map((d,i) => `<div style="text-align:center;font-size:0.68rem;font-weight:700;color:${i>=5?'var(--primary)':'var(--text-muted)'};padding:4px 0">${d}</div>`).join('')}
   </div>
-  <div class="cal-grid">`;
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">`;
 
   for (let i=0; i<startWd; i++) html += '<div></div>';
 
@@ -347,23 +347,26 @@ function _renderCalendar() {
     const propColor = nightSold
       ? (propMap[(checkins[0]||occupied[0])?.propertyId]?.color || '#ef4444')
       : (checkoutOnly ? (propMap[checkouts[0]?.propertyId]?.color || '#f59e0b') : null);
+    // Barre colorée en bas (couleur du bien)
     const strip = propColor
-      ? `<div class="cal-occ-strip" style="background:${propColor}"></div>`
+      ? `<div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:${propColor}"></div>`
       : '';
 
     // Badge arrivée
     const checkinBadge = checkins.length > 0
-      ? `<span class="cal-badge" style="background:${propMap[checkins[0].propertyId]?.color||'#dc2626'};font-size:0.56rem">→ Arrivée</span>`
+      ? `<span style="display:block;font-size:0.55rem;font-weight:700;background:${propMap[checkins[0].propertyId]?.color||'#dc2626'};color:#fff;border-radius:3px;padding:1px 4px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">→ Arrivée</span>`
       : '';
 
     // Badge départ
     const checkoutBadge = checkouts.length > 0
-      ? `<span class="cal-badge" style="background:#94a3b8;font-size:0.56rem">← Départ</span>`
+      ? `<span style="display:block;font-size:0.55rem;font-weight:700;background:#94a3b8;color:#fff;border-radius:3px;padding:1px 4px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">← Départ</span>`
       : '';
 
-    html += `<div class="cal-day" style="background:${bg};${border}" onclick="window._locCalClick('${dStr}')">
-      <div class="cal-day-num" style="color:${isToday?'#3b82f6':numColor};font-weight:${isToday||nightSold?700:400}">${day}</div>
-      ${checkinBadge||checkoutBadge ? `<div class="cal-day-badges">${checkinBadge}${checkoutBadge}</div>` : ''}
+    const cellStyle = `min-height:48px;border-radius:6px;padding:5px 5px 4px;cursor:pointer;border:${isToday?'2px solid #3b82f6':'1px solid rgba(0,0,0,0.08)'};background:${bg};position:relative;overflow:hidden;transition:box-shadow .15s`;
+
+    html += `<div style="${cellStyle}" onclick="window._locCalClick('${dStr}')">
+      <div style="font-size:0.76rem;font-weight:${isToday||nightSold?700:400};color:${isToday?'#3b82f6':numColor};line-height:1">${day}</div>
+      ${checkinBadge}${checkoutBadge}
       ${strip}
     </div>`;
   }
