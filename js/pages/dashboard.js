@@ -986,7 +986,7 @@ window._generateInvoice = function() {
   if (!destName) { Utils.toast('Destinataire introuvable.', 'error'); return; }
 
   let missions = window._getInvMissions(dateFrom, dateTo, destRaw);
-  if (!missions.length) { Utils.toast('Aucune mission pour ce destinataire sur cette période.', 'warning'); return; }
+  if (!missions.length) { Utils.toast('Aucune mission pour ce destinataire sur cette période.', 'info'); return; }
 
   const totalH  = missions.reduce((s,m) => s+(m.duration||0), 0);
   const totalHT = missions.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
