@@ -775,10 +775,13 @@ window._getInvMissions = function(monthFrom, monthTo, destRaw) {
     return ym >= monthFrom && ym <= monthTo;
   };
 
+  // Statuts non facturables : annulé, reporté, déplacé (= travail non effectué à cette date)
+  const billable = m => !['cancelled','postponed','moved'].includes(m.status) && m.missionType !== 'personal';
+
   let missions = [];
   if (dtype === 'co') {
     missions = Data.getMissions().filter(m =>
-      m.status !== 'cancelled' && m.missionType !== 'personal' && inRange(m) && m.companyId === did);
+      billable(m) && inRange(m) && m.companyId === did);
   } else {
     const p = Data.getProviders().find(p => p.id === did);
     const pname = p ? ([p.firstName, p.lastName].filter(Boolean).join(' ') || p.structure || '') : '';
@@ -787,7 +790,7 @@ window._getInvMissions = function(monthFrom, monthTo, destRaw) {
     const sk = kws(pname); const ids = new Set([did]);
     Data.getProviders().forEach(pr => { const n=[pr.firstName,pr.lastName].filter(Boolean).join(' ')||pr.structure||''; if([...kws(n)].some(w=>sk.has(w))) ids.add(pr.id); });
     missions = Data.getMissions().filter(m => {
-      if (m.status === 'cancelled' || m.missionType === 'personal' || !inRange(m)) return false;
+      if (!billable(m) || !inRange(m)) return false;
       const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
       return pids.some(pid => ids.has(pid));
     });
@@ -994,7 +997,9 @@ window._generateInvoice = function() {
   const rows = missions.map(m => {
     const co    = coMap[m.companyId];
     const d     = new Date(m.date+'T00:00:00');
-    const day   = String(d.getDate()).padStart(2,'0')+' '+_INV_MONTHS_SH[d.getMonth()];
+    const day   = isNaN(d.getTime())
+      ? (m.date || '—')
+      : String(d.getDate()).padStart(2,'0')+' '+_INV_MONTHS_SH[d.getMonth()];
     const title = m.title || '';
     const school= co?.name || '';
     const qty   = m.duration || 0;
