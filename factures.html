@@ -95,12 +95,15 @@
       </div>
 
       <!-- Section impayés globaux -->
-      <div id="section-unpaid" style="margin-top:32px;display:none">
+      <div id="section-unpaid" style="margin-top:32px;display:none;border:2px solid #dc2626;border-radius:14px;padding:18px 20px;background:#fff5f5">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-          <h2 style="margin:0;font-size:1rem;font-weight:700;color:var(--danger,#dc2626)">
+          <h2 style="margin:0;font-size:1rem;font-weight:700;color:#dc2626">
             ⚠ Impayés — tous mois confondus
           </h2>
-          <span id="unpaid-global-total" style="font-size:1.1rem;font-weight:800;color:var(--danger,#dc2626)"></span>
+          <div style="display:flex;align-items:center;gap:16px">
+            <span id="unpaid-global-total" style="font-size:1.1rem;font-weight:800;color:#dc2626"></span>
+            <button id="btn-close-unpaid" title="Masquer" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#dc2626;line-height:1;padding:0">✕</button>
+          </div>
         </div>
         <div class="report-table-wrapper">
           <table class="data-table">
@@ -135,14 +138,14 @@
         <button onclick="document.getElementById('combo-modal-overlay').classList.remove('open')" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-muted)">✕</button>
       </div>
       <!-- Recherche par montant -->
-      <div style="margin-bottom:14px;display:flex;align-items:center;gap:8px">
+      <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:0.85rem;font-weight:600;color:var(--text-muted);white-space:nowrap">Montant reçu :</span>
         <input type="number" id="combo-search" class="form-input" placeholder="ex. 1775,00" step="0.01" min="0"
-               style="max-width:180px" oninput="window._filterCombos()">
-        <span style="font-size:0.82rem;color:var(--text-muted)">← tape le montant du virement pour trouver la combinaison</span>
+               style="max-width:160px" oninput="window._filterCombos()">
+        <span style="font-size:0.82rem;color:var(--text-muted)">→ la combinaison correspondante se surligne</span>
       </div>
       <!-- Liste scrollable -->
-      <div style="overflow-y:auto;flex:1;border:1px solid var(--border);border-radius:10px">
+      <div style="overflow-y:auto;flex:1;border:1px solid var(--border);border-radius:10px;min-height:100px">
         <table class="data-table" style="margin:0">
           <thead style="position:sticky;top:0;background:var(--bg-card);z-index:1">
             <tr>
@@ -153,6 +156,26 @@
           </thead>
           <tbody id="combo-tbody"></tbody>
         </table>
+      </div>
+      <!-- Panneau validation paiement -->
+      <div id="combo-pay-panel" style="display:none;margin-top:14px;padding:14px 16px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px">
+        <div style="font-size:0.85rem;font-weight:700;color:#16a34a;margin-bottom:10px">✓ Combinaison trouvée — Enregistrer le paiement</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div>
+            <label style="font-size:0.78rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Date de paiement</label>
+            <input type="date" id="combo-pay-date" class="form-input" style="width:100%">
+          </div>
+          <div>
+            <label style="font-size:0.78rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Référence virement bancaire</label>
+            <input type="text" id="combo-pay-ref" class="form-input" placeholder="ex. VIR-20260601-OMNES" style="width:100%">
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span id="combo-pay-summary" style="font-size:0.82rem;color:var(--text-muted)"></span>
+          <button class="btn btn-primary" id="combo-pay-confirm" style="background:#16a34a;border-color:#16a34a">
+            ✓ Marquer ces factures payées
+          </button>
+        </div>
       </div>
     </div>
   </div>

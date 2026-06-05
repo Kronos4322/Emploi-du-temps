@@ -24,6 +24,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('inv-save').addEventListener('click', _saveInvoice);
   document.getElementById('btn-combos').addEventListener('click', _openCombosModal);
   document.getElementById('combo-modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); });
+  document.getElementById('combo-pay-confirm').addEventListener('click', _confirmComboPayment);
+  document.getElementById('btn-close-unpaid').addEventListener('click', () => {
+    document.getElementById('section-unpaid').style.display = 'none';
+  });
 });
 
 // ── Filtres ──────────────────────────────────────────────────────────────────
@@ -161,6 +165,7 @@ function render() {
               style="cursor:pointer" onclick="_togglePayment('${inv.id}')" title="Cliquer pour changer le statut">
           ${inv.paymentStatus === 'paid' ? '✓ Payé' : '✗ Non payé'}
         </span>
+        ${inv.paymentStatus === 'paid' && inv.paidDate ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">${Utils.formatDate(inv.paidDate)}${inv.paymentRef ? ' · ' + Utils.escapeHtml(inv.paymentRef) : ''}</div>` : ''}
       </td>
       <td>
         <div class="inv-actions">
@@ -203,7 +208,8 @@ function render() {
 
 // ── Combinaisons de virement ─────────────────────────────────────────────────
 
-let _comboData = []; // [{letters, invoices, total}] — calculé une fois à l'ouverture
+let _comboData        = []; // [{subset, total}] — calculé une fois à l'ouverture
+let _comboMatchSubset = []; // factures de la combinaison actuellement surlignée
 
 function _openCombosModal() {
   const invoices = Data.getInvoicesByMonth(_yearMonth, _poleId).filter(i => i.paymentStatus !== 'paid');
@@ -234,31 +240,65 @@ function _openCombosModal() {
 }
 
 function _renderComboRows(searchVal) {
-  const searchAmt = parseFloat(searchVal?.toString().replace(',', '.')) || null;
-  const EPS = 0.01; // tolérance
+  const searchAmt = parseFloat((searchVal||'').toString().replace(',', '.')) || null;
+  const EPS = 0.01;
+  _comboMatchSubset = [];
 
   document.getElementById('combo-tbody').innerHTML = _comboData.map(({ subset, total }) => {
     const match = searchAmt !== null && Math.abs(total - searchAmt) < EPS;
+    if (match) _comboMatchSubset = subset;
     const lettersHtml = subset.map(i =>
       `<span class="combo-letter">${i.letter}</span>`
     ).join('');
     const detailHtml = subset.map(i =>
       `<span style="font-size:0.78rem;color:var(--text-muted)">${Utils.escapeHtml(i.number||'?')} ${Utils.escapeHtml(i.clientName||'')} (${Utils.formatMoney(i.amount||0)})</span>`
     ).join('<span style="color:var(--border);margin:0 2px">+</span>');
-
     return `<tr class="combo-row${match ? ' highlight' : ''}">
       <td><span class="combo-label">${lettersHtml}</span></td>
       <td style="font-size:0.82rem">${detailHtml}</td>
-      <td class="cell-money" style="font-weight:700;font-size:1rem${match?' ;color:#92400e':''}">
+      <td class="cell-money" style="font-weight:700;font-size:1rem${match?';color:#92400e':''}">
         ${Utils.formatMoney(total)}${match ? ' ✓' : ''}
       </td>
     </tr>`;
   }).join('');
+
+  // Panneau de validation
+  const panel = document.getElementById('combo-pay-panel');
+  if (_comboMatchSubset.length > 0) {
+    panel.style.display = '';
+    document.getElementById('combo-pay-date').value = Utils.today();
+    const names = [...new Set(_comboMatchSubset.map(i => i.clientName||'?'))].join(', ');
+    const total = Math.round(_comboMatchSubset.reduce((s,i)=>s+(i.amount||0),0)*100)/100;
+    document.getElementById('combo-pay-summary').textContent =
+      `${_comboMatchSubset.length} facture${_comboMatchSubset.length>1?'s':''} — ${names} — ${Utils.formatMoney(total)}`;
+  } else {
+    panel.style.display = 'none';
+  }
 }
 
 window._filterCombos = function() {
   _renderComboRows(document.getElementById('combo-search').value);
 };
+
+function _confirmComboPayment() {
+  if (_comboMatchSubset.length === 0) return;
+  const payDate = document.getElementById('combo-pay-date').value;
+  const payRef  = document.getElementById('combo-pay-ref').value.trim();
+  if (!payDate) { alert('Merci de saisir la date de paiement.'); return; }
+
+  _comboMatchSubset.forEach(inv => {
+    const full = Data.getInvoices().find(i => i.id === inv.id);
+    if (full) {
+      full.paymentStatus   = 'paid';
+      full.paidDate        = payDate;
+      full.paymentRef      = payRef || null;
+      Data.saveInvoice(full);
+    }
+  });
+
+  document.getElementById('combo-modal-overlay').classList.remove('open');
+  render();
+}
 
 // ── Impayés globaux ───────────────────────────────────────────────────────────
 
