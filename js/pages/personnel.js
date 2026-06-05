@@ -57,9 +57,18 @@ function staffCard(s, curM) {
     const isCur   = ym === curM;
     const badgeCl = pay.paid ? '#22c55e' : (ym <= curM ? '#ef4444' : '#94a3b8');
     const badgeLbl= pay.paid ? 'Payé' : (ym <= curM ? 'Non payé' : 'À venir');
+    const amt     = +pay.amount || 0;
     return `<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
       <div style="min-width:130px;font-size:0.85rem;font-weight:${isCur?700:400}">${lbl}${isCur?' <span style="font-size:0.7rem;background:#3b82f6;color:#fff;border-radius:4px;padding:1px 6px">En cours</span>':''}</div>
-      <div style="flex:1;font-size:0.88rem;font-weight:600">${Utils.formatMoney(+pay.amount||0)}</div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <input type="number" min="0" step="0.01" value="${amt}"
+          style="width:90px;font-size:0.88rem;font-weight:600;border:1px solid var(--border);border-radius:6px;padding:3px 7px;background:var(--bg);color:var(--text);text-align:right"
+          title="Montant de ce mois (modifiable)"
+          onblur="updatePaymentAmount('${s.id}','${ym}',+this.value)"
+          onkeydown="if(event.key==='Enter'){this.blur()}"
+          onclick="this.select()">
+        <span style="font-size:0.78rem;color:var(--text-muted)">€</span>
+      </div>
       <span style="font-size:0.72rem;font-weight:700;padding:2px 10px;border-radius:12px;background:${badgeCl}20;color:${badgeCl}">${badgeLbl}</span>
       ${pay.note ? `<span style="font-size:0.75rem;color:var(--text-muted);font-style:italic">${Utils.escapeHtml(pay.note)}</span>` : ''}
       <button class="btn btn-ghost btn-sm" onclick="togglePayment('${s.id}','${ym}',${!pay.paid})">
@@ -108,6 +117,22 @@ window.togglePayment = function(staffId, month, paid) {
     payments[idx] = { ...payments[idx], paid };
   } else {
     payments.push({ month, amount: s.monthlyCost || 0, paid, note: '' });
+  }
+  Data.saveInternalStaff({ ...s, payments });
+  render();
+};
+
+// ── Mise à jour du montant d'un mois ─────────────────────────────
+window.updatePaymentAmount = function(staffId, month, amount) {
+  const s = Data.getInternalStaffById(staffId); if (!s) return;
+  const payments = [...(s.payments||[])];
+  const idx = payments.findIndex(p => p.month === month);
+  if (idx >= 0) {
+    if (payments[idx].amount === amount) return; // rien à changer
+    payments[idx] = { ...payments[idx], amount };
+  } else {
+    if (amount === 0) return; // pas de ligne à créer pour 0 par défaut
+    payments.push({ month, amount, paid: false, note: '' });
   }
   Data.saveInternalStaff({ ...s, payments });
   render();
