@@ -778,7 +778,7 @@ window._getInvMissions = function(monthFrom, monthTo, destRaw) {
   let missions = [];
   if (dtype === 'co') {
     missions = Data.getMissions().filter(m =>
-      m.status !== 'cancelled' && inRange(m) && m.companyId === did);
+      m.status !== 'cancelled' && m.missionType !== 'personal' && inRange(m) && m.companyId === did);
   } else {
     const p = Data.getProviders().find(p => p.id === did);
     const pname = p ? ([p.firstName, p.lastName].filter(Boolean).join(' ') || p.structure || '') : '';
@@ -787,7 +787,7 @@ window._getInvMissions = function(monthFrom, monthTo, destRaw) {
     const sk = kws(pname); const ids = new Set([did]);
     Data.getProviders().forEach(pr => { const n=[pr.firstName,pr.lastName].filter(Boolean).join(' ')||pr.structure||''; if([...kws(n)].some(w=>sk.has(w))) ids.add(pr.id); });
     missions = Data.getMissions().filter(m => {
-      if (m.status === 'cancelled' || !inRange(m)) return false;
+      if (m.status === 'cancelled' || m.missionType === 'personal' || !inRange(m)) return false;
       const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
       return pids.some(pid => ids.has(pid));
     });
@@ -891,7 +891,7 @@ window._showInvoiceExport = function() {
   const defaultEmId = (_dashPole && ownCos.find(c=>c.id===_dashPole)) ? _dashPole : (ownCos[0]?.id||'');
   const emOpts = ownCos.map(c=>'<option value="'+c.id+'"'+(c.id===defaultEmId?' selected':'')+'>'+Utils.escapeHtml(c.name)+'</option>').join('');
   const delayOpts = ['30 jours','45 jours','60 jours','À réception'].map(d=>'<option value="'+d+'"'+(d===defaultDelay?' selected':'')+'>'+d+'</option>').join('');
-  const destOpts  = _buildDestSelect(currentM, currentM, '');
+  const destOpts  = _buildDestSelect(defaultDateFrom.substring(0,7), defaultDateTo.substring(0,7), '');
   const warn = (!settings.siret&&!settings.iban) ? '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;font-size:0.85rem;color:#92400e">⚠️ SIRET / IBAN non configurés — <a href="parametres.html" style="color:#92400e;font-weight:700">Paramètres →</a></div>' : '';
 
   Modals._open(
@@ -909,9 +909,9 @@ window._showInvoiceExport = function() {
           '</div>'+
         '</div>'+
         '<div class="form-group form-col-2"><label>Du</label>'+
-          '<input type="date" id="inv-from" class="form-input" value="'+defaultDateFrom+'"></div>'+
+          '<input type="date" id="inv-from" class="form-input" value="'+defaultDateFrom+'" onchange="window._updateInvDest()"></div>'+
         '<div class="form-group form-col-2"><label>Au</label>'+
-          '<input type="date" id="inv-to" class="form-input" value="'+defaultDateTo+'"></div>'+
+          '<input type="date" id="inv-to" class="form-input" value="'+defaultDateTo+'" onchange="window._updateInvDest()"></div>'+
       '</div>'+
       '<button type="button" class="btn btn-primary" style="width:100%;margin-top:-8px" onclick="window._updateInvDest()">🔍 Afficher les missions de cette période</button>'+
       '<div class="form-group" style="margin:0"><label>Facturer à</label><select id="inv-dest" class="form-input" onchange="window._updateInvPreview()">'+destOpts+'</select></div>'+
@@ -986,7 +986,7 @@ window._generateInvoice = function() {
   if (!destName) { Utils.toast('Destinataire introuvable.', 'error'); return; }
 
   let missions = window._getInvMissions(dateFrom, dateTo, destRaw);
-  if (!missions.length) { Utils.toast('Aucune mission pour ce destinataire sur cette période.', 'success'); return; }
+  if (!missions.length) { Utils.toast('Aucune mission pour ce destinataire sur cette période.', 'warning'); return; }
 
   const totalH  = missions.reduce((s,m) => s+(m.duration||0), 0);
   const totalHT = missions.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
