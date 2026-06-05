@@ -82,6 +82,33 @@
         </table>
       </div>
 
+      <!-- Section impayés globaux -->
+      <div id="section-unpaid" style="margin-top:32px;display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <h2 style="margin:0;font-size:1rem;font-weight:700;color:var(--danger,#dc2626)">
+            ⚠ Impayés — tous mois confondus
+          </h2>
+          <span id="unpaid-global-total" style="font-size:1.1rem;font-weight:800;color:var(--danger,#dc2626)"></span>
+        </div>
+        <div class="report-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>N° Facture</th>
+                <th>Référence</th>
+                <th>Client</th>
+                <th class="cell-money">Montant</th>
+                <th>Date d'envoi</th>
+                <th>Mois</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="unpaid-tbody"></tbody>
+            <tfoot id="unpaid-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
     </main>
   </div>
 

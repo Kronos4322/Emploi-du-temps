@@ -124,6 +124,7 @@ function render() {
   if (invoices.length === 0) {
     tbody.innerHTML = '<tr><td colspan="7" class="empty-state-cell">Aucune facture ce mois.</td></tr>';
     tfoot.innerHTML = '';
+    renderUnpaid();
     return;
   }
 
@@ -182,6 +183,73 @@ function render() {
       Payé : ${Utils.formatMoney(paid)} — En attente : ${Utils.formatMoney(unpaid)}
     </td>
   </tr>`;
+
+  renderUnpaid();
+}
+
+// ── Impayés globaux ───────────────────────────────────────────────────────────
+
+function renderUnpaid() {
+  const ownCos  = Data.getOwnCompanies();
+  const poleMap = {}; ownCos.forEach(c => poleMap[c.id] = c);
+
+  const allUnpaid = Data.getInvoices().filter(i =>
+    i.paymentStatus !== 'paid' && (!_poleId || i.poleId === _poleId)
+  );
+
+  const section = document.getElementById('section-unpaid');
+  if (allUnpaid.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  const grandTotal = allUnpaid.reduce((s, i) => s + (i.amount || 0), 0);
+  document.getElementById('unpaid-global-total').textContent = Utils.formatMoney(grandTotal);
+
+  // Grouper par pôle
+  const byPole = {};
+  allUnpaid.forEach(inv => {
+    if (!byPole[inv.poleId]) byPole[inv.poleId] = [];
+    byPole[inv.poleId].push(inv);
+  });
+
+  let rows = '';
+  Object.entries(byPole).forEach(([pid, list]) => {
+    const pole = poleMap[pid];
+    const col  = pole?.color || '#94a3b8';
+    const poleTotal = list.reduce((s, i) => s + (i.amount || 0), 0);
+    // En-tête de groupe pôle
+    rows += `<tr style="background:${col}15;border-top:2px solid ${col}50">
+      <td colspan="7" style="padding:6px 12px;font-size:0.82rem;font-weight:700;color:${col}">
+        <span class="school-dot" style="background:${col}"></span>
+        ${pole ? Utils.escapeHtml(pole.name) : '—'} — ${list.length} facture${list.length!==1?'s':''}
+        <span style="float:right">${Utils.formatMoney(poleTotal)}</span>
+      </td>
+    </tr>`;
+    // Lignes factures
+    list.sort((a,b) => (a.sentDate||'').localeCompare(b.sentDate||'')).forEach(inv => {
+      const [y, m] = (inv.yearMonth||'----').split('-');
+      const monthLabel = y !== '----' ? `${Utils.MONTHS_LONG[+m-1]} ${y}` : '—';
+      rows += `<tr>
+        <td><strong>${Utils.escapeHtml(inv.number || '—')}</strong></td>
+        <td>${Utils.escapeHtml(inv.reference || '—')}</td>
+        <td>${Utils.escapeHtml(inv.clientName || '—')}</td>
+        <td class="cell-money"><strong>${Utils.formatMoney(inv.amount || 0)}</strong></td>
+        <td>${Utils.formatDate(inv.sentDate) || '—'}</td>
+        <td style="font-size:0.82rem;color:var(--text-muted)">${monthLabel}</td>
+        <td>
+          <button style="font-size:0.78rem;padding:3px 10px;border-radius:12px;border:1px solid #16a34a;cursor:pointer;background:#f0fdf4;color:#16a34a;white-space:nowrap"
+                  onclick="_togglePayment('${inv.id}')">✓ Marquer payé</button>
+        </td>
+      </tr>`;
+    });
+  });
+
+  document.getElementById('unpaid-tbody').innerHTML = rows;
+  document.getElementById('unpaid-tfoot').innerHTML = `
+    <tr class="total-row" style="border-top:2px solid var(--danger,#dc2626)">
+      <td colspan="3"><strong>TOTAL IMPAYÉS</strong></td>
+      <td class="cell-money" style="color:var(--danger,#dc2626)"><strong>${Utils.formatMoney(grandTotal)}</strong></td>
+      <td colspan="3"></td>
+    </tr>`;
 }
 
 // ── Toggle paiement rapide ────────────────────────────────────────────────────
