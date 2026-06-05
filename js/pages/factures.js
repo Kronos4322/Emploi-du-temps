@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('inv-cancel').addEventListener('click', _closeModal);
   document.getElementById('inv-modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) _closeModal(); });
   document.getElementById('inv-save').addEventListener('click', _saveInvoice);
+  document.getElementById('btn-combos').addEventListener('click', _openCombosModal);
+  document.getElementById('combo-modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); });
 });
 
 // ── Filtres ──────────────────────────────────────────────────────────────────
@@ -124,8 +126,20 @@ function render() {
   if (invoices.length === 0) {
     tbody.innerHTML = '<tr><td colspan="7" class="empty-state-cell">Aucune facture ce mois.</td></tr>';
     tfoot.innerHTML = '';
+    document.getElementById('combo-bar').style.display = 'none';
     renderUnpaid();
     return;
+  }
+
+  // Bouton combinaisons — visible si ≥2 impayées ce mois
+  const unpaidThisMonth = invoices.filter(i => i.paymentStatus !== 'paid');
+  const comboBar = document.getElementById('combo-bar');
+  if (unpaidThisMonth.length >= 2) {
+    comboBar.style.display = 'flex';
+    document.getElementById('combo-hint').textContent =
+      `${unpaidThisMonth.length} factures non payées → ${(1 << unpaidThisMonth.length) - 1} combinaisons possibles`;
+  } else {
+    comboBar.style.display = 'none';
   }
 
   tbody.innerHTML = invoices.map(inv => {
@@ -186,6 +200,65 @@ function render() {
 
   renderUnpaid();
 }
+
+// ── Combinaisons de virement ─────────────────────────────────────────────────
+
+let _comboData = []; // [{letters, invoices, total}] — calculé une fois à l'ouverture
+
+function _openCombosModal() {
+  const invoices = Data.getInvoicesByMonth(_yearMonth, _poleId).filter(i => i.paymentStatus !== 'paid');
+  if (invoices.length < 2) return;
+
+  // Assigner une lettre à chaque facture (A, B, C, …)
+  const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const labeled = invoices.map((inv, idx) => ({ ...inv, letter: LETTERS[idx] || `#${idx+1}` }));
+
+  const [y, m] = _yearMonth.split('-');
+  document.getElementById('combo-modal-subtitle').textContent =
+    `${Utils.MONTHS_LONG[+m-1]} ${y} — ${invoices.length} factures impayées`;
+  document.getElementById('combo-search').value = '';
+
+  // Générer toutes les combinaisons non vides (2^n − 1)
+  _comboData = [];
+  const n = labeled.length;
+  for (let mask = 1; mask < (1 << n); mask++) {
+    const subset = labeled.filter((_, j) => mask & (1 << j));
+    const total  = Math.round(subset.reduce((s, i) => s + (i.amount || 0), 0) * 100) / 100;
+    _comboData.push({ mask, subset, total });
+  }
+  // Trier par taille de combinaison puis par montant croissant
+  _comboData.sort((a, b) => a.subset.length - b.subset.length || a.total - b.total);
+
+  _renderComboRows('');
+  document.getElementById('combo-modal-overlay').classList.add('open');
+}
+
+function _renderComboRows(searchVal) {
+  const searchAmt = parseFloat(searchVal?.toString().replace(',', '.')) || null;
+  const EPS = 0.01; // tolérance
+
+  document.getElementById('combo-tbody').innerHTML = _comboData.map(({ subset, total }) => {
+    const match = searchAmt !== null && Math.abs(total - searchAmt) < EPS;
+    const lettersHtml = subset.map(i =>
+      `<span class="combo-letter">${i.letter}</span>`
+    ).join('');
+    const detailHtml = subset.map(i =>
+      `<span style="font-size:0.78rem;color:var(--text-muted)">${Utils.escapeHtml(i.number||'?')} ${Utils.escapeHtml(i.clientName||'')} (${Utils.formatMoney(i.amount||0)})</span>`
+    ).join('<span style="color:var(--border);margin:0 2px">+</span>');
+
+    return `<tr class="combo-row${match ? ' highlight' : ''}">
+      <td><span class="combo-label">${lettersHtml}</span></td>
+      <td style="font-size:0.82rem">${detailHtml}</td>
+      <td class="cell-money" style="font-weight:700;font-size:1rem${match?' ;color:#92400e':''}">
+        ${Utils.formatMoney(total)}${match ? ' ✓' : ''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+window._filterCombos = function() {
+  _renderComboRows(document.getElementById('combo-search').value);
+};
 
 // ── Impayés globaux ───────────────────────────────────────────────────────────
 

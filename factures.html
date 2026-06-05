@@ -36,6 +36,10 @@
     .inv-modal input, .inv-modal select { border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:0.9rem; background:var(--surface); color:var(--text); }
     .inv-modal .modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
     .total-row td { font-weight:700; background:var(--primary-light,#eff6ff); }
+    .combo-row.highlight { background:#fef9c3 !important; font-weight:700; }
+    .combo-row.highlight td { color:#92400e; }
+    .combo-label { display:inline-flex;gap:4px;flex-wrap:wrap }
+    .combo-letter { display:inline-block;min-width:22px;text-align:center;padding:1px 5px;border-radius:6px;font-size:0.78rem;font-weight:700;background:var(--primary-light);color:var(--primary) }
   </style>
 </head>
 <body>
@@ -62,6 +66,14 @@
 
       <!-- KPIs -->
       <div class="kpi-grid kpi-finance" id="kpi-row" style="margin-bottom:24px"></div>
+
+      <!-- Bouton combinaisons -->
+      <div id="combo-bar" style="display:none;margin-bottom:10px;display:flex;align-items:center;gap:10px">
+        <button class="btn btn-ghost" id="btn-combos" style="border-color:var(--warning,#f59e0b);color:var(--warning,#f59e0b)">
+          🔀 Simuler un virement
+        </button>
+        <span id="combo-hint" style="font-size:0.82rem;color:var(--text-muted)"></span>
+      </div>
 
       <!-- Tableau -->
       <div class="report-table-wrapper">
@@ -110,6 +122,39 @@
       </div>
 
     </main>
+  </div>
+
+  <!-- Modal combinaisons de virement -->
+  <div class="inv-modal-overlay" id="combo-modal-overlay">
+    <div class="inv-modal" style="max-width:680px;max-height:85vh;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div>
+          <h2 style="margin:0 0 2px">🔀 Combinaisons de virement</h2>
+          <p id="combo-modal-subtitle" style="margin:0;font-size:0.82rem;color:var(--text-muted)"></p>
+        </div>
+        <button onclick="document.getElementById('combo-modal-overlay').classList.remove('open')" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-muted)">✕</button>
+      </div>
+      <!-- Recherche par montant -->
+      <div style="margin-bottom:14px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:0.85rem;font-weight:600;color:var(--text-muted);white-space:nowrap">Montant reçu :</span>
+        <input type="number" id="combo-search" class="form-input" placeholder="ex. 1775,00" step="0.01" min="0"
+               style="max-width:180px" oninput="window._filterCombos()">
+        <span style="font-size:0.82rem;color:var(--text-muted)">← tape le montant du virement pour trouver la combinaison</span>
+      </div>
+      <!-- Liste scrollable -->
+      <div style="overflow-y:auto;flex:1;border:1px solid var(--border);border-radius:10px">
+        <table class="data-table" style="margin:0">
+          <thead style="position:sticky;top:0;background:var(--bg-card);z-index:1">
+            <tr>
+              <th style="width:60px">Combinaison</th>
+              <th>Factures incluses</th>
+              <th class="cell-money">Total</th>
+            </tr>
+          </thead>
+          <tbody id="combo-tbody"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <!-- Modal ajout / édition -->
