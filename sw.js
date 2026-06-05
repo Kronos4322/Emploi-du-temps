@@ -4,6 +4,7 @@ const STATIC = [
   '/Emploi-du-temps/index.html',
   '/Emploi-du-temps/calendrier.html',
   '/Emploi-du-temps/prestataires.html',
+  '/Emploi-du-temps/factures.html',
   '/Emploi-du-temps/finances.html',
   '/Emploi-du-temps/ecoles.html',
   '/Emploi-du-temps/etudiants.html',

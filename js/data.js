@@ -242,6 +242,7 @@ const Data = {
     if (!this._db.properties)    this._db.properties = [];
     if (!this._db.rentalIncomes) this._db.rentalIncomes = [];
     if (!this._db.internalStaff) this._db.internalStaff = [];
+    if (!this._db.invoices)      this._db.invoices = [];
 
     // Garantir le champ role sur chaque société
     this._db.companies = this._db.companies.map(c => {
@@ -1192,6 +1193,32 @@ const Data = {
       this.getConflictsForProvider(pid).forEach(c => conflicts.push({ providerId: pid, ...c }));
     });
     return conflicts;
+  },
+
+  // ── Suivi factures ───────────────────────────────────────────
+
+  getInvoices() {
+    return [...(this._db.invoices||[])].sort((a, b) => (b.sentDate||'').localeCompare(a.sentDate||''));
+  },
+  getInvoicesByMonth(yearMonth, poleId) {
+    return (this._db.invoices||[]).filter(inv =>
+      inv.yearMonth === yearMonth && (!poleId || inv.poleId === poleId)
+    ).sort((a, b) => (b.sentDate||'').localeCompare(a.sentDate||''));
+  },
+  saveInvoice(inv) {
+    if (!this._db.invoices) this._db.invoices = [];
+    const idx = this._db.invoices.findIndex(i => i.id === inv.id);
+    const now = Date.now();
+    if (idx >= 0) {
+      this._db.invoices[idx] = { ...inv, updatedAt: now };
+    } else {
+      this._db.invoices.push({ ...inv, id: inv.id || Utils.uuid(), createdAt: now, updatedAt: now });
+    }
+    this._save();
+  },
+  deleteInvoice(id) {
+    this._db.invoices = (this._db.invoices||[]).filter(i => i.id !== id);
+    this._save();
   },
 
   // ── Statistiques financières ─────────────────────────────────

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suivi factures — Emploi du temps</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#3b82f6">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Planning">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+  <style>
+    .month-nav { display:flex; align-items:center; gap:4px; }
+    .month-nav-btn { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:6px 10px; cursor:pointer; font-size:0.95rem; line-height:1; color:var(--text); transition:background .15s; }
+    .month-nav-btn:hover { background:var(--primary-light); border-color:var(--primary); color:var(--primary); }
+    .pole-tabs { display:flex; gap:6px; }
+    .pole-tab { padding:6px 16px; border-radius:20px; border:1px solid var(--border); background:var(--bg-card); cursor:pointer; font-size:0.85rem; font-weight:500; color:var(--text-muted); transition:all .15s; }
+    .pole-tab.active { background:var(--primary); border-color:var(--primary); color:#fff; }
+    .status-badge-paid   { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:12px; font-size:0.78rem; font-weight:600; background:#dcfce7; color:#16a34a; }
+    .status-badge-unpaid { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:12px; font-size:0.78rem; font-weight:600; background:#fef2f2; color:#dc2626; }
+    .inv-actions { display:flex; gap:6px; justify-content:flex-end; }
+    .inv-actions button { padding:4px 10px; border-radius:8px; border:1px solid var(--border); cursor:pointer; font-size:0.8rem; background:var(--bg-card); color:var(--text); transition:background .15s; }
+    .inv-actions button:hover { background:var(--primary-light); color:var(--primary); }
+    .inv-actions button.danger:hover { background:#fef2f2; color:#dc2626; border-color:#dc2626; }
+    /* Modal */
+    .inv-modal-overlay { display:none; position:fixed; inset:0; background:#00000060; z-index:1000; align-items:center; justify-content:center; }
+    .inv-modal-overlay.open { display:flex; }
+    .inv-modal { background:var(--bg-card); border-radius:16px; padding:28px; width:100%; max-width:520px; box-shadow:0 8px 32px #0002; }
+    .inv-modal h2 { margin:0 0 20px; font-size:1.1rem; }
+    .inv-modal .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .inv-modal .form-group { display:flex; flex-direction:column; gap:4px; margin-bottom:12px; }
+    .inv-modal label { font-size:0.82rem; font-weight:600; color:var(--text-muted); }
+    .inv-modal input, .inv-modal select { border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:0.9rem; background:var(--surface); color:var(--text); }
+    .inv-modal .modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+    .total-row td { font-weight:700; background:var(--primary-light,#eff6ff); }
+  </style>
+</head>
+<body>
+  <aside id="sidebar"></aside>
+  <div id="app-main">
+    <main id="main-content">
+
+      <div class="page-header">
+        <h1 class="page-title">🧾 Suivi factures</h1>
+        <div class="page-actions">
+          <button class="btn btn-primary" id="btn-new-invoice">+ Nouvelle facture</button>
+        </div>
+      </div>
+
+      <!-- Filtres -->
+      <div class="filters-bar" style="flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:20px">
+        <div class="month-nav">
+          <button class="month-nav-btn" id="btn-prev-month">‹</button>
+          <select id="filter-month" class="form-input filter-select" style="min-width:160px"></select>
+          <button class="month-nav-btn" id="btn-next-month">›</button>
+        </div>
+        <div class="pole-tabs" id="pole-tabs"></div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-grid kpi-finance" id="kpi-row" style="margin-bottom:24px"></div>
+
+      <!-- Tableau -->
+      <div class="report-table-wrapper">
+        <table class="data-table" id="invoices-table">
+          <thead>
+            <tr>
+              <th>N° Facture</th>
+              <th>Référence</th>
+              <th>Client</th>
+              <th class="cell-money">Montant</th>
+              <th>Date d'envoi</th>
+              <th>Statut</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="invoices-tbody"></tbody>
+          <tfoot id="invoices-tfoot"></tfoot>
+        </table>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Modal ajout / édition -->
+  <div class="inv-modal-overlay" id="inv-modal-overlay">
+    <div class="inv-modal">
+      <h2 id="inv-modal-title">Nouvelle facture</h2>
+      <input type="hidden" id="inv-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Pôle</label>
+          <select id="inv-pole" class="form-input"></select>
+        </div>
+        <div class="form-group">
+          <label>N° Facture</label>
+          <input type="text" id="inv-number" class="form-input" placeholder="ex. 2026-001">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Référence</label>
+        <input type="text" id="inv-reference" class="form-input" placeholder="ex. Cours juin — USAC">
+      </div>
+      <div class="form-group">
+        <label>Client</label>
+        <input type="text" id="inv-client" class="form-input" placeholder="Nom du client">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Montant (€)</label>
+          <input type="number" id="inv-amount" class="form-input" min="0" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>Date d'envoi</label>
+          <input type="date" id="inv-date" class="form-input">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Statut paiement</label>
+        <select id="inv-status" class="form-input">
+          <option value="unpaid">Non payé</option>
+          <option value="paid">Payé</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="inv-cancel">Annuler</button>
+        <button class="btn btn-primary" id="inv-save">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/utils.js?v=11"></script>
+  <script src="js/data.js?v=39"></script>
+  <script src="js/modals.js?v=19"></script>
+  <script src="js/nav.js?v=15"></script>
+  <script src="js/pages/factures.js?v=1"></script>
+</body>
+</html>
