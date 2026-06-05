@@ -52,10 +52,8 @@
       html += makeLink('etudiants.html',  '🎓', 'Étudiants');
       html += makeLink('formations.html', '📚', 'Formations');
     });
-    // Facturation et Finances : une seule entrée, filtre disponible à l'intérieur
     html += section('Gestion');
-    html += makeLink('facturation.html', '💶', 'Facturation');
-    html += makeLink('finances.html',    '📊', 'Finances');
+    html += makeLink('finances.html', '📊', 'Finances');
     html += section('Personnel interne');
     html += makeLink('personnel.html', '👥', 'Salaires & Charges');
     html += section('Revenus personnels');

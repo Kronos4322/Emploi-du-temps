@@ -109,35 +109,37 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Envoyer vers le cloud (push)
-  document.getElementById('btn-force-push').addEventListener('click', async () => {
-    if (!confirm('Envoyer vos données locales vers le cloud ?\nCela remplacera la version cloud par celle de cet appareil.')) return;
-    const btn = document.getElementById('btn-force-push');
-    const status = document.getElementById('sync-status');
-    btn.disabled = true;
-    btn.textContent = '⬆ Envoi en cours…';
-    status.textContent = '';
-    try {
-      await Data.forcePushToFirebase();
-      showToast('Données envoyées vers le cloud !');
-      status.textContent = 'Envoyé le ' + new Date().toLocaleTimeString('fr-FR');
-    } catch(e) {
-      showToast('Échec de l\'envoi.', true);
-    }
-    btn.disabled = false;
-    btn.textContent = '⬆ Envoyer mes données vers le cloud';
+  document.getElementById('btn-force-push').addEventListener('click', () => {
+    Modals.confirm('Envoyer vos données locales vers le cloud ? Cela remplacera la version cloud par celle de cet appareil.', async () => {
+      const btn = document.getElementById('btn-force-push');
+      const status = document.getElementById('sync-status');
+      btn.disabled = true;
+      btn.textContent = '⬆ Envoi en cours…';
+      status.textContent = '';
+      try {
+        await Data.forcePushToFirebase();
+        showToast('Données envoyées vers le cloud !');
+        status.textContent = 'Envoyé le ' + new Date().toLocaleTimeString('fr-FR');
+      } catch(e) {
+        showToast('Échec de l\'envoi.', true);
+      }
+      btn.disabled = false;
+      btn.textContent = '⬆ Envoyer mes données vers le cloud';
+    }, 'Envoyer', false);
   });
 
   // Reset
   document.getElementById('btn-reset-all').addEventListener('click', () => {
-    if (!confirm('Effacer TOUTES les données ? Cette action est irréversible.')) return;
-    localStorage.removeItem('emploi_du_temps_db');
-    localStorage.removeItem('_edt_ts');
-    // Supprimer toutes les sauvegardes automatiques
-    Object.keys(localStorage)
-      .filter(k => k.startsWith('edt_backup_'))
-      .forEach(k => localStorage.removeItem(k));
-    showToast('Données effacées. Rechargement...');
-    setTimeout(() => location.reload(), 800);
+    Modals.confirm('Effacer TOUTES les données ? Cette action est irréversible.', () => {
+      localStorage.removeItem('emploi_du_temps_db');
+      localStorage.removeItem('_edt_ts');
+      // Supprimer toutes les sauvegardes automatiques
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('edt_backup_'))
+        .forEach(k => localStorage.removeItem(k));
+      showToast('Données effacées. Rechargement...');
+      setTimeout(() => location.reload(), 800);
+    }, 'Effacer définitivement', true);
   });
 });
 
@@ -165,11 +167,12 @@ function renderBackups() {
 
 function restoreBackup(date) {
   const dateLabel = Utils.formatDateLong(date);
-  if (!confirm(`Restaurer la sauvegarde du ${dateLabel} ?\n\nVos données actuelles seront remplacées.`)) return;
-  const result = Data.restoreBackup(date);
-  if (result.error) { showToast(result.error, true); return; }
-  showToast('Restauration réussie. Rechargement...');
-  setTimeout(() => location.reload(), 800);
+  Modals.confirm(`Restaurer la sauvegarde du ${dateLabel} ? Vos données actuelles seront remplacées.`, () => {
+    const result = Data.restoreBackup(date);
+    if (result.error) { showToast(result.error, true); return; }
+    showToast('Restauration réussie. Rechargement...');
+    setTimeout(() => location.reload(), 800);
+  }, 'Restaurer', false);
 }
 
 function updateInfo() {

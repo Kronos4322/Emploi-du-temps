@@ -528,7 +528,7 @@ function _openIncomeDrawer(id, preDate, prePropertyId) {
   const sel    = document.getElementById('inc-property');
   sel.innerHTML = props.map(p => `<option value="${p.id}">${Utils.escapeHtml(p.name)}</option>`).join('');
   if (!props.length) {
-    alert('Ajoutez d\'abord un bien avant d\'enregistrer un revenu.');
+    Utils.toast('Ajoutez d\'abord un bien avant d\'enregistrer un revenu.', 'error');
     return;
   }
   const defaultStart   = income?.startDate || preDate || Utils.today();
@@ -595,7 +595,7 @@ function _locSaveIncome(e) {
   const startDate = document.getElementById('inc-start-date').value;
   const endDate   = document.getElementById('inc-end-date').value;
   if (startDate && endDate && endDate <= startDate) {
-    alert('La date de départ doit être postérieure à la date d\'arrivée.');
+    Utils.toast('La date de départ doit être postérieure à la date d\'arrivée.', 'error');
     return;
   }
   const id        = document.getElementById('inc-id').value;
@@ -642,25 +642,27 @@ function _locDeleteProperty(id) {
   const msg = incCount > 0
     ? `Supprimer "${prop.name}" et ses ${incCount} entrée(s) de revenus ? Cette action est irréversible.`
     : `Supprimer "${prop.name}" ?`;
-  if (!confirm(msg)) return;
-  Data.deleteProperty(id);
-  // Supprimer aussi les charges de ce bien dans Firebase
-  fetch(`${FB}/propertyExpenses.json`)
-    .then(r => r.json())
-    .then(raw => {
-      const filtered = (Array.isArray(raw) ? raw : []).filter(e => e?.propertyId !== id);
-      return fetch(`${FB}/propertyExpenses.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(filtered) });
-    })
-    .catch(() => {});
-  _buildPropertyFilter();
-  _locPropertyId = '';
-  _renderPage();
+  Modals.confirm(msg, () => {
+    Data.deleteProperty(id);
+    // Supprimer aussi les charges de ce bien dans Firebase
+    fetch(`${FB}/propertyExpenses.json`)
+      .then(r => r.json())
+      .then(raw => {
+        const filtered = (Array.isArray(raw) ? raw : []).filter(e => e?.propertyId !== id);
+        return fetch(`${FB}/propertyExpenses.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(filtered) });
+      })
+      .catch(() => {});
+    _buildPropertyFilter();
+    _locPropertyId = '';
+    _renderPage();
+  }, 'Supprimer', true);
 }
 
 function _locDeleteIncome(id) {
-  if (!confirm('Supprimer cette réservation ?')) return;
-  Data.deleteRentalIncome(id);
-  _renderPage();
+  Modals.confirm('Supprimer cette réservation ?', () => {
+    Data.deleteRentalIncome(id);
+    _renderPage();
+  }, 'Supprimer', true);
 }
 
 // ── Export CSV ───────────────────────────────────────────────
@@ -933,7 +935,7 @@ async function _locSaveExpense() {
   const id          = document.getElementById('exp-id').value || Utils.uuid();
   const amount      = parseFloat(document.getElementById('exp-amount').value);
   const isRecurring = document.getElementById('exp-recurring')?.checked || false;
-  if (!amount || isNaN(amount)) { alert('Montant requis.'); return; }
+  if (!amount || isNaN(amount)) { Utils.toast('Montant requis.', 'error'); return; }
   const expense = {
     id, propertyId: _pdPropId,
     category:    document.getElementById('exp-cat').value,
@@ -957,10 +959,11 @@ function _locEditExpense(id) {
   }).catch(() => Utils.toast('Erreur chargement charge.', 'error'));
 }
 
-async function _locDeleteExpense(id) {
-  if (!confirm('Supprimer cette charge ?')) return;
-  await _deleteExpenseFB(id);
-  await _renderPropertyDetail();
+function _locDeleteExpense(id) {
+  Modals.confirm('Supprimer cette charge ?', async () => {
+    await _deleteExpenseFB(id);
+    await _renderPropertyDetail();
+  }, 'Supprimer', true);
 }
 
 function _downloadPropertyPDF() {
@@ -997,7 +1000,7 @@ function _downloadPropertyPDF() {
 async function _generatePDF() {
   const fromYm = document.getElementById('pdf-from')?.value;
   const toYm   = document.getElementById('pdf-to')?.value;
-  if (!fromYm || !toYm || toYm < fromYm) { alert('Période invalide.'); return; }
+  if (!fromYm || !toYm || toYm < fromYm) { Utils.toast('Période invalide.', 'error'); return; }
   Modals.close();
 
   // Ouvrir la fenêtre AVANT tout await — sinon le popup blocker l'intercepte

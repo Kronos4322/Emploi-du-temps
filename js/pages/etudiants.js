@@ -691,7 +691,7 @@ window._printStudentDetail = function(studentId, month) {
     .filter(m => (m.studentIds||[]).includes(s.id) && m.status !== 'cancelled')
     .sort((a,b) => (a.date||'').localeCompare(b.date||''));
   if (month) missions = missions.filter(m => (m.date||'').startsWith(month));
-  if (!missions.length) { alert('Aucune séance à exporter.'); return; }
+  if (!missions.length) { Utils.toast('Aucune séance à exporter.', 'info'); return; }
 
   const totalH    = missions.reduce((a,m) => a+(m.duration||0), 0);
   const totalHT   = missions.reduce((a,m) => a+(m.duration||0)*(m.billingRate||0), 0);
