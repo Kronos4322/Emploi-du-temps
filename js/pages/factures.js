@@ -150,7 +150,7 @@ function render() {
       </td>
       <td>
         <div class="inv-actions">
-          <button onclick="_openModal('${inv.id}')">✏</button>
+          <button onclick="_openModal('${inv.id}')">Modifier</button>
           <button class="danger" onclick="_deleteInvoice('${inv.id}')">🗑</button>
         </div>
       </td>
@@ -236,8 +236,12 @@ function renderUnpaid() {
         <td>${Utils.formatDate(inv.sentDate) || '—'}</td>
         <td style="font-size:0.82rem;color:var(--text-muted)">${monthLabel}</td>
         <td>
-          <button style="font-size:0.78rem;padding:3px 10px;border-radius:12px;border:1px solid #16a34a;cursor:pointer;background:#f0fdf4;color:#16a34a;white-space:nowrap"
-                  onclick="_togglePayment('${inv.id}')">✓ Marquer payé</button>
+          <div style="display:flex;gap:6px;justify-content:flex-end">
+            <button style="font-size:0.78rem;padding:3px 10px;border-radius:12px;border:1px solid var(--border);cursor:pointer;background:var(--bg-card);color:var(--text);white-space:nowrap"
+                    onclick="_openModal('${inv.id}')">Modifier</button>
+            <button style="font-size:0.78rem;padding:3px 10px;border-radius:12px;border:1px solid #16a34a;cursor:pointer;background:#f0fdf4;color:#16a34a;white-space:nowrap"
+                    onclick="_togglePayment('${inv.id}')">✓ Marquer payé</button>
+          </div>
         </td>
       </tr>`;
     });
