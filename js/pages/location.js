@@ -1,10 +1,11 @@
-// location.js — Gestion des revenus locatifs v5
+// location.js — Gestion des revenus locatifs v6
 'use strict';
 
 let _locMonth      = '';
 let _locPropertyId = '';
 let _locCalYear    = new Date().getFullYear();
 let _locCalMonth   = new Date().getMonth(); // 0-11
+let _locView       = 'general'; // 'general' | 'encaissements'
 
 // ── Init ─────────────────────────────────────────────────────
 
@@ -22,6 +23,25 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-add-income').addEventListener('click', () => _openIncomeDrawer(null));
   document.getElementById('btn-export-csv').addEventListener('click', _exportCsv);
   document.getElementById('loc-overlay').addEventListener('click', _locCloseDrawers);
+
+  // Onglets de vue
+  document.querySelectorAll('.loc-view-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _locView = btn.dataset.view;
+      document.querySelectorAll('.loc-view-tab').forEach(b => {
+        const active = b.dataset.view === _locView;
+        b.style.background = active ? 'var(--primary)' : 'transparent';
+        b.style.color = active ? '#fff' : 'var(--text-muted)';
+      });
+      _renderPage();
+    });
+  });
+
+  // Mini-modale encaissement réel
+  document.getElementById('enc-modal-close').addEventListener('click',  _closeEncModal);
+  document.getElementById('enc-modal-cancel').addEventListener('click', _closeEncModal);
+  document.getElementById('enc-modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) _closeEncModal(); });
+  document.getElementById('enc-modal-confirm').addEventListener('click', _confirmEncModal);
 });
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -81,10 +101,6 @@ function _buildPropertyFilter() {
 // ── Rendu principal ──────────────────────────────────────────
 
 function _renderPage() {
-  _renderKpis();
-  _renderProperties();
-  _renderCalendar();
-  _renderIncomes();
   // Label nav mois (flèches)
   const navLabel = document.getElementById('loc-month-nav-label');
   if (navLabel && _locMonth) {
@@ -94,6 +110,26 @@ function _renderPage() {
   // Label hidden (compatibilité)
   const el = document.getElementById('loc-month-label');
   if (el) el.textContent = _locMonth ? (() => { const [y,m]=_locMonth.split('-'); return `${Utils.MONTHS_LONG[+m-1]} ${y}`; })() : 'Tous les mois';
+
+  const generalSections = [
+    document.getElementById('loc-kpis'),
+    document.getElementById('section-properties'),
+    document.querySelectorAll('details.fin-section')[1], // calendrier
+  ].filter(Boolean);
+  const encSection = document.getElementById('loc-section-encaiss');
+
+  if (_locView === 'encaissements') {
+    generalSections.forEach(s => s.style.display = 'none');
+    encSection.style.display = '';
+    _renderEncaissements();
+  } else {
+    generalSections.forEach(s => s.style.display = '');
+    encSection.style.display = 'none';
+    _renderKpis();
+    _renderProperties();
+    _renderCalendar();
+    _renderIncomes();
+  }
 }
 
 // ── Navigation mois principal ────────────────────────────────
@@ -546,8 +582,9 @@ function _openIncomeDrawer(id, preDate, prePropertyId) {
   document.getElementById('inc-nights').value     = income?.nightsRented != null ? income.nightsRented : '';
   document.getElementById('inc-rate').value       = income?.ratePerNight != null ? income.ratePerNight
                                                     : (selectedProp?.defaultRate != null ? selectedProp.defaultRate : '');
-  document.getElementById('inc-status').value     = income?.status || 'received';
-  document.getElementById('inc-notes').value      = income?.notes || '';
+  document.getElementById('inc-status').value         = income?.status || 'received';
+  document.getElementById('inc-actual-amount').value  = income?.actualAmount != null ? income.actualAmount : '';
+  document.getElementById('inc-notes').value          = income?.notes || '';
   document.getElementById('inc-calc-hint').textContent = '';
   _locCalcTotal();
   document.getElementById('income-drawer').classList.add('open');
@@ -613,8 +650,9 @@ function _locSaveIncome(e) {
     platform:     document.getElementById('inc-platform').value.trim(),
     nightsRented: nightsVal !== '' ? parseInt(nightsVal,10) : null,
     ratePerNight: rateVal   !== '' ? parseFloat(rateVal)    : null,
-    status:       document.getElementById('inc-status').value,
-    notes:        document.getElementById('inc-notes').value.trim(),
+    status:        document.getElementById('inc-status').value,
+    actualAmount:  (() => { const v = document.getElementById('inc-actual-amount').value; return v !== '' ? parseFloat(v) : null; })(),
+    notes:         document.getElementById('inc-notes').value.trim(),
   };
   Data.saveRentalIncome(income);
   _locCloseDrawers();
@@ -1140,3 +1178,191 @@ window._generatePDF          = _generatePDF;
 window._locSaveExpense        = _locSaveExpense;
 window._locEditExpense        = _locEditExpense;
 window._locDeleteExpense      = _locDeleteExpense;
+
+// ── Vue Encaissements ─────────────────────────────────────────
+
+function _renderEncaissements() {
+  let incomes = Data.getRentalIncomes();
+  if (_locPropertyId) incomes = incomes.filter(r => r.propertyId === _locPropertyId);
+  if (_locMonth)      incomes = incomes.filter(r => r.yearMonth === _locMonth);
+
+  incomes.sort((a,b) => {
+    const d = (b.yearMonth||'').localeCompare(a.yearMonth||'');
+    return d !== 0 ? d : (a.startDate||'').localeCompare(b.startDate||'');
+  });
+
+  const propMap = {}; Data.getProperties().forEach(p => propMap[p.id] = p);
+  const [y, m] = (_locMonth || Utils.currentYearMonth()).split('-');
+  const monthLabel = _locMonth ? `${Utils.MONTHS_LONG[+m-1]} ${y}` : 'Tous les mois';
+
+  // Totaux
+  const totalEstime  = incomes.reduce((s,r) => s + (r.amount || 0), 0);
+  const totalReel    = incomes.reduce((s,r) => s + (r.actualAmount != null ? r.actualAmount : (r.status === 'received' ? (r.amount || 0) : 0)), 0);
+  const totalSaisi   = incomes.filter(r => r.actualAmount != null).reduce((s,r) => s + (r.actualAmount || 0), 0);
+  const nbSaisi      = incomes.filter(r => r.actualAmount != null).length;
+  const totalEstSaisi = incomes.filter(r => r.actualAmount != null).reduce((s,r) => s + (r.amount || 0), 0);
+  const tauxGlobal   = totalEstSaisi > 0 ? Math.round(totalSaisi / totalEstSaisi * 100) : null;
+  const ecartGlobal  = totalSaisi - totalEstSaisi;
+
+  // KPIs
+  const tauxColor = tauxGlobal == null ? 'var(--text-muted)' : tauxGlobal >= 95 ? '#16a34a' : tauxGlobal >= 75 ? '#f59e0b' : '#dc2626';
+  document.getElementById('loc-enc-kpis').innerHTML = `
+    <div class="kpi-card kpi-large">
+      <div class="kpi-icon kpi-blue">📋</div>
+      <div class="kpi-content">
+        <div class="kpi-value">${Utils.formatMoney(totalEstime)}</div>
+        <div class="kpi-label">Estimé — ${monthLabel}</div>
+      </div>
+    </div>
+    <div class="kpi-card kpi-large kpi-positive">
+      <div class="kpi-icon kpi-green">💳</div>
+      <div class="kpi-content">
+        <div class="kpi-value">${Utils.formatMoney(totalSaisi)}</div>
+        <div class="kpi-label">Réel encaissé (${nbSaisi} saisies)</div>
+      </div>
+    </div>
+    <div class="kpi-card kpi-large ${ecartGlobal < 0 ? 'kpi-negative' : ecartGlobal > 0 ? 'kpi-positive' : ''}">
+      <div class="kpi-icon ${ecartGlobal < 0 ? 'kpi-red' : ecartGlobal > 0 ? 'kpi-green' : 'kpi-gray'}">${ecartGlobal < 0 ? '⬇' : ecartGlobal > 0 ? '⬆' : '='}</div>
+      <div class="kpi-content">
+        <div class="kpi-value">${ecartGlobal >= 0 ? '+' : ''}${Utils.formatMoney(ecartGlobal)}</div>
+        <div class="kpi-label">Écart réel vs estimé</div>
+      </div>
+    </div>
+    <div class="kpi-card kpi-large">
+      <div class="kpi-icon kpi-purple">📊</div>
+      <div class="kpi-content">
+        <div class="kpi-value" style="color:${tauxColor}">${tauxGlobal != null ? tauxGlobal + ' %' : '—'}</div>
+        <div class="kpi-label">Taux de réalisation</div>
+        ${tauxGlobal != null ? `<div class="property-occ-bar" style="margin-top:5px"><div class="property-occ-bar-fill" style="width:${Math.min(tauxGlobal,100)}%;background:${tauxColor}"></div></div>` : ''}
+      </div>
+    </div>`;
+
+  const tbody = document.getElementById('loc-enc-tbody');
+  const tfoot = document.getElementById('loc-enc-tfoot');
+
+  if (incomes.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state-cell">Aucune réservation pour cette période.</td></tr>';
+    tfoot.innerHTML = '';
+    return;
+  }
+
+  // Grouper par mois si "tous les mois"
+  const renderRows = (list) => list.map(r => {
+    const prop   = propMap[r.propertyId];
+    const col    = prop?.color || '#94a3b8';
+    const period = r.startDate && r.endDate ? `${_formatShortDate(r.startDate)} → ${_formatShortDate(r.endDate)}` : '—';
+    const estim  = r.amount || 0;
+    const hasSaisi = r.actualAmount != null;
+    const reel   = hasSaisi ? r.actualAmount : null;
+    const ecart  = hasSaisi ? reel - estim : null;
+    const taux   = hasSaisi && estim > 0 ? Math.round(reel / estim * 100) : null;
+    const tauxCol = taux == null ? '' : taux >= 95 ? '#16a34a' : taux >= 75 ? '#f59e0b' : '#dc2626';
+
+    const ecartColor = ecart == null ? '' : ecart < 0 ? '#dc2626' : ecart > 0 ? '#16a34a' : 'var(--text-muted)';
+    const ecartHtml = ecart == null ? '<span style="color:var(--text-muted)">—</span>'
+      : `<span style="color:${ecartColor};font-weight:600">${ecart >= 0 ? '+' : ''}${Utils.formatMoney(ecart)}</span>`;
+
+    const tauxHtml = taux == null ? '<span style="color:var(--text-muted)">—</span>'
+      : `<strong style="color:${tauxCol}">${taux} %</strong>`;
+
+    const reelHtml = hasSaisi
+      ? `<strong>${Utils.formatMoney(reel)}</strong>`
+      : `<span style="color:var(--text-muted);font-style:italic">Non saisi</span>`;
+
+    return `<tr>
+      <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(prop?.name || '—')}</td>
+      <td class="loc-period-cell">${period}</td>
+      <td class="cell-money">${Utils.formatMoney(estim)}</td>
+      <td class="cell-money">${reelHtml}</td>
+      <td class="cell-money">${ecartHtml}</td>
+      <td class="cell-money">${tauxHtml}</td>
+      <td>
+        <button class="btn btn-ghost btn-xs" title="Saisir l'encaissement réel" onclick="window._openEncModal('${r.id}')">
+          ${hasSaisi ? '✏ Modifier' : '+ Saisir'}
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  if (_locMonth) {
+    tbody.innerHTML = renderRows(incomes);
+  } else {
+    // Grouper par mois
+    const byMonth = {};
+    incomes.forEach(r => {
+      const k = r.yearMonth || '?';
+      if (!byMonth[k]) byMonth[k] = [];
+      byMonth[k].push(r);
+    });
+    let html = '';
+    Object.keys(byMonth).sort((a,b) => b.localeCompare(a)).forEach(ym => {
+      const list = byMonth[ym];
+      const estM  = list.reduce((s,r) => s+(r.amount||0), 0);
+      const reelM = list.filter(r => r.actualAmount != null).reduce((s,r) => s+(r.actualAmount||0), 0);
+      const estSaisM = list.filter(r => r.actualAmount != null).reduce((s,r) => s+(r.amount||0), 0);
+      const tauxM = estSaisM > 0 ? Math.round(reelM/estSaisM*100) : null;
+      const ecartM = reelM - estSaisM;
+      let label = ym === '?' ? 'Date inconnue' : (() => { const [yy,mm]=ym.split('-'); return `${Utils.MONTHS_LONG[+mm-1]} ${yy}`; })();
+      html += `<tr style="background:var(--bg);border-top:2px solid var(--border)">
+        <td colspan="2" style="font-weight:700;font-size:0.88rem;padding:8px 12px">${label}</td>
+        <td class="cell-money" style="font-weight:700">${Utils.formatMoney(estM)}</td>
+        <td class="cell-money" style="font-weight:700">${Utils.formatMoney(reelM)}</td>
+        <td class="cell-money" style="font-weight:700;color:${ecartM<0?'#dc2626':ecartM>0?'#16a34a':'var(--text-muted)'}">${estSaisM>0?(ecartM>=0?'+':'')+Utils.formatMoney(ecartM):'—'}</td>
+        <td class="cell-money" style="font-weight:700;color:${tauxM==null?'var(--text-muted)':tauxM>=95?'#16a34a':tauxM>=75?'#f59e0b':'#dc2626'}">${tauxM!=null?tauxM+' %':'—'}</td>
+        <td></td>
+      </tr>`;
+      html += renderRows(list);
+    });
+    tbody.innerHTML = html;
+  }
+
+  // Total ligne de pied
+  const nbTotal = incomes.length;
+  const tauxFoot = totalEstSaisi > 0 ? Math.round(totalSaisi/totalEstSaisi*100) : null;
+  const ecartFoot = totalSaisi - totalEstSaisi;
+  tfoot.innerHTML = `<tr class="total-row" style="border-top:2px solid var(--primary)">
+    <td colspan="2"><strong>TOTAL (${nbTotal} réservation${nbTotal>1?'s':''})</strong></td>
+    <td class="cell-money"><strong>${Utils.formatMoney(totalEstime)}</strong></td>
+    <td class="cell-money"><strong>${Utils.formatMoney(totalSaisi)}</strong></td>
+    <td class="cell-money" style="color:${ecartFoot<0?'#dc2626':ecartFoot>0?'#16a34a':'var(--text-muted)'}">
+      <strong>${nbSaisi>0?(ecartFoot>=0?'+':'')+Utils.formatMoney(ecartFoot):'—'}</strong>
+    </td>
+    <td class="cell-money" style="color:${tauxFoot==null?'var(--text-muted)':tauxFoot>=95?'#16a34a':tauxFoot>=75?'#f59e0b':'#dc2626'}">
+      <strong>${tauxFoot!=null?tauxFoot+' %':'—'}</strong>
+    </td>
+    <td></td>
+  </tr>`;
+}
+
+// ── Mini-modale encaissement réel ─────────────────────────────
+
+window._openEncModal = function(id) {
+  const r = Data.getRentalIncomeById(id);
+  if (!r) return;
+  const prop = Data.getPropertyById(r.propertyId);
+  const period = r.startDate && r.endDate ? `${_formatShortDate(r.startDate)} → ${_formatShortDate(r.endDate)}` : '';
+  document.getElementById('enc-modal-id').value = id;
+  document.getElementById('enc-modal-amount').value = r.actualAmount != null ? r.actualAmount : '';
+  document.getElementById('enc-modal-desc').textContent =
+    `${prop?.name || '—'}${period ? ' · ' + period : ''} — Estimé : ${Utils.formatMoney(r.amount || 0)}`;
+  const ov = document.getElementById('enc-modal-overlay');
+  ov.style.display = 'flex';
+  setTimeout(() => document.getElementById('enc-modal-amount').focus(), 50);
+};
+
+function _closeEncModal() {
+  document.getElementById('enc-modal-overlay').style.display = 'none';
+}
+
+function _confirmEncModal() {
+  const id  = document.getElementById('enc-modal-id').value;
+  const val = document.getElementById('enc-modal-amount').value;
+  if (val === '') { alert('Merci de saisir un montant.'); return; }
+  const r = Data.getRentalIncomeById(id);
+  if (!r) return;
+  r.actualAmount = parseFloat(val) || 0;
+  Data.saveRentalIncome(r);
+  _closeEncModal();
+  _renderEncaissements();
+  Utils.toast('Encaissement enregistré.', 'success');
+}
