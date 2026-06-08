@@ -49,8 +49,13 @@
 
       <div class="page-header">
         <h1 class="page-title">🧾 Suivi factures</h1>
-        <div class="page-actions">
+        <div class="page-actions" style="display:flex;gap:8px;align-items:center">
+          <div style="display:flex;border:1px solid var(--border);border-radius:20px;overflow:hidden;background:var(--bg-card)">
+            <button class="view-tab active" id="view-tab-factures" data-view="factures" style="padding:5px 16px;border:none;background:var(--primary);color:#fff;cursor:pointer;font-size:0.85rem;font-weight:600">Factures</button>
+            <button class="view-tab" id="view-tab-oraux" data-view="oraux" style="padding:5px 16px;border:none;background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.85rem;font-weight:600">🎓 Oraux HEIP</button>
+          </div>
           <button class="btn btn-primary" id="btn-new-invoice">+ Nouvelle facture</button>
+          <button class="btn btn-primary" id="btn-new-oral" style="display:none">+ Nouvelle session</button>
         </div>
       </div>
 
@@ -120,6 +125,30 @@
             </thead>
             <tbody id="unpaid-tbody"></tbody>
             <tfoot id="unpaid-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- Section Oraux HEIP -->
+      <div id="section-oraux" style="display:none">
+
+        <!-- KPIs oraux -->
+        <div class="kpi-grid kpi-finance" id="kpi-oraux" style="margin-bottom:24px"></div>
+
+        <!-- Tableau oraux -->
+        <div class="report-table-wrapper">
+          <table class="data-table" id="oraux-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th class="cell-money">Nb d'oraux</th>
+                <th class="cell-money">Prix unitaire</th>
+                <th class="cell-money">Total</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="oraux-tbody"></tbody>
+            <tfoot id="oraux-tfoot"></tfoot>
           </table>
         </div>
       </div>
@@ -251,10 +280,39 @@
     </div>
   </div>
 
+  <!-- Modal ajout / édition Oral HEIP -->
+  <div class="inv-modal-overlay" id="oral-modal-overlay">
+    <div class="inv-modal" style="max-width:420px">
+      <h2 id="oral-modal-title">Nouvelle session d'oraux</h2>
+      <input type="hidden" id="oral-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="oral-date" class="form-input">
+        </div>
+        <div class="form-group">
+          <label>Nombre d'oraux</label>
+          <input type="number" id="oral-count" class="form-input" min="1" step="1" placeholder="ex. 8">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Prix unitaire (€)</label>
+        <input type="number" id="oral-price" class="form-input" min="0" step="0.01" placeholder="ex. 45.00">
+      </div>
+      <div style="padding:10px 12px;background:var(--primary-light,#eff6ff);border-radius:8px;margin-bottom:12px;font-size:0.9rem">
+        Total : <strong id="oral-total-preview">0,00 €</strong>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="oral-cancel">Annuler</button>
+        <button class="btn btn-primary" id="oral-save">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
   <script src="js/utils.js?v=11"></script>
-  <script src="js/data.js?v=39"></script>
+  <script src="js/data.js?v=40"></script>
   <script src="js/modals.js?v=19"></script>
   <script src="js/nav.js?v=15"></script>
-  <script src="js/pages/factures.js?v=1"></script>
+  <script src="js/pages/factures.js?v=2"></script>
 </body>
 </html>

@@ -1221,6 +1221,27 @@ const Data = {
     this._save();
   },
 
+  // ── Oraux HEIP ──────────────────────────────────────────────
+
+  getOraux() {
+    return [...(this._db.oraux||[])].sort((a, b) => (b.date||'').localeCompare(a.date||''));
+  },
+  getOrauxByMonth(yearMonth) {
+    return (this._db.oraux||[]).filter(o => o.yearMonth === yearMonth)
+      .sort((a, b) => (b.date||'').localeCompare(a.date||''));
+  },
+  saveOral(oral) {
+    if (!this._db.oraux) this._db.oraux = [];
+    const idx = this._db.oraux.findIndex(o => o.id === oral.id);
+    if (idx >= 0) this._db.oraux[idx] = oral;
+    else this._db.oraux.push(oral);
+    this._save();
+  },
+  deleteOral(id) {
+    this._db.oraux = (this._db.oraux||[]).filter(o => o.id !== id);
+    this._save();
+  },
+
   // ── Statistiques financières ─────────────────────────────────
 
   getFinancialStats(filters = {}) {

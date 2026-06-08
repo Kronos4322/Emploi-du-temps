@@ -1,8 +1,9 @@
-// factures.js — Suivi factures v1
+// factures.js — Suivi factures v2
 'use strict';
 
 let _yearMonth   = Utils.currentYearMonth();
 let _poleId      = '';   // '' = tous, sinon id du pôle
+let _view        = 'factures'; // 'factures' | 'oraux'
 
 const PAY_BADGE = {
   paid:   '<span class="status-badge-paid">✓ Payé</span>',
@@ -14,6 +15,22 @@ document.addEventListener('DOMContentLoaded', () => {
   _buildMonthFilter();
   _buildPoleTabs();
   render();
+
+  // Onglets de vue (Factures / Oraux HEIP)
+  document.querySelectorAll('.view-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _view = btn.dataset.view;
+      document.querySelectorAll('.view-tab').forEach(b => {
+        const active = b.dataset.view === _view;
+        b.style.background = active ? 'var(--primary)' : 'transparent';
+        b.style.color = active ? '#fff' : 'var(--text-muted)';
+      });
+      document.getElementById('btn-new-invoice').style.display = _view === 'factures' ? '' : 'none';
+      document.getElementById('btn-new-oral').style.display = _view === 'oraux' ? '' : 'none';
+      document.getElementById('pole-tabs').style.display = _view === 'factures' ? '' : 'none';
+      render();
+    });
+  });
 
   document.getElementById('btn-prev-month').addEventListener('click', () => _shiftMonth(-1));
   document.getElementById('btn-next-month').addEventListener('click', () => _shiftMonth(+1));
@@ -28,6 +45,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-close-unpaid').addEventListener('click', () => {
     document.getElementById('section-unpaid').style.display = 'none';
   });
+
+  // Oraux HEIP
+  document.getElementById('btn-new-oral').addEventListener('click', () => _openOralModal(null));
+  document.getElementById('oral-cancel').addEventListener('click', _closeOralModal);
+  document.getElementById('oral-modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) _closeOralModal(); });
+  document.getElementById('oral-save').addEventListener('click', _saveOral);
+  ['oral-count', 'oral-price'].forEach(id => {
+    document.getElementById(id).addEventListener('input', _updateOralPreview);
+  });
+
   document.getElementById('pay-modal-close').addEventListener('click', _closePayModal);
   document.getElementById('pay-modal-cancel').addEventListener('click', _closePayModal);
   document.getElementById('pay-modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) _closePayModal(); });
@@ -94,6 +121,29 @@ function _shiftMonth(delta) {
 // ── Render ───────────────────────────────────────────────────────────────────
 
 function render() {
+  const facturesSection = document.getElementById('invoices-table').closest('.report-table-wrapper');
+  const unpaidSection   = document.getElementById('section-unpaid');
+  const orauxSection    = document.getElementById('section-oraux');
+  const comboBar        = document.getElementById('combo-bar');
+  const kpiRow          = document.getElementById('kpi-row');
+
+  if (_view === 'oraux') {
+    facturesSection.style.display = 'none';
+    unpaidSection.style.display   = 'none';
+    comboBar.style.display        = 'none';
+    kpiRow.style.display          = 'none';
+    orauxSection.style.display    = '';
+    renderOraux();
+    return;
+  }
+
+  facturesSection.style.display = '';
+  kpiRow.style.display          = '';
+  orauxSection.style.display    = 'none';
+  _renderFactures();
+}
+
+function _renderFactures() {
   const invoices  = Data.getInvoicesByMonth(_yearMonth, _poleId);
   const ownCos    = Data.getOwnCompanies();
   const poleMap   = {}; ownCos.forEach(c => poleMap[c.id] = c);
@@ -485,3 +535,115 @@ function _saveInvoice() {
   }
   render();
 }
+
+// ── Oraux HEIP ────────────────────────────────────────────────────────────────
+
+function renderOraux() {
+  const oraux = Data.getOrauxByMonth(_yearMonth);
+  const [y, m] = _yearMonth.split('-');
+  const monthLabel = `${Utils.MONTHS_LONG[+m-1]} ${y}`;
+
+  const totalOraux = oraux.reduce((s, o) => s + (o.count || 0), 0);
+  const totalMoney = oraux.reduce((s, o) => s + (o.total || 0), 0);
+
+  // KPIs
+  document.getElementById('kpi-oraux').innerHTML = `
+    <div class="kpi-card kpi-large">
+      <div class="kpi-icon kpi-green">🎓</div>
+      <div class="kpi-content">
+        <div class="kpi-value">${totalOraux}</div>
+        <div class="kpi-label">Oraux — ${monthLabel}</div>
+      </div>
+    </div>
+    <div class="kpi-card kpi-large kpi-positive">
+      <div class="kpi-icon kpi-green">💶</div>
+      <div class="kpi-content">
+        <div class="kpi-value">${Utils.formatMoney(totalMoney)}</div>
+        <div class="kpi-label">Total — ${monthLabel}</div>
+      </div>
+    </div>`;
+
+  const tbody = document.getElementById('oraux-tbody');
+  const tfoot = document.getElementById('oraux-tfoot');
+
+  if (oraux.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state-cell">Aucune session ce mois.</td></tr>';
+    tfoot.innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = oraux.map(o => `<tr>
+    <td>${Utils.formatDate(o.date) || '—'}</td>
+    <td class="cell-money"><strong>${o.count || 0}</strong></td>
+    <td class="cell-money">${Utils.formatMoney(o.unitPrice || 0)}</td>
+    <td class="cell-money"><strong>${Utils.formatMoney(o.total || 0)}</strong></td>
+    <td>
+      <div class="inv-actions">
+        <button onclick="_openOralModal('${o.id}')">Modifier</button>
+        <button class="danger" onclick="_deleteOral('${o.id}')">🗑</button>
+      </div>
+    </td>
+  </tr>`).join('');
+
+  tfoot.innerHTML = `<tr class="total-row" style="border-top:2px solid var(--primary)">
+    <td><strong>TOTAL</strong></td>
+    <td class="cell-money"><strong>${totalOraux} oraux</strong></td>
+    <td></td>
+    <td class="cell-money"><strong>${Utils.formatMoney(totalMoney)}</strong></td>
+    <td></td>
+  </tr>`;
+}
+
+function _updateOralPreview() {
+  const count = parseFloat(document.getElementById('oral-count').value) || 0;
+  const price = parseFloat(document.getElementById('oral-price').value) || 0;
+  document.getElementById('oral-total-preview').textContent = Utils.formatMoney(count * price);
+}
+
+window._openOralModal = function(id) {
+  const o = id ? Data.getOraux().find(x => x.id === id) : null;
+  document.getElementById('oral-modal-title').textContent = o ? 'Modifier la session' : 'Nouvelle session d\'oraux';
+  document.getElementById('oral-id').value    = o?.id || '';
+  document.getElementById('oral-date').value  = o?.date || _yearMonth + '-01';
+  document.getElementById('oral-count').value = o?.count ?? '';
+  document.getElementById('oral-price').value = o?.unitPrice ?? '';
+  _updateOralPreview();
+  document.getElementById('oral-modal-overlay').classList.add('open');
+  document.getElementById('oral-count').focus();
+};
+
+function _closeOralModal() {
+  document.getElementById('oral-modal-overlay').classList.remove('open');
+}
+
+function _saveOral() {
+  const date     = document.getElementById('oral-date').value;
+  const count    = parseInt(document.getElementById('oral-count').value) || 0;
+  const unitPrice = parseFloat(document.getElementById('oral-price').value) || 0;
+
+  if (!date)  { alert('La date est obligatoire.'); return; }
+  if (count <= 0) { alert('Le nombre d\'oraux doit être supérieur à 0.'); return; }
+
+  const oral = {
+    id:        document.getElementById('oral-id').value || Utils.uuid(),
+    date,
+    yearMonth: date.slice(0, 7),
+    count,
+    unitPrice,
+    total:     Math.round(count * unitPrice * 100) / 100,
+  };
+
+  Data.saveOral(oral);
+  _closeOralModal();
+  if (oral.yearMonth !== _yearMonth) {
+    _yearMonth = oral.yearMonth;
+    document.getElementById('filter-month').value = _yearMonth;
+  }
+  render();
+}
+
+window._deleteOral = function(id) {
+  if (!confirm('Supprimer cette session d\'oraux ?')) return;
+  Data.deleteOral(id);
+  render();
+};
