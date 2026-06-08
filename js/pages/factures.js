@@ -28,6 +28,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-close-unpaid').addEventListener('click', () => {
     document.getElementById('section-unpaid').style.display = 'none';
   });
+  document.getElementById('pay-modal-close').addEventListener('click', _closePayModal);
+  document.getElementById('pay-modal-cancel').addEventListener('click', _closePayModal);
+  document.getElementById('pay-modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) _closePayModal(); });
+  document.getElementById('pay-modal-confirm').addEventListener('click', _confirmPayModal);
 });
 
 // ── Filtres ──────────────────────────────────────────────────────────────────
@@ -161,11 +165,11 @@ function render() {
       <td class="cell-money"><strong>${Utils.formatMoney(inv.amount || 0)}</strong></td>
       <td>${Utils.formatDate(inv.sentDate) || '—'}</td>
       <td>
-        <span class="${inv.paymentStatus === 'paid' ? 'status-badge-paid' : 'status-badge-unpaid'}"
-              style="cursor:pointer" onclick="_togglePayment('${inv.id}')" title="Cliquer pour changer le statut">
-          ${inv.paymentStatus === 'paid' ? '✓ Payé' : '✗ Non payé'}
-        </span>
-        ${inv.paymentStatus === 'paid' && inv.paidDate ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">${Utils.formatDate(inv.paidDate)}${inv.paymentRef ? ' · ' + Utils.escapeHtml(inv.paymentRef) : ''}</div>` : ''}
+        ${inv.paymentStatus === 'paid'
+          ? `<span class="status-badge-paid" style="cursor:pointer" onclick="_togglePayment('${inv.id}')" title="Cliquer pour repasser en Non payé">✓ Payé</span>
+             ${inv.paidDate ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px">📅 ${Utils.formatDate(inv.paidDate)}${inv.paymentRef ? '<br>🔖 ' + Utils.escapeHtml(inv.paymentRef) : ''}</div>` : ''}`
+          : `<span class="status-badge-unpaid" style="cursor:pointer" onclick="_openPayModal('${inv.id}')" title="Cliquer pour enregistrer le paiement">✗ Non payé</span>`
+        }
       </td>
       <td>
         <div class="inv-actions">
@@ -353,7 +357,7 @@ function renderUnpaid() {
             <button style="font-size:0.78rem;padding:3px 10px;border-radius:12px;border:1px solid var(--border);cursor:pointer;background:var(--bg-card);color:var(--text);white-space:nowrap"
                     onclick="_openModal('${inv.id}')">Modifier</button>
             <button style="font-size:0.78rem;padding:3px 10px;border-radius:12px;border:1px solid #16a34a;cursor:pointer;background:#f0fdf4;color:#16a34a;white-space:nowrap"
-                    onclick="_togglePayment('${inv.id}')">✓ Marquer payé</button>
+                    onclick="_openPayModal('${inv.id}')">✓ Marquer payé</button>
           </div>
         </td>
       </tr>`;
@@ -369,12 +373,48 @@ function renderUnpaid() {
     </tr>`;
 }
 
-// ── Toggle paiement rapide ────────────────────────────────────────────────────
+// ── Paiement manuel (badge "Non payé" → modale) ───────────────────────────────
+
+window._openPayModal = function(id) {
+  const inv = Data.getInvoices().find(i => i.id === id);
+  if (!inv) return;
+  document.getElementById('pay-modal-id').value    = id;
+  document.getElementById('pay-modal-date').value  = Utils.today();
+  document.getElementById('pay-modal-ref').value   = '';
+  document.getElementById('pay-modal-desc').textContent =
+    `Facture n°${inv.number || '?'} — ${inv.clientName || '?'} — ${Utils.formatMoney(inv.amount || 0)}`;
+  document.getElementById('pay-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('pay-modal-date').focus(), 50);
+};
+
+function _closePayModal() {
+  document.getElementById('pay-modal-overlay').classList.remove('open');
+}
+
+function _confirmPayModal() {
+  const id      = document.getElementById('pay-modal-id').value;
+  const payDate = document.getElementById('pay-modal-date').value;
+  const payRef  = document.getElementById('pay-modal-ref').value.trim();
+  if (!payDate) { alert('Merci de saisir la date de paiement.'); return; }
+  const inv = Data.getInvoices().find(i => i.id === id);
+  if (!inv) return;
+  inv.paymentStatus = 'paid';
+  inv.paidDate      = payDate;
+  inv.paymentRef    = payRef || null;
+  Data.saveInvoice(inv);
+  _closePayModal();
+  render();
+}
+
+// ── Toggle : repasser en "Non payé" (depuis badge Payé) ───────────────────────
 
 window._togglePayment = function(id) {
   const inv = Data.getInvoices().find(i => i.id === id);
   if (!inv) return;
-  inv.paymentStatus = inv.paymentStatus === 'paid' ? 'unpaid' : 'paid';
+  if (!confirm(`Repasser la facture n°${inv.number || '?'} en "Non payé" ?`)) return;
+  inv.paymentStatus = 'unpaid';
+  inv.paidDate      = null;
+  inv.paymentRef    = null;
   Data.saveInvoice(inv);
   render();
 };
