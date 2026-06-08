@@ -1399,8 +1399,13 @@ window._openEncModal = function(id) {
   }
 
   document.getElementById('enc-modal-id').value            = id || '';
-  document.getElementById('enc-modal-start').value         = r?.startDate       || (_locMonth ? _locMonth + '-01' : Utils.today());
-  document.getElementById('enc-modal-end').value           = r?.endDate         || '';
+  document.getElementById('enc-modal-start').value         = isNew ? (_locMonth ? _locMonth + '-01' : Utils.today()) : (r?.startDate || '');
+  document.getElementById('enc-modal-end').value           = isNew ? '' : (r?.endDate || '');
+  // Pour une réservation existante, les dates sont en lecture seule (ne pas écraser la réservation)
+  document.getElementById('enc-modal-start').readOnly      = !isNew;
+  document.getElementById('enc-modal-end').readOnly        = !isNew;
+  document.getElementById('enc-modal-start').style.background = !isNew ? 'var(--surface)' : '';
+  document.getElementById('enc-modal-end').style.background   = !isNew ? 'var(--surface)' : '';
   document.getElementById('enc-modal-mad').value           = r?.amountMAD       != null ? r.amountMAD       : '';
   document.getElementById('enc-modal-eur-airbnb').value    = r?.amountEURairbnb != null ? r.amountEURairbnb : '';
   document.getElementById('enc-modal-amount').value        = r?.actualAmount    != null ? r.actualAmount    : '';
@@ -1466,12 +1471,9 @@ function _confirmEncModal() {
     };
     Data.saveRentalIncome(r);
   } else {
-    // Mise à jour d'un encaissement existant
+    // Mise à jour encaissement existant — NE PAS toucher aux dates de réservation
     const r = Data.getRentalIncomeById(id);
     if (!r) return;
-    r.startDate       = startVal;
-    r.yearMonth       = startVal.slice(0,7);
-    if (endVal) r.endDate = endVal;
     r.amountMAD       = madVal    !== '' ? parseFloat(madVal)    : null;
     r.amountEURairbnb = eurAbVal  !== '' ? parseFloat(eurAbVal)  : null;
     r.actualAmount    = actualVal !== '' ? parseFloat(actualVal) : null;
