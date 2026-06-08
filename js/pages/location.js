@@ -1284,30 +1284,27 @@ function _renderEncaissements() {
     const reelHtml  = hasSaisi
       ? `<strong>${Utils.formatMoney(reel)}</strong>`
       : `<span style="color:var(--text-muted);font-style:italic">—</span>`;
-    const madHtml  = r.amountMAD != null
-      ? `<span style="font-weight:600">${fmt2(r.amountMAD)}<span style="font-size:0.7rem;color:var(--text-muted);margin-left:2px">MAD</span></span>`
+    // Colonne fusionnée MAD + EUR Airbnb
+    const hasMad = r.amountMAD != null;
+    const hasEurAb = r.amountEURairbnb != null;
+    const fx = hasMad && hasEurAb && r.amountEURairbnb > 0
+      ? `<div style="font-size:0.68rem;color:var(--text-muted)">1€=${(r.amountMAD/r.amountEURairbnb).toFixed(2)} MAD</div>` : '';
+    const airbnbHtml = (hasMad || hasEurAb)
+      ? `<div>${hasMad ? `<span style="font-weight:600;font-size:0.88rem">${fmt2(r.amountMAD)} <span style="font-size:0.7rem;color:var(--text-muted)">MAD</span></span>` : ''}</div>
+         <div>${hasEurAb ? `<strong>${Utils.formatMoney(r.amountEURairbnb)}</strong>` : ''}</div>${fx}`
       : '<span style="color:var(--text-muted)">—</span>';
-    const eurAirbnbHtml = r.amountEURairbnb != null
-      ? `<strong>${Utils.formatMoney(r.amountEURairbnb)}</strong>`
-      : '<span style="color:var(--text-muted)">—</span>';
-    // Taux de change pour cette ligne
-    const fxLine = r.amountMAD != null && r.amountEURairbnb != null && r.amountEURairbnb > 0
-      ? `<div style="font-size:0.68rem;color:var(--text-muted)">1€=${(r.amountMAD/r.amountEURairbnb).toFixed(2)} MAD</div>`
-      : '';
 
     return `<tr>
       <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(prop?.name || '—')}</td>
       <td class="loc-period-cell">${period}</td>
-      <td class="cell-money">${madHtml}</td>
-      <td class="cell-money">${eurAirbnbHtml}${fxLine}</td>
+      <td class="cell-money">${airbnbHtml}</td>
       <td class="cell-money">${reelHtml}</td>
       <td class="cell-money" style="color:var(--text-muted)">${Utils.formatMoney(estim)}</td>
       <td class="cell-money">${ecartHtml}</td>
       <td class="cell-money">${tauxHtml}</td>
-      <td>
-        <button class="btn btn-ghost btn-xs" title="Saisir l'encaissement" onclick="window._openEncModal('${r.id}')">
-          ${hasSaisi ? '✏' : '+ Saisir'}
-        </button>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-xs" title="Modifier" onclick="window._openEncModal('${r.id}')">✏</button>
+        <button class="btn btn-ghost btn-xs" title="Supprimer" style="color:var(--danger,#dc2626)" onclick="window._deleteEnc('${r.id}')">🗑</button>
       </td>
     </tr>`;
   }).join('');
@@ -1335,8 +1332,10 @@ function _renderEncaissements() {
       let label = ym === '?' ? 'Date inconnue' : (() => { const [yy,mm]=ym.split('-'); return `${Utils.MONTHS_LONG[+mm-1]} ${yy}`; })();
       html += `<tr style="background:var(--bg);border-top:2px solid var(--border)">
         <td colspan="2" style="font-weight:700;font-size:0.88rem;padding:8px 12px">${label}</td>
-        <td class="cell-money" style="font-weight:700">${madM>0?fmt2(madM)+' MAD':'—'}</td>
-        <td class="cell-money" style="font-weight:700">${eurAbM>0?Utils.formatMoney(eurAbM):'—'}</td>
+        <td class="cell-money" style="font-weight:700">
+          ${madM>0?`<div style="font-size:0.82rem">${fmt2(madM)} MAD</div>`:''}
+          ${eurAbM>0?Utils.formatMoney(eurAbM):'—'}
+        </td>
         <td class="cell-money" style="font-weight:700">${Utils.formatMoney(reelM)}</td>
         <td class="cell-money" style="font-weight:700;color:var(--text-muted)">${Utils.formatMoney(estM)}</td>
         <td class="cell-money" style="font-weight:700;color:${ecartM<0?'#dc2626':ecartM>0?'#16a34a':'var(--text-muted)'}">${estSaisM>0?(ecartM>=0?'+':'')+Utils.formatMoney(ecartM):'—'}</td>
@@ -1353,9 +1352,11 @@ function _renderEncaissements() {
   const tauxFoot = totalEstSaisi > 0 ? Math.round(totalSaisi/totalEstSaisi*100) : null;
   const ecartFoot = totalSaisi - totalEstSaisi;
   tfoot.innerHTML = `<tr class="total-row" style="border-top:2px solid var(--primary)">
-    <td colspan="2"><strong>TOTAL (${nbTotal} réservation${nbTotal>1?'s':''})</strong></td>
-    <td class="cell-money"><strong>${totalMAD>0?fmt2(totalMAD)+' MAD':'—'}</strong></td>
-    <td class="cell-money"><strong>${totalEURairbnb>0?Utils.formatMoney(totalEURairbnb):'—'}</strong></td>
+    <td colspan="2"><strong>TOTAL (${nbTotal} encaissement${nbTotal>1?'s':''})</strong></td>
+    <td class="cell-money">
+      ${totalMAD>0?`<div style="font-size:0.82rem">${fmt2(totalMAD)} MAD</div>`:''}
+      <strong>${totalEURairbnb>0?Utils.formatMoney(totalEURairbnb):'—'}</strong>
+    </td>
     <td class="cell-money"><strong>${Utils.formatMoney(totalSaisi)}</strong></td>
     <td class="cell-money" style="color:var(--text-muted)"><strong>${Utils.formatMoney(totalEstime)}</strong></td>
     <td class="cell-money" style="color:${ecartFoot<0?'#dc2626':ecartFoot>0?'#16a34a':'var(--text-muted)'}">
@@ -1414,6 +1415,17 @@ window._openEncModal = function(id) {
   window._encUpdateFx();
   document.getElementById('enc-modal-overlay').style.display = 'flex';
   setTimeout(() => document.getElementById(isNew ? 'enc-modal-start' : 'enc-modal-mad').focus(), 50);
+};
+
+window._deleteEnc = function(id) {
+  const r = Data.getRentalIncomeById(id);
+  if (!r) return;
+  const prop = Data.getPropertyById(r.propertyId);
+  const period = r.startDate ? ` (${_formatShortDate(r.startDate)}${r.endDate ? ' → ' + _formatShortDate(r.endDate) : ''})` : '';
+  if (!confirm(`Supprimer cet encaissement — ${prop?.name || '?'}${period} ?`)) return;
+  Data.deleteRentalIncome(id);
+  _renderEncaissements();
+  Utils.toast('Encaissement supprimé.', 'success');
 };
 
 function _closeEncModal() {
