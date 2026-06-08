@@ -30,6 +30,7 @@
           <button class="btn btn-ghost" id="btn-export-csv">↓ Export CSV</button>
           <button class="btn btn-ghost" id="btn-add-property">+ Ajouter un bien</button>
           <button class="btn btn-primary" id="btn-add-income">+ Ajouter un revenu</button>
+          <button class="btn btn-primary" id="btn-add-enc" style="display:none">+ Ajouter un encaissement</button>
         </div>
       </div>
 
@@ -331,11 +332,16 @@
   <div id="enc-modal-overlay" style="display:none;position:fixed;inset:0;background:#00000060;z-index:1100;align-items:center;justify-content:center">
     <div style="background:var(--bg-card);border-radius:16px;padding:28px;width:100%;max-width:460px;box-shadow:0 8px 32px #0002">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <h2 style="margin:0;font-size:1rem">💳 Encaissement</h2>
+        <h2 style="margin:0;font-size:1rem" id="enc-modal-title">💳 Encaissement</h2>
         <button id="enc-modal-close" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-muted)">✕</button>
       </div>
-      <p id="enc-modal-desc" style="margin:0 0 16px;font-size:0.82rem;color:var(--text-muted);font-weight:600"></p>
+      <p id="enc-modal-desc" style="margin:0 0 12px;font-size:0.82rem;color:var(--text-muted);font-weight:600"></p>
       <input type="hidden" id="enc-modal-id">
+      <!-- Bien (mode création uniquement) -->
+      <div id="enc-modal-prop-row" style="display:none;margin-bottom:12px">
+        <label style="font-size:0.78rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Bien</label>
+        <select id="enc-modal-prop" class="form-input"></select>
+      </div>
 
       <!-- Dates -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">

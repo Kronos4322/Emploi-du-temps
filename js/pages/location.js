@@ -33,9 +33,14 @@ document.addEventListener('DOMContentLoaded', () => {
         b.style.background = active ? 'var(--primary)' : 'transparent';
         b.style.color = active ? '#fff' : 'var(--text-muted)';
       });
+      const isEnc = _locView === 'encaissements';
+      document.getElementById('btn-add-income').style.display = isEnc ? 'none' : '';
+      document.getElementById('btn-add-enc').style.display    = isEnc ? '' : 'none';
       _renderPage();
     });
   });
+
+  document.getElementById('btn-add-enc').addEventListener('click', () => _openEncModal(null));
 
   // Mini-modale encaissement réel
   document.getElementById('enc-modal-close').addEventListener('click',  _closeEncModal);
@@ -1379,20 +1384,36 @@ window._encUpdateFx = function() {
 };
 
 window._openEncModal = function(id) {
-  const r = Data.getRentalIncomeById(id);
-  if (!r) return;
-  const prop = Data.getPropertyById(r.propertyId);
-  document.getElementById('enc-modal-id').value            = id;
-  document.getElementById('enc-modal-start').value         = r.startDate        || '';
-  document.getElementById('enc-modal-end').value           = r.endDate          || '';
-  document.getElementById('enc-modal-mad').value           = r.amountMAD        != null ? r.amountMAD        : '';
-  document.getElementById('enc-modal-eur-airbnb').value    = r.amountEURairbnb  != null ? r.amountEURairbnb  : '';
-  document.getElementById('enc-modal-amount').value        = r.actualAmount     != null ? r.actualAmount     : '';
-  document.getElementById('enc-modal-desc').textContent    =
-    `${prop?.name || '—'} — Estimé : ${Utils.formatMoney(r.amount || 0)}`;
+  const isNew = !id;
+  const r    = id ? Data.getRentalIncomeById(id) : null;
+  const props = Data.getActiveProperties();
+
+  // Titre
+  document.getElementById('enc-modal-title').textContent = isNew ? '💳 Nouvel encaissement' : '💳 Encaissement';
+
+  // Ligne "Bien" visible seulement en mode création
+  const propRow = document.getElementById('enc-modal-prop-row');
+  propRow.style.display = isNew ? '' : 'none';
+  if (isNew) {
+    const sel = document.getElementById('enc-modal-prop');
+    sel.innerHTML = props.map(p => `<option value="${p.id}">${Utils.escapeHtml(p.name)}</option>`).join('');
+  }
+
+  document.getElementById('enc-modal-id').value            = id || '';
+  document.getElementById('enc-modal-start').value         = r?.startDate       || (_locMonth ? _locMonth + '-01' : Utils.today());
+  document.getElementById('enc-modal-end').value           = r?.endDate         || '';
+  document.getElementById('enc-modal-mad').value           = r?.amountMAD       != null ? r.amountMAD       : '';
+  document.getElementById('enc-modal-eur-airbnb').value    = r?.amountEURairbnb != null ? r.amountEURairbnb : '';
+  document.getElementById('enc-modal-amount').value        = r?.actualAmount    != null ? r.actualAmount    : '';
+
+  const prop = r ? Data.getPropertyById(r.propertyId) : null;
+  document.getElementById('enc-modal-desc').textContent = isNew
+    ? 'Renseignez les données de cet encaissement.'
+    : `${prop?.name || '—'} — Estimé : ${Utils.formatMoney(r.amount || 0)}`;
+
   window._encUpdateFx();
   document.getElementById('enc-modal-overlay').style.display = 'flex';
-  setTimeout(() => document.getElementById('enc-modal-mad').focus(), 50);
+  setTimeout(() => document.getElementById(isNew ? 'enc-modal-start' : 'enc-modal-mad').focus(), 50);
 };
 
 function _closeEncModal() {
@@ -1400,24 +1421,54 @@ function _closeEncModal() {
 }
 
 function _confirmEncModal() {
-  const id = document.getElementById('enc-modal-id').value;
-  const r  = Data.getRentalIncomeById(id);
-  if (!r) return;
-
+  const id        = document.getElementById('enc-modal-id').value;
   const startVal  = document.getElementById('enc-modal-start').value;
   const endVal    = document.getElementById('enc-modal-end').value;
   const madVal    = document.getElementById('enc-modal-mad').value;
   const eurAbVal  = document.getElementById('enc-modal-eur-airbnb').value;
   const actualVal = document.getElementById('enc-modal-amount').value;
 
-  if (startVal) { r.startDate = startVal; r.yearMonth = startVal.slice(0,7); }
-  if (endVal)   r.endDate   = endVal;
-  r.amountMAD       = madVal    !== '' ? parseFloat(madVal)    : null;
-  r.amountEURairbnb = eurAbVal  !== '' ? parseFloat(eurAbVal)  : null;
-  r.actualAmount    = actualVal !== '' ? parseFloat(actualVal) : null;
+  if (!startVal) { alert('La date d\'arrivée est obligatoire.'); return; }
 
-  Data.saveRentalIncome(r);
+  const isNew = !id;
+
+  if (isNew) {
+    // Création d'un nouvel encaissement
+    const propId = document.getElementById('enc-modal-prop').value;
+    if (!propId) { alert('Sélectionnez un bien.'); return; }
+    const nights = (startVal && endVal && endVal > startVal)
+      ? Math.round((new Date(endVal+'T00:00:00') - new Date(startVal+'T00:00:00')) / 86400000) : null;
+    const r = {
+      id:               Utils.uuid(),
+      propertyId:       propId,
+      startDate:        startVal,
+      endDate:          endVal || null,
+      yearMonth:        startVal.slice(0,7),
+      amount:           0, // pas d'estimé pour un encaissement direct
+      nightsRented:     nights,
+      ratePerNight:     null,
+      platform:         'Airbnb',
+      status:           actualVal !== '' ? 'received' : 'pending',
+      amountMAD:        madVal    !== '' ? parseFloat(madVal)    : null,
+      amountEURairbnb:  eurAbVal  !== '' ? parseFloat(eurAbVal)  : null,
+      actualAmount:     actualVal !== '' ? parseFloat(actualVal) : null,
+      notes:            '',
+    };
+    Data.saveRentalIncome(r);
+  } else {
+    // Mise à jour d'un encaissement existant
+    const r = Data.getRentalIncomeById(id);
+    if (!r) return;
+    r.startDate       = startVal;
+    r.yearMonth       = startVal.slice(0,7);
+    if (endVal) r.endDate = endVal;
+    r.amountMAD       = madVal    !== '' ? parseFloat(madVal)    : null;
+    r.amountEURairbnb = eurAbVal  !== '' ? parseFloat(eurAbVal)  : null;
+    r.actualAmount    = actualVal !== '' ? parseFloat(actualVal) : null;
+    Data.saveRentalIncome(r);
+  }
+
   _closeEncModal();
   _renderEncaissements();
-  Utils.toast('Encaissement enregistré.', 'success');
+  Utils.toast(isNew ? 'Encaissement ajouté.' : 'Encaissement enregistré.', 'success');
 }
