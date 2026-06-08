@@ -1,6 +1,10 @@
 // location.js — Gestion des revenus locatifs v6
 'use strict';
 
+// Détecte si une entrée est un encaissement standalone (pas une vraie réservation)
+// Gère à la fois le flag explicite et les anciennes entrées créées avant le flag
+const _isEncOnly = r => r.encaissementOnly === true || (r.amount === 0 && (r.amountMAD != null || r.amountEURairbnb != null || r.actualAmount != null));
+
 let _locMonth      = '';
 let _locPropertyId = '';
 let _locCalYear    = new Date().getFullYear();
@@ -160,7 +164,7 @@ window._locCalNext = () => {
 // ── KPIs ─────────────────────────────────────────────────────
 
 function _renderKpis() {
-  const allIncomes = Data.getRentalIncomes();
+  const allIncomes = Data.getRentalIncomes().filter(r => !_isEncOnly(r));
   const currentYm  = Utils.currentYearMonth();
   const now        = new Date();
   const displayYm  = _locMonth || currentYm;
@@ -218,7 +222,7 @@ function _renderKpis() {
 
 function _renderProperties() {
   const props     = Data.getProperties();
-  const allInc    = Data.getRentalIncomes();
+  const allInc    = Data.getRentalIncomes().filter(r => !_isEncOnly(r));
   const container = document.getElementById('properties-list');
 
   if (!props.length) {
@@ -324,7 +328,7 @@ function _renderCalendar() {
 
   const props    = Data.getProperties();
   const propMap  = {}; props.forEach(p => propMap[p.id] = p);
-  const incomes  = Data.getRentalIncomes().filter(r => r.startDate && r.endDate);
+  const incomes  = Data.getRentalIncomes().filter(r => r.startDate && r.endDate && !_isEncOnly(r));
   const filtInc  = _locPropertyId ? incomes.filter(r => r.propertyId === _locPropertyId) : incomes;
 
   const firstDay = new Date(_locCalYear, _locCalMonth, 1);
@@ -452,7 +456,7 @@ function _incomeRow(r, propMap, STATUS) {
 }
 
 function _renderIncomes() {
-  let allInc = Data.getRentalIncomes();
+  let allInc = Data.getRentalIncomes().filter(r => !_isEncOnly(r));
   if (_locPropertyId) allInc = allInc.filter(r => r.propertyId === _locPropertyId);
   if (_locMonth)      allInc = allInc.filter(r => r.yearMonth === _locMonth);
 
@@ -1181,9 +1185,16 @@ window._locDeleteExpense      = _locDeleteExpense;
 // ── Vue Encaissements ─────────────────────────────────────────
 
 function _renderEncaissements() {
+  // Dans la vue encaissements, toujours filtrer sur un mois précis (pas "tous les mois")
+  const encMonth = _locMonth || Utils.currentYearMonth();
+  if (!_locMonth) {
+    _locMonth = encMonth;
+    const navLabel = document.getElementById('loc-month-nav-label');
+    if (navLabel) { const [y,m]=encMonth.split('-'); navLabel.textContent=`${Utils.MONTHS_LONG[+m-1]} ${y}`; }
+  }
   let incomes = Data.getRentalIncomes();
   if (_locPropertyId) incomes = incomes.filter(r => r.propertyId === _locPropertyId);
-  if (_locMonth)      incomes = incomes.filter(r => r.yearMonth === _locMonth);
+  incomes = incomes.filter(r => r.yearMonth === encMonth);
 
   incomes.sort((a,b) => {
     const d = (b.yearMonth||'').localeCompare(a.yearMonth||'');
@@ -1191,8 +1202,8 @@ function _renderEncaissements() {
   });
 
   const propMap = {}; Data.getProperties().forEach(p => propMap[p.id] = p);
-  const [y, m] = (_locMonth || Utils.currentYearMonth()).split('-');
-  const monthLabel = _locMonth ? `${Utils.MONTHS_LONG[+m-1]} ${y}` : 'Tous les mois';
+  const [y, m] = encMonth.split('-');
+  const monthLabel = `${Utils.MONTHS_LONG[+m-1]} ${y}`;
 
   // Totaux
   const totalEstime       = incomes.reduce((s,r) => s + (r.amount || 0), 0);
@@ -1307,43 +1318,9 @@ function _renderEncaissements() {
     </tr>`;
   }).join('');
 
-  if (_locMonth) {
-    tbody.innerHTML = renderRows(incomes);
-  } else {
-    // Grouper par mois
-    const byMonth = {};
-    incomes.forEach(r => {
-      const k = r.yearMonth || '?';
-      if (!byMonth[k]) byMonth[k] = [];
-      byMonth[k].push(r);
-    });
-    let html = '';
-    Object.keys(byMonth).sort((a,b) => b.localeCompare(a)).forEach(ym => {
-      const list = byMonth[ym];
-      const estM     = list.reduce((s,r) => s+(r.amount||0), 0);
-      const madM     = list.filter(r=>r.amountMAD!=null).reduce((s,r)=>s+(r.amountMAD||0),0);
-      const eurAbM   = list.filter(r=>r.amountEURairbnb!=null).reduce((s,r)=>s+(r.amountEURairbnb||0),0);
-      const reelM    = list.filter(r => r.actualAmount != null).reduce((s,r) => s+(r.actualAmount||0), 0);
-      const estSaisM = list.filter(r => r.actualAmount != null).reduce((s,r) => s+(r.amount||0), 0);
-      const tauxM    = estSaisM > 0 ? Math.round(reelM/estSaisM*100) : null;
-      const ecartM   = reelM - estSaisM;
-      let label = ym === '?' ? 'Date inconnue' : (() => { const [yy,mm]=ym.split('-'); return `${Utils.MONTHS_LONG[+mm-1]} ${yy}`; })();
-      html += `<tr style="background:var(--bg);border-top:2px solid var(--border)">
-        <td colspan="2" style="font-weight:700;font-size:0.88rem;padding:8px 12px">${label}</td>
-        <td class="cell-money" style="font-weight:700">
-          ${madM>0?`<div style="font-size:0.82rem">${fmt2(madM)} MAD</div>`:''}
-          ${eurAbM>0?Utils.formatMoney(eurAbM):'—'}
-        </td>
-        <td class="cell-money" style="font-weight:700">${Utils.formatMoney(reelM)}</td>
-        <td class="cell-money" style="font-weight:700;color:var(--text-muted)">${Utils.formatMoney(estM)}</td>
-        <td class="cell-money" style="font-weight:700;color:${ecartM<0?'#dc2626':ecartM>0?'#16a34a':'var(--text-muted)'}">${estSaisM>0?(ecartM>=0?'+':'')+Utils.formatMoney(ecartM):'—'}</td>
-        <td class="cell-money" style="font-weight:700;color:${tauxM==null?'var(--text-muted)':tauxM>=95?'#16a34a':tauxM>=75?'#f59e0b':'#dc2626'}">${tauxM!=null?tauxM+' %':'—'}</td>
-        <td></td>
-      </tr>`;
-      html += renderRows(list);
-    });
-    tbody.innerHTML = html;
-  }
+  tbody.innerHTML = incomes.length === 0
+    ? `<tr><td colspan="8" class="empty-state-cell">Aucun encaissement pour ${monthLabel}.</td></tr>`
+    : renderRows(incomes);
 
   // Total ligne de pied
   const nbTotal  = incomes.length;
@@ -1459,7 +1436,7 @@ function _confirmEncModal() {
       startDate:        startVal,
       endDate:          endVal || null,
       yearMonth:        startVal.slice(0,7),
-      amount:           0, // pas d'estimé pour un encaissement direct
+      amount:           0,
       nightsRented:     nights,
       ratePerNight:     null,
       platform:         'Airbnb',
@@ -1467,6 +1444,7 @@ function _confirmEncModal() {
       amountMAD:        madVal    !== '' ? parseFloat(madVal)    : null,
       amountEURairbnb:  eurAbVal  !== '' ? parseFloat(eurAbVal)  : null,
       actualAmount:     actualVal !== '' ? parseFloat(actualVal) : null,
+      encaissementOnly: true, // ← ne pas compter dans le calendrier/occupation
       notes:            '',
     };
     Data.saveRentalIncome(r);
