@@ -1225,9 +1225,10 @@ function _renderEncaissements() {
     <div class="kpi-card kpi-large">
       <div class="kpi-icon" style="font-size:1.3rem;background:#fef3c7;border-radius:10px;padding:8px">🇲🇦</div>
       <div class="kpi-content" style="min-width:0">
-        <div class="kpi-value" style="font-size:clamp(0.95rem,2vw,1.5rem);word-break:break-all">
-          ${totalMAD > 0 ? totalMAD.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' MAD' : '—'}
+        <div style="font-size:1.1rem;font-weight:700;line-height:1.2">
+          ${totalMAD > 0 ? totalMAD.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—'}
         </div>
+        ${totalMAD > 0 ? '<div style="font-size:0.78rem;font-weight:600;color:var(--text-muted)">MAD</div>' : ''}
         <div class="kpi-label">Total Airbnb en dirhams</div>
         ${avgFx ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Taux moy. : 1 € = ${avgFx.toFixed(2)} MAD</div>` : ''}
       </div>
