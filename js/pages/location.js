@@ -582,14 +582,9 @@ function _openIncomeDrawer(id, preDate, prePropertyId) {
   document.getElementById('inc-nights').value     = income?.nightsRented != null ? income.nightsRented : '';
   document.getElementById('inc-rate').value       = income?.ratePerNight != null ? income.ratePerNight
                                                     : (selectedProp?.defaultRate != null ? selectedProp.defaultRate : '');
-  document.getElementById('inc-status').value              = income?.status || 'received';
-  document.getElementById('inc-amount-mad').value          = income?.amountMAD != null ? income.amountMAD : '';
-  document.getElementById('inc-amount-eur-airbnb').value   = income?.amountEURairbnb != null ? income.amountEURairbnb : '';
-  document.getElementById('inc-actual-amount').value       = income?.actualAmount != null ? income.actualAmount : '';
-  document.getElementById('inc-fx-hint').textContent       = '';
-  document.getElementById('inc-notes').value               = income?.notes || '';
-  document.getElementById('inc-calc-hint').textContent     = '';
-  _locUpdateFxHint();
+  document.getElementById('inc-status').value          = income?.status || 'received';
+  document.getElementById('inc-notes').value           = income?.notes || '';
+  document.getElementById('inc-calc-hint').textContent = '';
   _locCalcTotal();
   document.getElementById('income-drawer').classList.add('open');
   document.getElementById('loc-overlay').classList.add('open');
@@ -631,23 +626,6 @@ function _locCalcTotal() {
   }
 }
 
-window._locUpdateFxHint = function() {
-  const mad = parseFloat(document.getElementById('inc-amount-mad')?.value) || 0;
-  const eur = parseFloat(document.getElementById('inc-amount-eur-airbnb')?.value) || 0;
-  const hint = document.getElementById('inc-fx-hint');
-  if (!hint) return;
-  if (mad > 0 && eur > 0) {
-    const rate = mad / eur;
-    hint.textContent = `Taux de change : 1 € = ${rate.toFixed(2)} MAD`;
-    hint.style.color = 'var(--primary)';
-  } else if (mad > 0) {
-    hint.textContent = `${mad.toLocaleString('fr-FR')} MAD — saisissez le montant EUR pour voir le taux`;
-    hint.style.color = 'var(--text-muted)';
-  } else {
-    hint.textContent = '';
-  }
-};
-
 function _locSaveIncome(e) {
   e.preventDefault();
   const startDate = document.getElementById('inc-start-date').value;
@@ -671,11 +649,8 @@ function _locSaveIncome(e) {
     platform:     document.getElementById('inc-platform').value.trim(),
     nightsRented: nightsVal !== '' ? parseInt(nightsVal,10) : null,
     ratePerNight: rateVal   !== '' ? parseFloat(rateVal)    : null,
-    status:           document.getElementById('inc-status').value,
-    amountMAD:        (() => { const v = document.getElementById('inc-amount-mad').value;        return v !== '' ? parseFloat(v) : null; })(),
-    amountEURairbnb:  (() => { const v = document.getElementById('inc-amount-eur-airbnb').value; return v !== '' ? parseFloat(v) : null; })(),
-    actualAmount:     (() => { const v = document.getElementById('inc-actual-amount').value;     return v !== '' ? parseFloat(v) : null; })(),
-    notes:            document.getElementById('inc-notes').value.trim(),
+    status:       document.getElementById('inc-status').value,
+    notes:        document.getElementById('inc-notes').value.trim(),
   };
   Data.saveRentalIncome(income);
   _locCloseDrawers();
@@ -1388,24 +1363,36 @@ function _renderEncaissements() {
   </tr>`;
 }
 
-// ── Mini-modale encaissement réel ─────────────────────────────
+// ── Mini-modale encaissement ──────────────────────────────────
+
+window._encUpdateFx = function() {
+  const mad = parseFloat(document.getElementById('enc-modal-mad')?.value) || 0;
+  const eur = parseFloat(document.getElementById('enc-modal-eur-airbnb')?.value) || 0;
+  const el  = document.getElementById('enc-modal-fx');
+  if (!el) return;
+  if (mad > 0 && eur > 0) {
+    el.textContent = `Taux : 1 € = ${(mad/eur).toFixed(2)} MAD`;
+    el.style.color = 'var(--primary)';
+  } else {
+    el.textContent = '';
+  }
+};
 
 window._openEncModal = function(id) {
   const r = Data.getRentalIncomeById(id);
   if (!r) return;
   const prop = Data.getPropertyById(r.propertyId);
-  const period = r.startDate && r.endDate ? `${_formatShortDate(r.startDate)} → ${_formatShortDate(r.endDate)}` : '';
-  document.getElementById('enc-modal-id').value = id;
-  document.getElementById('enc-modal-amount').value = r.actualAmount != null ? r.actualAmount : '';
-  const parts = [prop?.name || '—'];
-  if (period) parts.push(period);
-  if (r.amountMAD != null) parts.push(`${r.amountMAD.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})} MAD`);
-  if (r.amountEURairbnb != null) parts.push(`${Utils.formatMoney(r.amountEURairbnb)} EUR Airbnb`);
-  parts.push(`Estimé : ${Utils.formatMoney(r.amount || 0)}`);
-  document.getElementById('enc-modal-desc').textContent = parts.join(' · ');
-  const ov = document.getElementById('enc-modal-overlay');
-  ov.style.display = 'flex';
-  setTimeout(() => document.getElementById('enc-modal-amount').focus(), 50);
+  document.getElementById('enc-modal-id').value            = id;
+  document.getElementById('enc-modal-start').value         = r.startDate        || '';
+  document.getElementById('enc-modal-end').value           = r.endDate          || '';
+  document.getElementById('enc-modal-mad').value           = r.amountMAD        != null ? r.amountMAD        : '';
+  document.getElementById('enc-modal-eur-airbnb').value    = r.amountEURairbnb  != null ? r.amountEURairbnb  : '';
+  document.getElementById('enc-modal-amount').value        = r.actualAmount     != null ? r.actualAmount     : '';
+  document.getElementById('enc-modal-desc').textContent    =
+    `${prop?.name || '—'} — Estimé : ${Utils.formatMoney(r.amount || 0)}`;
+  window._encUpdateFx();
+  document.getElementById('enc-modal-overlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('enc-modal-mad').focus(), 50);
 };
 
 function _closeEncModal() {
@@ -1413,12 +1400,22 @@ function _closeEncModal() {
 }
 
 function _confirmEncModal() {
-  const id  = document.getElementById('enc-modal-id').value;
-  const val = document.getElementById('enc-modal-amount').value;
-  if (val === '') { alert('Merci de saisir un montant.'); return; }
-  const r = Data.getRentalIncomeById(id);
+  const id = document.getElementById('enc-modal-id').value;
+  const r  = Data.getRentalIncomeById(id);
   if (!r) return;
-  r.actualAmount = parseFloat(val) || 0;
+
+  const startVal  = document.getElementById('enc-modal-start').value;
+  const endVal    = document.getElementById('enc-modal-end').value;
+  const madVal    = document.getElementById('enc-modal-mad').value;
+  const eurAbVal  = document.getElementById('enc-modal-eur-airbnb').value;
+  const actualVal = document.getElementById('enc-modal-amount').value;
+
+  if (startVal) { r.startDate = startVal; r.yearMonth = startVal.slice(0,7); }
+  if (endVal)   r.endDate   = endVal;
+  r.amountMAD       = madVal    !== '' ? parseFloat(madVal)    : null;
+  r.amountEURairbnb = eurAbVal  !== '' ? parseFloat(eurAbVal)  : null;
+  r.actualAmount    = actualVal !== '' ? parseFloat(actualVal) : null;
+
   Data.saveRentalIncome(r);
   _closeEncModal();
   _renderEncaissements();
