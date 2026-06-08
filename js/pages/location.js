@@ -582,10 +582,14 @@ function _openIncomeDrawer(id, preDate, prePropertyId) {
   document.getElementById('inc-nights').value     = income?.nightsRented != null ? income.nightsRented : '';
   document.getElementById('inc-rate').value       = income?.ratePerNight != null ? income.ratePerNight
                                                     : (selectedProp?.defaultRate != null ? selectedProp.defaultRate : '');
-  document.getElementById('inc-status').value         = income?.status || 'received';
-  document.getElementById('inc-actual-amount').value  = income?.actualAmount != null ? income.actualAmount : '';
-  document.getElementById('inc-notes').value          = income?.notes || '';
-  document.getElementById('inc-calc-hint').textContent = '';
+  document.getElementById('inc-status').value              = income?.status || 'received';
+  document.getElementById('inc-amount-mad').value          = income?.amountMAD != null ? income.amountMAD : '';
+  document.getElementById('inc-amount-eur-airbnb').value   = income?.amountEURairbnb != null ? income.amountEURairbnb : '';
+  document.getElementById('inc-actual-amount').value       = income?.actualAmount != null ? income.actualAmount : '';
+  document.getElementById('inc-fx-hint').textContent       = '';
+  document.getElementById('inc-notes').value               = income?.notes || '';
+  document.getElementById('inc-calc-hint').textContent     = '';
+  _locUpdateFxHint();
   _locCalcTotal();
   document.getElementById('income-drawer').classList.add('open');
   document.getElementById('loc-overlay').classList.add('open');
@@ -627,6 +631,23 @@ function _locCalcTotal() {
   }
 }
 
+window._locUpdateFxHint = function() {
+  const mad = parseFloat(document.getElementById('inc-amount-mad')?.value) || 0;
+  const eur = parseFloat(document.getElementById('inc-amount-eur-airbnb')?.value) || 0;
+  const hint = document.getElementById('inc-fx-hint');
+  if (!hint) return;
+  if (mad > 0 && eur > 0) {
+    const rate = mad / eur;
+    hint.textContent = `Taux de change : 1 € = ${rate.toFixed(2)} MAD`;
+    hint.style.color = 'var(--primary)';
+  } else if (mad > 0) {
+    hint.textContent = `${mad.toLocaleString('fr-FR')} MAD — saisissez le montant EUR pour voir le taux`;
+    hint.style.color = 'var(--text-muted)';
+  } else {
+    hint.textContent = '';
+  }
+};
+
 function _locSaveIncome(e) {
   e.preventDefault();
   const startDate = document.getElementById('inc-start-date').value;
@@ -650,9 +671,11 @@ function _locSaveIncome(e) {
     platform:     document.getElementById('inc-platform').value.trim(),
     nightsRented: nightsVal !== '' ? parseInt(nightsVal,10) : null,
     ratePerNight: rateVal   !== '' ? parseFloat(rateVal)    : null,
-    status:        document.getElementById('inc-status').value,
-    actualAmount:  (() => { const v = document.getElementById('inc-actual-amount').value; return v !== '' ? parseFloat(v) : null; })(),
-    notes:         document.getElementById('inc-notes').value.trim(),
+    status:           document.getElementById('inc-status').value,
+    amountMAD:        (() => { const v = document.getElementById('inc-amount-mad').value;        return v !== '' ? parseFloat(v) : null; })(),
+    amountEURairbnb:  (() => { const v = document.getElementById('inc-amount-eur-airbnb').value; return v !== '' ? parseFloat(v) : null; })(),
+    actualAmount:     (() => { const v = document.getElementById('inc-actual-amount').value;     return v !== '' ? parseFloat(v) : null; })(),
+    notes:            document.getElementById('inc-notes').value.trim(),
   };
   Data.saveRentalIncome(income);
   _locCloseDrawers();
@@ -1196,36 +1219,49 @@ function _renderEncaissements() {
   const monthLabel = _locMonth ? `${Utils.MONTHS_LONG[+m-1]} ${y}` : 'Tous les mois';
 
   // Totaux
-  const totalEstime  = incomes.reduce((s,r) => s + (r.amount || 0), 0);
-  const totalReel    = incomes.reduce((s,r) => s + (r.actualAmount != null ? r.actualAmount : (r.status === 'received' ? (r.amount || 0) : 0)), 0);
-  const totalSaisi   = incomes.filter(r => r.actualAmount != null).reduce((s,r) => s + (r.actualAmount || 0), 0);
-  const nbSaisi      = incomes.filter(r => r.actualAmount != null).length;
-  const totalEstSaisi = incomes.filter(r => r.actualAmount != null).reduce((s,r) => s + (r.amount || 0), 0);
-  const tauxGlobal   = totalEstSaisi > 0 ? Math.round(totalSaisi / totalEstSaisi * 100) : null;
-  const ecartGlobal  = totalSaisi - totalEstSaisi;
+  const totalEstime       = incomes.reduce((s,r) => s + (r.amount || 0), 0);
+  const totalMAD          = incomes.filter(r => r.amountMAD != null).reduce((s,r) => s + (r.amountMAD || 0), 0);
+  const totalEURairbnb    = incomes.filter(r => r.amountEURairbnb != null).reduce((s,r) => s + (r.amountEURairbnb || 0), 0);
+  const totalSaisi        = incomes.filter(r => r.actualAmount != null).reduce((s,r) => s + (r.actualAmount || 0), 0);
+  const nbSaisi           = incomes.filter(r => r.actualAmount != null).length;
+  const totalEstSaisi     = incomes.filter(r => r.actualAmount != null).reduce((s,r) => s + (r.amount || 0), 0);
+  const tauxGlobal        = totalEstSaisi > 0 ? Math.round(totalSaisi / totalEstSaisi * 100) : null;
+  const ecartGlobal       = totalSaisi - totalEstSaisi;
 
   // KPIs
   const tauxColor = tauxGlobal == null ? 'var(--text-muted)' : tauxGlobal >= 95 ? '#16a34a' : tauxGlobal >= 75 ? '#f59e0b' : '#dc2626';
+  // Taux de change moyen MAD/EUR (sur les lignes ayant les deux)
+  const fxRows = incomes.filter(r => r.amountMAD != null && r.amountEURairbnb != null && r.amountEURairbnb > 0);
+  const avgFx  = fxRows.length > 0 ? (fxRows.reduce((s,r) => s + r.amountMAD / r.amountEURairbnb, 0) / fxRows.length) : null;
+
   document.getElementById('loc-enc-kpis').innerHTML = `
     <div class="kpi-card kpi-large">
-      <div class="kpi-icon kpi-blue">📋</div>
+      <div class="kpi-icon" style="font-size:1.3rem;background:#fef3c7;border-radius:10px;padding:8px">🇲🇦</div>
       <div class="kpi-content">
-        <div class="kpi-value">${Utils.formatMoney(totalEstime)}</div>
-        <div class="kpi-label">Estimé — ${monthLabel}</div>
+        <div class="kpi-value">${totalMAD > 0 ? totalMAD.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' MAD' : '—'}</div>
+        <div class="kpi-label">Total Airbnb en dirhams</div>
+        ${avgFx ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Taux moy. : 1 € = ${avgFx.toFixed(2)} MAD</div>` : ''}
+      </div>
+    </div>
+    <div class="kpi-card kpi-large">
+      <div class="kpi-icon kpi-blue">💶</div>
+      <div class="kpi-content">
+        <div class="kpi-value">${totalEURairbnb > 0 ? Utils.formatMoney(totalEURairbnb) : '—'}</div>
+        <div class="kpi-label">Total Airbnb en euros</div>
       </div>
     </div>
     <div class="kpi-card kpi-large kpi-positive">
       <div class="kpi-icon kpi-green">💳</div>
       <div class="kpi-content">
         <div class="kpi-value">${Utils.formatMoney(totalSaisi)}</div>
-        <div class="kpi-label">Réel encaissé (${nbSaisi} saisies)</div>
+        <div class="kpi-label">Versé réel (${nbSaisi} saisi${nbSaisi>1?'s':''})</div>
       </div>
     </div>
     <div class="kpi-card kpi-large ${ecartGlobal < 0 ? 'kpi-negative' : ecartGlobal > 0 ? 'kpi-positive' : ''}">
       <div class="kpi-icon ${ecartGlobal < 0 ? 'kpi-red' : ecartGlobal > 0 ? 'kpi-green' : 'kpi-gray'}">${ecartGlobal < 0 ? '⬇' : ecartGlobal > 0 ? '⬆' : '='}</div>
       <div class="kpi-content">
         <div class="kpi-value">${ecartGlobal >= 0 ? '+' : ''}${Utils.formatMoney(ecartGlobal)}</div>
-        <div class="kpi-label">Écart réel vs estimé</div>
+        <div class="kpi-label">Écart versé vs estimé</div>
       </div>
     </div>
     <div class="kpi-card kpi-large">
@@ -1247,6 +1283,8 @@ function _renderEncaissements() {
   }
 
   // Grouper par mois si "tous les mois"
+  const fmt2 = n => n != null ? n.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) : null;
+
   const renderRows = (list) => list.map(r => {
     const prop   = propMap[r.propertyId];
     const col    = prop?.color || '#94a3b8';
@@ -1261,24 +1299,34 @@ function _renderEncaissements() {
     const ecartColor = ecart == null ? '' : ecart < 0 ? '#dc2626' : ecart > 0 ? '#16a34a' : 'var(--text-muted)';
     const ecartHtml = ecart == null ? '<span style="color:var(--text-muted)">—</span>'
       : `<span style="color:${ecartColor};font-weight:600">${ecart >= 0 ? '+' : ''}${Utils.formatMoney(ecart)}</span>`;
-
-    const tauxHtml = taux == null ? '<span style="color:var(--text-muted)">—</span>'
+    const tauxHtml  = taux == null ? '<span style="color:var(--text-muted)">—</span>'
       : `<strong style="color:${tauxCol}">${taux} %</strong>`;
-
-    const reelHtml = hasSaisi
+    const reelHtml  = hasSaisi
       ? `<strong>${Utils.formatMoney(reel)}</strong>`
-      : `<span style="color:var(--text-muted);font-style:italic">Non saisi</span>`;
+      : `<span style="color:var(--text-muted);font-style:italic">—</span>`;
+    const madHtml  = r.amountMAD != null
+      ? `<span style="font-weight:600">${fmt2(r.amountMAD)}<span style="font-size:0.7rem;color:var(--text-muted);margin-left:2px">MAD</span></span>`
+      : '<span style="color:var(--text-muted)">—</span>';
+    const eurAirbnbHtml = r.amountEURairbnb != null
+      ? `<strong>${Utils.formatMoney(r.amountEURairbnb)}</strong>`
+      : '<span style="color:var(--text-muted)">—</span>';
+    // Taux de change pour cette ligne
+    const fxLine = r.amountMAD != null && r.amountEURairbnb != null && r.amountEURairbnb > 0
+      ? `<div style="font-size:0.68rem;color:var(--text-muted)">1€=${(r.amountMAD/r.amountEURairbnb).toFixed(2)} MAD</div>`
+      : '';
 
     return `<tr>
       <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(prop?.name || '—')}</td>
       <td class="loc-period-cell">${period}</td>
-      <td class="cell-money">${Utils.formatMoney(estim)}</td>
+      <td class="cell-money">${madHtml}</td>
+      <td class="cell-money">${eurAirbnbHtml}${fxLine}</td>
       <td class="cell-money">${reelHtml}</td>
+      <td class="cell-money" style="color:var(--text-muted)">${Utils.formatMoney(estim)}</td>
       <td class="cell-money">${ecartHtml}</td>
       <td class="cell-money">${tauxHtml}</td>
       <td>
-        <button class="btn btn-ghost btn-xs" title="Saisir l'encaissement réel" onclick="window._openEncModal('${r.id}')">
-          ${hasSaisi ? '✏ Modifier' : '+ Saisir'}
+        <button class="btn btn-ghost btn-xs" title="Saisir l'encaissement" onclick="window._openEncModal('${r.id}')">
+          ${hasSaisi ? '✏' : '+ Saisir'}
         </button>
       </td>
     </tr>`;
@@ -1297,16 +1345,20 @@ function _renderEncaissements() {
     let html = '';
     Object.keys(byMonth).sort((a,b) => b.localeCompare(a)).forEach(ym => {
       const list = byMonth[ym];
-      const estM  = list.reduce((s,r) => s+(r.amount||0), 0);
-      const reelM = list.filter(r => r.actualAmount != null).reduce((s,r) => s+(r.actualAmount||0), 0);
+      const estM     = list.reduce((s,r) => s+(r.amount||0), 0);
+      const madM     = list.filter(r=>r.amountMAD!=null).reduce((s,r)=>s+(r.amountMAD||0),0);
+      const eurAbM   = list.filter(r=>r.amountEURairbnb!=null).reduce((s,r)=>s+(r.amountEURairbnb||0),0);
+      const reelM    = list.filter(r => r.actualAmount != null).reduce((s,r) => s+(r.actualAmount||0), 0);
       const estSaisM = list.filter(r => r.actualAmount != null).reduce((s,r) => s+(r.amount||0), 0);
-      const tauxM = estSaisM > 0 ? Math.round(reelM/estSaisM*100) : null;
-      const ecartM = reelM - estSaisM;
+      const tauxM    = estSaisM > 0 ? Math.round(reelM/estSaisM*100) : null;
+      const ecartM   = reelM - estSaisM;
       let label = ym === '?' ? 'Date inconnue' : (() => { const [yy,mm]=ym.split('-'); return `${Utils.MONTHS_LONG[+mm-1]} ${yy}`; })();
       html += `<tr style="background:var(--bg);border-top:2px solid var(--border)">
         <td colspan="2" style="font-weight:700;font-size:0.88rem;padding:8px 12px">${label}</td>
-        <td class="cell-money" style="font-weight:700">${Utils.formatMoney(estM)}</td>
+        <td class="cell-money" style="font-weight:700">${madM>0?fmt2(madM)+' MAD':'—'}</td>
+        <td class="cell-money" style="font-weight:700">${eurAbM>0?Utils.formatMoney(eurAbM):'—'}</td>
         <td class="cell-money" style="font-weight:700">${Utils.formatMoney(reelM)}</td>
+        <td class="cell-money" style="font-weight:700;color:var(--text-muted)">${Utils.formatMoney(estM)}</td>
         <td class="cell-money" style="font-weight:700;color:${ecartM<0?'#dc2626':ecartM>0?'#16a34a':'var(--text-muted)'}">${estSaisM>0?(ecartM>=0?'+':'')+Utils.formatMoney(ecartM):'—'}</td>
         <td class="cell-money" style="font-weight:700;color:${tauxM==null?'var(--text-muted)':tauxM>=95?'#16a34a':tauxM>=75?'#f59e0b':'#dc2626'}">${tauxM!=null?tauxM+' %':'—'}</td>
         <td></td>
@@ -1317,13 +1369,15 @@ function _renderEncaissements() {
   }
 
   // Total ligne de pied
-  const nbTotal = incomes.length;
+  const nbTotal  = incomes.length;
   const tauxFoot = totalEstSaisi > 0 ? Math.round(totalSaisi/totalEstSaisi*100) : null;
   const ecartFoot = totalSaisi - totalEstSaisi;
   tfoot.innerHTML = `<tr class="total-row" style="border-top:2px solid var(--primary)">
     <td colspan="2"><strong>TOTAL (${nbTotal} réservation${nbTotal>1?'s':''})</strong></td>
-    <td class="cell-money"><strong>${Utils.formatMoney(totalEstime)}</strong></td>
+    <td class="cell-money"><strong>${totalMAD>0?fmt2(totalMAD)+' MAD':'—'}</strong></td>
+    <td class="cell-money"><strong>${totalEURairbnb>0?Utils.formatMoney(totalEURairbnb):'—'}</strong></td>
     <td class="cell-money"><strong>${Utils.formatMoney(totalSaisi)}</strong></td>
+    <td class="cell-money" style="color:var(--text-muted)"><strong>${Utils.formatMoney(totalEstime)}</strong></td>
     <td class="cell-money" style="color:${ecartFoot<0?'#dc2626':ecartFoot>0?'#16a34a':'var(--text-muted)'}">
       <strong>${nbSaisi>0?(ecartFoot>=0?'+':'')+Utils.formatMoney(ecartFoot):'—'}</strong>
     </td>
@@ -1343,8 +1397,12 @@ window._openEncModal = function(id) {
   const period = r.startDate && r.endDate ? `${_formatShortDate(r.startDate)} → ${_formatShortDate(r.endDate)}` : '';
   document.getElementById('enc-modal-id').value = id;
   document.getElementById('enc-modal-amount').value = r.actualAmount != null ? r.actualAmount : '';
-  document.getElementById('enc-modal-desc').textContent =
-    `${prop?.name || '—'}${period ? ' · ' + period : ''} — Estimé : ${Utils.formatMoney(r.amount || 0)}`;
+  const parts = [prop?.name || '—'];
+  if (period) parts.push(period);
+  if (r.amountMAD != null) parts.push(`${r.amountMAD.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})} MAD`);
+  if (r.amountEURairbnb != null) parts.push(`${Utils.formatMoney(r.amountEURairbnb)} EUR Airbnb`);
+  parts.push(`Estimé : ${Utils.formatMoney(r.amount || 0)}`);
+  document.getElementById('enc-modal-desc').textContent = parts.join(' · ');
   const ov = document.getElementById('enc-modal-overlay');
   ov.style.display = 'flex';
   setTimeout(() => document.getElementById('enc-modal-amount').focus(), 50);
