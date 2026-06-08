@@ -116,20 +116,16 @@ function _renderPage() {
   const el = document.getElementById('loc-month-label');
   if (el) el.textContent = _locMonth ? (() => { const [y,m]=_locMonth.split('-'); return `${Utils.MONTHS_LONG[+m-1]} ${y}`; })() : 'Tous les mois';
 
-  const generalSections = [
-    document.getElementById('loc-kpis'),
-    document.getElementById('section-properties'),
-    document.querySelectorAll('details.fin-section')[1], // calendrier
-  ].filter(Boolean);
-  const encSection = document.getElementById('loc-section-encaiss');
+  const generalView = document.getElementById('loc-general-view');
+  const encSection  = document.getElementById('loc-section-encaiss');
 
   if (_locView === 'encaissements') {
-    generalSections.forEach(s => s.style.display = 'none');
-    encSection.style.display = '';
+    generalView.style.display = 'none';
+    encSection.style.display  = '';
     _renderEncaissements();
   } else {
-    generalSections.forEach(s => s.style.display = '');
-    encSection.style.display = 'none';
+    generalView.style.display = '';
+    encSection.style.display  = 'none';
     _renderKpis();
     _renderProperties();
     _renderCalendar();
@@ -1217,8 +1213,10 @@ function _renderEncaissements() {
   document.getElementById('loc-enc-kpis').innerHTML = `
     <div class="kpi-card kpi-large">
       <div class="kpi-icon" style="font-size:1.3rem;background:#fef3c7;border-radius:10px;padding:8px">🇲🇦</div>
-      <div class="kpi-content">
-        <div class="kpi-value">${totalMAD > 0 ? totalMAD.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' MAD' : '—'}</div>
+      <div class="kpi-content" style="min-width:0">
+        <div class="kpi-value" style="font-size:clamp(0.95rem,2vw,1.5rem);word-break:break-all">
+          ${totalMAD > 0 ? totalMAD.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' MAD' : '—'}
+        </div>
         <div class="kpi-label">Total Airbnb en dirhams</div>
         ${avgFx ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Taux moy. : 1 € = ${avgFx.toFixed(2)} MAD</div>` : ''}
       </div>
