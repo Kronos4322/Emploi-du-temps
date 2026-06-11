@@ -572,24 +572,37 @@ function renderOraux() {
     return;
   }
 
-  tbody.innerHTML = oraux.map(o => `<tr>
-    <td>${Utils.formatDate(o.date) || '—'}</td>
-    <td class="cell-money"><strong>${o.count || 0}</strong></td>
-    <td class="cell-money">${Utils.formatMoney(o.unitPrice || 0)}</td>
-    <td class="cell-money"><strong>${Utils.formatMoney(o.total || 0)}</strong></td>
-    <td>
-      <div class="inv-actions">
-        <button onclick="_openOralModal('${o.id}')">Modifier</button>
-        <button class="danger" onclick="_deleteOral('${o.id}')">🗑</button>
-      </div>
-    </td>
-  </tr>`).join('');
+  tbody.innerHTML = oraux.map(o => {
+    const sent = !!o.invoiceSent;
+    const sentBadge = sent
+      ? `<span class="status-badge-paid" style="cursor:pointer" onclick="_toggleOralInvoiceSent('${o.id}')" title="Cliquer pour marquer non envoyée">✓ Envoyée</span>`
+      : `<span class="status-badge-unpaid" style="cursor:pointer" onclick="_toggleOralInvoiceSent('${o.id}')" title="Cliquer pour marquer envoyée">✗ Non envoyée</span>`;
+    return `<tr>
+      <td>${Utils.formatDate(o.date) || '—'}</td>
+      <td class="cell-money"><strong>${o.count || 0}</strong></td>
+      <td class="cell-money">${Utils.formatMoney(o.unitPrice || 0)}</td>
+      <td class="cell-money"><strong>${Utils.formatMoney(o.total || 0)}</strong></td>
+      <td>${sentBadge}</td>
+      <td>
+        <div class="inv-actions">
+          <button onclick="_openOralModal('${o.id}')">Modifier</button>
+          <button class="danger" onclick="_deleteOral('${o.id}')">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
 
+  const sentCount   = oraux.filter(o => o.invoiceSent).length;
+  const unsentCount = oraux.length - sentCount;
   tfoot.innerHTML = `<tr class="total-row" style="border-top:2px solid var(--primary)">
     <td><strong>TOTAL</strong></td>
     <td class="cell-money"><strong>${totalOraux} oraux</strong></td>
     <td></td>
     <td class="cell-money"><strong>${Utils.formatMoney(totalMoney)}</strong></td>
+    <td style="font-size:0.8rem;color:var(--text-muted)">
+      ${sentCount > 0 ? `<span style="color:#16a34a;font-weight:600">${sentCount} envoyée${sentCount>1?'s':''}</span>` : ''}
+      ${unsentCount > 0 ? `<span style="color:#dc2626;font-weight:600;margin-left:6px">${unsentCount} non envoyée${unsentCount>1?'s':''}</span>` : ''}
+    </td>
     <td></td>
   </tr>`;
 }
@@ -641,6 +654,14 @@ function _saveOral() {
   }
   render();
 }
+
+window._toggleOralInvoiceSent = function(id) {
+  const o = Data.getOraux().find(x => x.id === id);
+  if (!o) return;
+  o.invoiceSent = !o.invoiceSent;
+  Data.saveOral(o);
+  renderOraux();
+};
 
 window._deleteOral = function(id) {
   if (!confirm('Supprimer cette session d\'oraux ?')) return;
