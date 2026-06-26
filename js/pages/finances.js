@@ -915,7 +915,20 @@ function renderProviderCosts() {
   `;
 }
 
-// ── Bilan par prestataire (auto, tous les prestataires) ──────────────────────
+// ── Bilan par prestataire (cumul réseau EVOL = tous les freelances) ──────────
+// Les freelances et EVOL Agency sont regroupés sous une seule ligne "réseau"
+// car les missions sont taguées tantôt « EVOL », tantôt au nom du freelance.
+const EVOL_NETWORK_KEY  = 'evol-network';
+const EVOL_NETWORK_NAME = '🤝 EVOL Agency (réseau)';
+function _providerGroup(p) {
+  const st = (p.structure || '').trim().toLowerCase();
+  if (p.id === 'prov-evol' || st === 'freelance' || st.includes('evol')) {
+    return { key: EVOL_NETWORK_KEY, name: EVOL_NETWORK_NAME };
+  }
+  const name = ([p.firstName, p.lastName].filter(Boolean).join(' ') || p.structure || 'Prestataire');
+  return { key: p.id, name };
+}
+
 function renderProviderPartnership() {
   const section = document.getElementById('section-provider-partnership');
   if (!section) return;
@@ -925,7 +938,7 @@ function renderProviderPartnership() {
   const [sy, ey]  = _schoolYear.split('-');
   const dateStart = `${sy}-09-01`, dateEnd = `${ey}-08-31`;
   const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
-  const hasPid = (m, id) => (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])).includes(id);
+  const provById = {}; Data.getProviders().forEach(p => provById[p.id] = p);
 
   // Missions de l'année scolaire (réalisé + prévu), filtrées par pôle actif
   const yearM = Data.getMissions().filter(m =>
@@ -935,18 +948,28 @@ function renderProviderPartnership() {
   // CA total de l'année (base du pourcentage)
   const totalCA = yearM.reduce((s,m) => s + (m.duration||0)*(m.billingRate||0), 0);
 
+  // Agrégation par groupe. Une mission est comptée une seule fois par groupe
+  // (dédup), même si plusieurs prestataires d'un même réseau y figurent.
+  const groups = {};
   let tN=0, tH=0, tR=0, tC=0;
-  const rows = Data.getProviders().map(p => {
-    const ms = yearM.filter(m => hasPid(m, p.id));
-    if (!ms.length) return null;
-    const h   = ms.reduce((s,m)=>s+(m.duration||0),0);
-    const rev = ms.reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0);
-    const cost= ms.reduce((s,m)=>s+(m.duration||0)*(m.providerRate||0),0);
-    tN+=ms.length; tH+=h; tR+=rev; tC+=cost;
-    const pct = totalCA > 0 ? (rev/totalCA*100) : 0;
-    const name = ([p.firstName, p.lastName].filter(Boolean).join(' ') || p.structure || 'Prestataire');
-    return { name, n: ms.length, h, rev, cost, margin: rev-cost, pct };
-  }).filter(Boolean).sort((a,b) => b.rev - a.rev);
+  yearM.forEach(m => {
+    const pids = (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []));
+    if (!pids.length) return;
+    const h = m.duration||0, rev = h*(m.billingRate||0), cost = h*(m.providerRate||0);
+    // Total propre (chaque mission comptée une fois)
+    tN++; tH+=h; tR+=rev; tC+=cost;
+    // Groupes uniques de cette mission
+    const seen = {};
+    pids.forEach(id => { const p = provById[id]; if (p) { const g = _providerGroup(p); seen[g.key] = g.name; } });
+    Object.entries(seen).forEach(([key, name]) => {
+      if (!groups[key]) groups[key] = { name, n:0, h:0, rev:0, cost:0 };
+      groups[key].n++; groups[key].h+=h; groups[key].rev+=rev; groups[key].cost+=cost;
+    });
+  });
+
+  const rows = Object.values(groups).map(g => ({
+    ...g, margin: g.rev - g.cost, pct: totalCA > 0 ? (g.rev/totalCA*100) : 0
+  })).sort((a,b) => b.rev - a.rev);
 
   const tbody = document.getElementById('tbody-provider-partnership');
   tbody.innerHTML = rows.map(r => `<tr>
@@ -973,7 +996,7 @@ function renderProviderPartnership() {
   const lbl = document.getElementById('pp-year-label');
   if (lbl) lbl.textContent = _schoolYear;
   const sum = document.getElementById('pp-summary');
-  if (sum) sum.textContent = rows.length ? `  ·  ${rows.length} prestataire${rows.length>1?'s':''}  ·  CA total année : ${Utils.formatMoney(totalCA)}` : '';
+  if (sum) sum.textContent = rows.length ? `  ·  ${rows.length} ligne${rows.length>1?'s':''}  ·  CA total année : ${Utils.formatMoney(totalCA)}` : '';
 }
 
 // ── Graphique temporel ───────────────────────────────────────────────────────
