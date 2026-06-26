@@ -915,18 +915,28 @@ function renderProviderCosts() {
   `;
 }
 
-// ── Bilan par prestataire (cumul réseau EVOL = tous les freelances) ──────────
-// Les freelances et EVOL Agency sont regroupés sous une seule ligne "réseau"
-// car les missions sont taguées tantôt « EVOL », tantôt au nom du freelance.
+// ── Bilan par prestataire (réseau EVOL = écoles qui travaillent avec EVOL) ────
+// Le rattachement au réseau EVOL se fait par ÉCOLE : une école est "EVOL"
+// dès qu'au moins une de ses missions est taguée réseau EVOL (EVOL Agency ou
+// un freelance). Ensuite TOUTES les missions de cette école comptent EVOL,
+// ce qui rattrape les missions non/mal taguées (ex : CNAM, Cours particuliers).
+// USAC reste hors EVOL car aucune de ses missions n'est taguée EVOL.
 const EVOL_NETWORK_KEY  = 'evol-network';
 const EVOL_NETWORK_NAME = '🤝 EVOL Agency (réseau)';
-function _providerGroup(p) {
+function _isEvolNetworkProvider(p) {
   const st = (p.structure || '').trim().toLowerCase();
-  if (p.id === 'prov-evol' || st === 'freelance' || st.includes('evol')) {
-    return { key: EVOL_NETWORK_KEY, name: EVOL_NETWORK_NAME };
-  }
-  const name = ([p.firstName, p.lastName].filter(Boolean).join(' ') || p.structure || 'Prestataire');
-  return { key: p.id, name };
+  return p.id === 'prov-evol' || st === 'freelance' || st.includes('evol');
+}
+// Ensemble des écoles travaillant avec EVOL (≥ 1 mission taguée réseau EVOL)
+function _getEvolSchoolIds() {
+  const provById = {}; Data.getProviders().forEach(p => provById[p.id] = p);
+  const set = new Set();
+  Data.getMissions().forEach(m => {
+    if (m.status === 'cancelled' || !m.companyId) return;
+    const pids = (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []));
+    if (pids.some(id => { const p = provById[id]; return p && _isEvolNetworkProvider(p); })) set.add(m.companyId);
+  });
+  return set;
 }
 
 function renderProviderPartnership() {
@@ -939,6 +949,7 @@ function renderProviderPartnership() {
   const dateStart = `${sy}-09-01`, dateEnd = `${ey}-08-31`;
   const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
   const provById = {}; Data.getProviders().forEach(p => provById[p.id] = p);
+  const evolSchools = _getEvolSchoolIds();
 
   // Missions de l'année scolaire (réalisé + prévu), filtrées par pôle actif
   const yearM = Data.getMissions().filter(m =>
@@ -949,7 +960,8 @@ function renderProviderPartnership() {
   const totalCA = yearM.reduce((s,m) => s + (m.duration||0)*(m.billingRate||0), 0);
 
   // Attribution UNIQUE : chaque mission est rattachée à un seul groupe.
-  // Priorité au réseau EVOL, sinon au premier prestataire, sinon "Sans prestataire".
+  // EVOL si l'école travaille avec EVOL (ou mission directement taguée EVOL),
+  // sinon au premier prestataire, sinon "Sans prestataire".
   const NONE_KEY = '__none__', NONE_NAME = 'Sans prestataire (missions directes)';
   const groups = {};
   let tN=0, tH=0, tR=0;
@@ -958,14 +970,17 @@ function renderProviderPartnership() {
     const h = m.duration||0, rev = h*(m.billingRate||0);
     tN++; tH+=h; tR+=rev;
     // Déterminer le groupe unique de la mission
-    let gkey = NONE_KEY, gname = NONE_NAME, firstG = null;
-    for (const id of pids) {
-      const p = provById[id]; if (!p) continue;
-      const g = _providerGroup(p);
-      if (g.key === EVOL_NETWORK_KEY) { firstG = g; break; }   // priorité réseau EVOL
-      if (!firstG) firstG = g;                                  // sinon, 1er prestataire
+    const taggedEvol = pids.some(id => { const p = provById[id]; return p && _isEvolNetworkProvider(p); });
+    let gkey, gname;
+    if ((m.companyId && evolSchools.has(m.companyId)) || taggedEvol) {
+      gkey = EVOL_NETWORK_KEY; gname = EVOL_NETWORK_NAME;       // école EVOL
+    } else {
+      // premier prestataire non-EVOL, sinon "Sans prestataire"
+      let first = null;
+      for (const id of pids) { const p = provById[id]; if (p) { first = p; break; } }
+      if (first) { gkey = first.id; gname = ([first.firstName, first.lastName].filter(Boolean).join(' ') || first.structure || 'Prestataire'); }
+      else { gkey = NONE_KEY; gname = NONE_NAME; }
     }
-    if (firstG) { gkey = firstG.key; gname = firstG.name; }
     if (!groups[gkey]) groups[gkey] = { name: gname, n:0, h:0, rev:0 };
     groups[gkey].n++; groups[gkey].h+=h; groups[gkey].rev+=rev;
   });
