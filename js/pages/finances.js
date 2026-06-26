@@ -948,27 +948,30 @@ function renderProviderPartnership() {
   // CA total de l'année (base du pourcentage)
   const totalCA = yearM.reduce((s,m) => s + (m.duration||0)*(m.billingRate||0), 0);
 
-  // Agrégation par groupe. Une mission est comptée une seule fois par groupe
-  // (dédup), même si plusieurs prestataires d'un même réseau y figurent.
+  // Attribution UNIQUE : chaque mission est rattachée à un seul groupe.
+  // Priorité au réseau EVOL, sinon au premier prestataire, sinon "Sans prestataire".
+  const NONE_KEY = '__none__', NONE_NAME = 'Sans prestataire (missions directes)';
   const groups = {};
-  let tN=0, tH=0, tR=0, tC=0;
+  let tN=0, tH=0, tR=0;
   yearM.forEach(m => {
     const pids = (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []));
-    if (!pids.length) return;
-    const h = m.duration||0, rev = h*(m.billingRate||0), cost = h*(m.providerRate||0);
-    // Total propre (chaque mission comptée une fois)
-    tN++; tH+=h; tR+=rev; tC+=cost;
-    // Groupes uniques de cette mission
-    const seen = {};
-    pids.forEach(id => { const p = provById[id]; if (p) { const g = _providerGroup(p); seen[g.key] = g.name; } });
-    Object.entries(seen).forEach(([key, name]) => {
-      if (!groups[key]) groups[key] = { name, n:0, h:0, rev:0, cost:0 };
-      groups[key].n++; groups[key].h+=h; groups[key].rev+=rev; groups[key].cost+=cost;
-    });
+    const h = m.duration||0, rev = h*(m.billingRate||0);
+    tN++; tH+=h; tR+=rev;
+    // Déterminer le groupe unique de la mission
+    let gkey = NONE_KEY, gname = NONE_NAME, firstG = null;
+    for (const id of pids) {
+      const p = provById[id]; if (!p) continue;
+      const g = _providerGroup(p);
+      if (g.key === EVOL_NETWORK_KEY) { firstG = g; break; }   // priorité réseau EVOL
+      if (!firstG) firstG = g;                                  // sinon, 1er prestataire
+    }
+    if (firstG) { gkey = firstG.key; gname = firstG.name; }
+    if (!groups[gkey]) groups[gkey] = { name: gname, n:0, h:0, rev:0 };
+    groups[gkey].n++; groups[gkey].h+=h; groups[gkey].rev+=rev;
   });
 
   const rows = Object.values(groups).map(g => ({
-    ...g, margin: g.rev - g.cost, pct: totalCA > 0 ? (g.rev/totalCA*100) : 0
+    ...g, pct: totalCA > 0 ? (g.rev/totalCA*100) : 0
   })).sort((a,b) => b.rev - a.rev);
 
   const tbody = document.getElementById('tbody-provider-partnership');
@@ -977,10 +980,8 @@ function renderProviderPartnership() {
     <td class="cell-center">${r.n}</td>
     <td class="cell-center">${Utils.formatDuration(r.h)}</td>
     <td class="cell-money">${Utils.formatMoney(r.rev)}</td>
-    <td class="cell-money cell-cost">${Utils.formatMoney(r.cost)}</td>
-    <td class="cell-money" style="color:${r.margin>=0?'var(--success)':'var(--danger)'}">${Utils.formatMoney(r.margin)}</td>
     <td class="cell-center" style="font-weight:600">${r.pct.toFixed(1)} %</td>
-  </tr>`).join('') || '<tr><td colspan="7" class="empty-state-cell">Aucune mission liée à un prestataire sur cette année.</td></tr>';
+  </tr>`).join('') || '<tr><td colspan="5" class="empty-state-cell">Aucune mission sur cette année.</td></tr>';
 
   const tPct = totalCA > 0 ? (tR/totalCA*100) : 0;
   const tfoot = document.getElementById('tfoot-provider-partnership');
@@ -989,9 +990,7 @@ function renderProviderPartnership() {
     <td class="cell-center"><strong>${tN}</strong></td>
     <td class="cell-center"><strong>${Utils.formatDuration(tH)}</strong></td>
     <td class="cell-money"><strong>${Utils.formatMoney(tR)}</strong></td>
-    <td class="cell-money cell-cost"><strong>${Utils.formatMoney(tC)}</strong></td>
-    <td class="cell-money" style="color:${tR-tC>=0?'var(--success)':'var(--danger)'}"><strong>${Utils.formatMoney(tR-tC)}</strong></td>
-    <td class="cell-center"><strong>${tPct.toFixed(1)} %</strong></td>`;
+    <td class="cell-center"><strong>${tPct.toFixed(0)} %</strong></td>`;
 
   const lbl = document.getElementById('pp-year-label');
   if (lbl) lbl.textContent = _schoolYear;
