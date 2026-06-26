@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
   buildCompanyFilter();
   render();
   renderAnnual();
+  renderProviderPartnership();
   renderChart();
 
   document.getElementById('filter-month').addEventListener('change', e => {
@@ -47,10 +48,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (_poleId === RENTAL_POLE) splitEl.value = 'rental';       // Location → afficher location
       else if (prevPole === RENTAL_POLE) splitEl.value = 'poles';  // retour missions → total pôles
     }
-    buildCompanyFilter(); render(); renderAnnual(); renderChart();
+    buildCompanyFilter(); render(); renderAnnual(); renderProviderPartnership(); renderChart();
   });
   document.getElementById('filter-year').addEventListener('change', e => {
-    _schoolYear = e.target.value; renderAnnual();
+    _schoolYear = e.target.value; renderAnnual(); renderProviderPartnership();
     if (document.getElementById('annual-compare-view')?.style.display !== 'none') renderAnnualComparison();
   });
   const _cySel = document.getElementById('filter-compare-year');
@@ -912,6 +913,67 @@ function renderProviderCosts() {
     <td class="cell-money"><strong>${Utils.formatMoney(tyR)}</strong></td>
     <td class="cell-money" style="color:${tyR-tyC>=0?'var(--success)':'var(--danger)'}"><strong>${Utils.formatMoney(tyR-tyC)}</strong></td>
   `;
+}
+
+// ── Bilan par prestataire (auto, tous les prestataires) ──────────────────────
+function renderProviderPartnership() {
+  const section = document.getElementById('section-provider-partnership');
+  if (!section) return;
+  if (_poleId === RENTAL_POLE) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  const [sy, ey]  = _schoolYear.split('-');
+  const dateStart = `${sy}-09-01`, dateEnd = `${ey}-08-31`;
+  const coMap = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
+  const hasPid = (m, id) => (m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : [])).includes(id);
+
+  // Missions de l'année scolaire (réalisé + prévu), filtrées par pôle actif
+  const yearM = Data.getMissions().filter(m =>
+    m.date && m.date >= dateStart && m.date <= dateEnd &&
+    m.status !== 'cancelled' && m.missionType !== 'personal' && _matchesPole(m, coMap)
+  );
+  // CA total de l'année (base du pourcentage)
+  const totalCA = yearM.reduce((s,m) => s + (m.duration||0)*(m.billingRate||0), 0);
+
+  let tN=0, tH=0, tR=0, tC=0;
+  const rows = Data.getProviders().map(p => {
+    const ms = yearM.filter(m => hasPid(m, p.id));
+    if (!ms.length) return null;
+    const h   = ms.reduce((s,m)=>s+(m.duration||0),0);
+    const rev = ms.reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0);
+    const cost= ms.reduce((s,m)=>s+(m.duration||0)*(m.providerRate||0),0);
+    tN+=ms.length; tH+=h; tR+=rev; tC+=cost;
+    const pct = totalCA > 0 ? (rev/totalCA*100) : 0;
+    const name = ([p.firstName, p.lastName].filter(Boolean).join(' ') || p.structure || 'Prestataire');
+    return { name, n: ms.length, h, rev, cost, margin: rev-cost, pct };
+  }).filter(Boolean).sort((a,b) => b.rev - a.rev);
+
+  const tbody = document.getElementById('tbody-provider-partnership');
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td><strong>${Utils.escapeHtml(r.name)}</strong></td>
+    <td class="cell-center">${r.n}</td>
+    <td class="cell-center">${Utils.formatDuration(r.h)}</td>
+    <td class="cell-money">${Utils.formatMoney(r.rev)}</td>
+    <td class="cell-money cell-cost">${Utils.formatMoney(r.cost)}</td>
+    <td class="cell-money" style="color:${r.margin>=0?'var(--success)':'var(--danger)'}">${Utils.formatMoney(r.margin)}</td>
+    <td class="cell-center" style="font-weight:600">${r.pct.toFixed(1)} %</td>
+  </tr>`).join('') || '<tr><td colspan="7" class="empty-state-cell">Aucune mission liée à un prestataire sur cette année.</td></tr>';
+
+  const tPct = totalCA > 0 ? (tR/totalCA*100) : 0;
+  const tfoot = document.getElementById('tfoot-provider-partnership');
+  if (tfoot) tfoot.innerHTML = `
+    <td><strong>Total</strong></td>
+    <td class="cell-center"><strong>${tN}</strong></td>
+    <td class="cell-center"><strong>${Utils.formatDuration(tH)}</strong></td>
+    <td class="cell-money"><strong>${Utils.formatMoney(tR)}</strong></td>
+    <td class="cell-money cell-cost"><strong>${Utils.formatMoney(tC)}</strong></td>
+    <td class="cell-money" style="color:${tR-tC>=0?'var(--success)':'var(--danger)'}"><strong>${Utils.formatMoney(tR-tC)}</strong></td>
+    <td class="cell-center"><strong>${tPct.toFixed(1)} %</strong></td>`;
+
+  const lbl = document.getElementById('pp-year-label');
+  if (lbl) lbl.textContent = _schoolYear;
+  const sum = document.getElementById('pp-summary');
+  if (sum) sum.textContent = rows.length ? `  ·  ${rows.length} prestataire${rows.length>1?'s':''}  ·  CA total année : ${Utils.formatMoney(totalCA)}` : '';
 }
 
 // ── Graphique temporel ───────────────────────────────────────────────────────

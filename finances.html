@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Finances — Emploi du temps</title>
-  <link rel="stylesheet" href="css/style.css?v=202606051436">
+  <link rel="stylesheet" href="css/style.css?v=202606261127">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#3b82f6">
   <meta name="mobile-web-app-capable" content="yes">
@@ -300,6 +300,31 @@
         </div>
       </details>
 
+      <!-- 4b. Bilan par prestataire / partenaire de facturation -->
+      <details class="fin-section" id="section-provider-partnership">
+        <summary>🤝 Bilan par prestataire — <span id="pp-year-label">2025-2026</span>
+          <span style="font-weight:normal;font-size:0.85rem;color:var(--text-muted)" id="pp-summary"></span>
+        </summary>
+        <div class="report-table-wrapper">
+          <table class="data-table">
+            <thead><tr>
+              <th>Prestataire / Partenaire</th>
+              <th class="cell-center">Missions</th>
+              <th class="cell-center">Heures</th>
+              <th class="cell-money">CA facturé</th>
+              <th class="cell-money">Coût</th>
+              <th class="cell-money">Marge nette</th>
+              <th class="cell-center">% du CA</th>
+            </tr></thead>
+            <tbody id="tbody-provider-partnership"></tbody>
+            <tfoot><tr class="table-total" id="tfoot-provider-partnership"></tr></tfoot>
+          </table>
+        </div>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:8px">
+          Inclut les missions réalisées <strong>et prévues</strong> de l'année scolaire sélectionnée. Le « % du CA » est la part du chiffre d'affaires total (toutes missions) apportée via ce prestataire.
+        </p>
+      </details>
+
       <!-- 5. Revenus locatifs -->
       <details class="fin-section" id="section-rental" style="display:none">
         <summary>🏠 Revenus locatifs — <span id="rental-month-label">—</span></summary>
@@ -356,11 +381,11 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="js/utils.js?v=202606051436"></script>
-  <script src="js/data.js?v=202606051436"></script>
-  <script src="js/modals.js?v=202606051436"></script>
-  <script src="js/nav.js?v=202606051436"></script>
-  <script src="js/pages/finances.js?v=202606051436"></script>
+  <script src="js/utils.js?v=202606261127"></script>
+  <script src="js/data.js?v=202606261127"></script>
+  <script src="js/modals.js?v=202606261127"></script>
+  <script src="js/nav.js?v=202606261127"></script>
+  <script src="js/pages/finances.js?v=202606261127"></script>
 </body>
 </html>
 
