@@ -1045,12 +1045,10 @@ window._generateInvoice = function() {
   const ourPhone= ourCo?.phone  || '';
   const ourEmail= ourCo?.email  || '';
   const _bk = (a,b) => (a!=null&&a!=='') ? a : (b||'');
-  // Correction SIRET Artémis (ancienne valeur erronée dans Firebase)
   const _normName = n => (n||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-  if (ourCo && _normName(ourCo.name).includes('artem') && (!ourCo.siret || ourCo.siret === '92192154000016')) {
-    ourCo.siret = '93418651100010';
-  }
-  const siret      = _bk(ourCo?.siret,      settings.siret);
+  // SIRET Artémis toujours forcé — indépendant de ce qui est dans Firebase
+  const _isArtemis = ourCo && _normName(ourCo.name).includes('artem');
+  const siret      = _isArtemis ? '93418651100010' : _bk(ourCo?.siret, settings.siret);
   const iban       = _bk(ourCo?.iban,       settings.iban);
   const bic        = _bk(ourCo?.bic,        settings.bic);
   const codebanque = _bk(ourCo?.codebanque, settings.codebanque);

@@ -382,6 +382,7 @@ const Data = {
     const _ASTER_IBAN = 'FR76 1450 6042 1000 9111 2162 016';
     (this._db.companies || []).forEach(c => {
       if (!_isAsteriaCompany(c)) return;
+      if (_normN(c.name).includes('artem')) return; // Jamais écraser Artémis
       // Forcer aussi le rôle si absent
       if (c.role !== 'own') { c.role = 'own'; changed = true; }
       const _n = Date.now();
