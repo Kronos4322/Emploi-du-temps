@@ -308,6 +308,16 @@ const Data = {
       }
       this._db._poleAssignmentsFixed3 = true;
     }
+
+    // Migration one-shot : corriger le SIRET d'Artémis
+    if (!this._db._siretArtemisFix1) {
+      const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+      const artemis = (this._db.companies||[]).find(c => norm(c.name).includes('artem') && c.role === 'own');
+      if (artemis) {
+        artemis.siret = '93418651100010';
+      }
+      this._db._siretArtemisFix1 = true;
+    }
   },
 
   // ── Données modèle EVOL — pré-remplissage automatique ────────
