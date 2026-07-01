@@ -1,10 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Calendrier â€” Emploi du temps</title>
-  <link rel="stylesheet" href="css/style.css?v=202606261219">
+  <title>Calendrier — Emploi du temps</title>
+  <link rel="stylesheet" href="css/style.css?v=202607011500">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#3b82f6">
   <meta name="mobile-web-app-capable" content="yes">
@@ -23,7 +23,7 @@
       <div class="page-header">
         <h1 class="page-title">Calendrier</h1>
         <div class="page-actions">
-          <button class="btn btn-ghost" id="btn-new-personal" style="border-color:#a78bfa;color:#7c3aed">ðŸ§‘ + Personnel</button>
+          <button class="btn btn-ghost" id="btn-new-personal" style="border-color:#a78bfa;color:#7c3aed">🧑 + Personnel</button>
           <button class="btn btn-primary" id="btn-new-course">+ Nouvelle mission</button>
         </div>
       </div>
@@ -31,7 +31,7 @@
       <!-- Filtres -->
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
         <div style="position:relative">
-          <button id="btn-filter-pole" class="btn btn-ghost btn-sm" onclick="window._calToggle('cal-pole-menu')">ðŸ› PÃ´les <span id="lbl-pole">Tous</span> â–¼</button>
+          <button id="btn-filter-pole" class="btn btn-ghost btn-sm" onclick="window._calToggle('cal-pole-menu')">🏛 Pôles <span id="lbl-pole">Tous</span> ▼</button>
           <div id="cal-pole-menu" style="display:none;position:absolute;top:100%;left:0;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:200px;max-height:280px;overflow-y:auto;padding:6px">
             <div style="display:flex;gap:4px;padding:4px 2px 8px;border-bottom:1px solid var(--border);margin-bottom:4px">
               <button class="btn btn-xs btn-ghost" onclick="window._calSelectAllPole()">Tout</button>
@@ -41,7 +41,7 @@
           </div>
         </div>
         <div style="position:relative">
-          <button id="btn-filter-co" class="btn btn-ghost btn-sm" onclick="window._calToggle('cal-co-menu')">ðŸ¢ Ã‰coles <span id="lbl-co">Toutes</span> â–¼</button>
+          <button id="btn-filter-co" class="btn btn-ghost btn-sm" onclick="window._calToggle('cal-co-menu')">🏢 Écoles <span id="lbl-co">Toutes</span> ▼</button>
           <div id="cal-co-menu" style="display:none;position:absolute;top:100%;left:0;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:220px;max-height:280px;overflow-y:auto;padding:6px">
             <div style="display:flex;gap:4px;padding:4px 2px 8px;border-bottom:1px solid var(--border);margin-bottom:4px">
               <button class="btn btn-xs btn-ghost" onclick="window._calSelectAllCo()">Tout</button>
@@ -51,7 +51,7 @@
           </div>
         </div>
         <div style="position:relative">
-          <button id="btn-filter-prov" class="btn btn-ghost btn-sm" onclick="window._calToggle('cal-prov-menu')">ðŸ‘¤ Prestataires <span id="lbl-prov">Tous</span> â–¼</button>
+          <button id="btn-filter-prov" class="btn btn-ghost btn-sm" onclick="window._calToggle('cal-prov-menu')">👤 Prestataires <span id="lbl-prov">Tous</span> ▼</button>
           <div id="cal-prov-menu" style="display:none;position:absolute;top:100%;left:0;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:220px;max-height:280px;overflow-y:auto;padding:6px">
             <div style="display:flex;gap:4px;padding:4px 2px 8px;border-bottom:1px solid var(--border);margin-bottom:4px">
               <button class="btn btn-xs btn-ghost" onclick="window._calSelectAllProv()">Tout</button>
@@ -61,7 +61,7 @@
           </div>
         </div>
         <div style="position:relative">
-          <button id="btn-filter-stud" class="btn btn-ghost btn-sm" onclick="window._calToggle('cal-stud-menu')">ðŸŽ“ Ã‰tudiants <span id="lbl-stud">Tous</span> â–¼</button>
+          <button id="btn-filter-stud" class="btn btn-ghost btn-sm" onclick="window._calToggle('cal-stud-menu')">🎓 Étudiants <span id="lbl-stud">Tous</span> ▼</button>
           <div id="cal-stud-menu" style="display:none;position:absolute;top:100%;left:0;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:50;min-width:220px;max-height:280px;overflow-y:auto;padding:6px">
             <div style="display:flex;gap:4px;padding:4px 2px 8px;border-bottom:1px solid var(--border);margin-bottom:4px">
               <button class="btn btn-xs btn-ghost" onclick="window._calSelectAllStud()">Tout</button>
@@ -70,19 +70,19 @@
             <div id="cal-stud-list"></div>
           </div>
         </div>
-        <button id="btn-filter-personal" class="btn btn-ghost btn-sm" onclick="window._calTogglePersonal()" style="border-color:#a78bfa;color:#7c3aed">ðŸ§‘ Personnel <span id="lbl-personal">âœ“</span></button>
-        <button class="btn btn-ghost btn-sm" onclick="window._calReset()">âœ• Tout rÃ©initialiser</button>
+        <button id="btn-filter-personal" class="btn btn-ghost btn-sm" onclick="window._calTogglePersonal()" style="border-color:#a78bfa;color:#7c3aed">🧑 Personnel <span id="lbl-personal">✔</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="window._calReset()">✕ Tout réinitialiser</button>
       </div>
 
       <!-- Barre de navigation du calendrier -->
       <div class="calendar-toolbar">
         <div class="cal-nav">
-          <button class="btn btn-ghost btn-icon" id="cal-prev" title="PrÃ©cÃ©dent">â€¹</button>
+          <button class="btn btn-ghost btn-icon" id="cal-prev" title="Précédent">‹</button>
           <button class="btn btn-ghost btn-today" id="cal-today">Aujourd'hui</button>
-          <button class="btn btn-ghost btn-icon" id="cal-next" title="Suivant">â€º</button>
+          <button class="btn btn-ghost btn-icon" id="cal-next" title="Suivant">›</button>
         </div>
         <div style="display:flex;align-items:center;gap:12px">
-          <div class="cal-title" id="cal-title">â€”</div>
+          <div class="cal-title" id="cal-title">—</div>
           <div id="cal-revenue" style="font-size:0.85rem;font-weight:600;color:#8b5cf6;background:#8b5cf615;border:1px solid #8b5cf630;border-radius:20px;padding:3px 12px;white-space:nowrap"></div>
         </div>
         <div class="cal-view-switcher">
@@ -98,13 +98,11 @@
     </main>
   </div>
 
-  <script src="js/utils.js?v=202606261219"></script>
-  <script src="js/data.js?v=202606261219"></script>
-  <script src="js/modals.js?v=202606261219"></script>
-  <script src="js/nav.js?v=202606261219"></script>
-  <script src="js/pages/calendrier.js?v=202606261219"></script>
+  <script src="js/utils.js?v=202607011500"></script>
+  <script src="js/data.js?v=202607011500"></script>
+  <script src="js/modals.js?v=202607011500"></script>
+  <script src="js/nav.js?v=202607011500"></script>
+  <script src="js/pages/calendrier.js?v=202607011500"></script>
 
 </body>
 </html>
-
-
