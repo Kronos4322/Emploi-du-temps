@@ -546,10 +546,14 @@ window._showPlanningExport = function() {
         </div>
       </div>
 
-      <div class="form-group" style="margin:0">
+      <div class="form-group" style="margin:0;display:flex;flex-direction:column;gap:8px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal">
           <input type="checkbox" id="planning-cancelled" style="width:auto">
           Inclure les missions annulées
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal">
+          <input type="checkbox" id="planning-show-amounts" checked style="width:auto">
+          Afficher les montants
         </label>
       </div>
     </div>
@@ -587,6 +591,7 @@ window._generatePlanning = function() {
   const monthTo       = isRange ? (document.getElementById('planning-to-sel')?.value   || '') : monthFrom;
   const poleId        = document.getElementById('planning-pole-sel')?.value || '';
   const inclCancelled = document.getElementById('planning-cancelled')?.checked || false;
+  const showAmounts   = document.getElementById('planning-show-amounts')?.checked !== false;
 
   const checkedProvs = [...document.querySelectorAll('.planning-prov-chk:checked')].map(c => c.value);
   const allChecked   = document.getElementById('planning-prov-all')?.checked;
@@ -666,18 +671,18 @@ window._generatePlanning = function() {
             ${m.location?`<span class="mission-loc">📍 ${Utils.escapeHtml(m.location)}</span>`:''}
             ${provNames?`<span class="mission-prov">👤 ${Utils.escapeHtml(provNames)}</span>`:''}
           </td>
-          <td class="td-duration">${Utils.formatDuration(m.duration)}<br><span style="font-size:7.5pt;color:#94a3b8;font-weight:400">${m.billingRate||0}€/h</span></td>
-          <td class="td-amount">${Utils.formatMoney(lineAmt)}</td>
+          <td class="td-duration">${Utils.formatDuration(m.duration)}${showAmounts?`<br><span style="font-size:7.5pt;color:#94a3b8;font-weight:400">${m.billingRate||0}€/h</span>`:''}</td>
+          ${showAmounts ? `<td class="td-amount">${Utils.formatMoney(lineAmt)}</td>` : ''}
         </tr>`;
       }).join('');
       return `<tbody class="day-group">
         <tr class="day-header">
-          <td colspan="4">
+          <td colspan="${showAmounts?4:5}">
             <span class="day-num">${d.getDate()}</span>
             <span class="day-name">${DAYS_FR[d.getDay()].toUpperCase()}</span>
             <span class="day-total">${Utils.formatDuration(dayH)}</span>
           </td>
-          <td style="background:#f8fafc;padding:7px 10px;border-top:2px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-align:right;font-size:9pt;font-weight:700;color:#475569;white-space:nowrap">${Utils.formatMoney(dayAmt)}</td>
+          ${showAmounts ? `<td style="background:#f8fafc;padding:7px 10px;border-top:2px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-align:right;font-size:9pt;font-weight:700;color:#475569;white-space:nowrap">${Utils.formatMoney(dayAmt)}</td>` : ''}
         </tr>
         ${missionLines}
       </tbody>`;
@@ -699,14 +704,14 @@ window._generatePlanning = function() {
         <tr class="month-separator">
           <td colspan="5">
             <span class="month-sep-name">${monthLabel(ym)}</span>
-            <span class="month-sep-stats">${Utils.formatDuration(mH)} — ${Utils.formatMoney(mRev)}</span>
+            <span class="month-sep-stats">${Utils.formatDuration(mH)}${showAmounts ? ` — ${Utils.formatMoney(mRev)}` : ''}</span>
           </td>
         </tr>
         ${buildDayRows(ms)}
         <tbody><tr class="month-subtotal">
-          <td colspan="3" style="text-align:right;padding:8px 10px;font-size:8.5pt;color:#64748b;font-style:italic">Sous-total ${monthLabel(ym)}</td>
+          <td colspan="${showAmounts?3:4}" style="text-align:right;padding:8px 10px;font-size:8.5pt;color:#64748b;font-style:italic">Sous-total ${monthLabel(ym)}</td>
           <td style="padding:8px 6px;text-align:right;font-size:9pt;font-weight:700;color:#475569">${Utils.formatDuration(mH)}</td>
-          <td style="padding:8px 10px;text-align:right;font-size:9pt;font-weight:700;color:#1e293b">${Utils.formatMoney(mRev)}</td>
+          ${showAmounts ? `<td style="padding:8px 10px;text-align:right;font-size:9pt;font-weight:700;color:#1e293b">${Utils.formatMoney(mRev)}</td>` : ''}
         </tr></tbody>`;
     }).join('');
   }
@@ -800,7 +805,7 @@ window._generatePlanning = function() {
   <div class="doc-footer">
     <div class="footer-kpi"><div class="val">${planCount}</div><div class="lbl">Missions prévues</div></div>
     <div class="footer-kpi"><div class="val">${Utils.formatDuration(totalH)}</div><div class="lbl">Heures totales</div></div>
-    <div class="footer-kpi"><div class="val">${Utils.formatMoney(totalRev)}</div><div class="lbl">CA total</div></div>
+    ${showAmounts ? `<div class="footer-kpi"><div class="val">${Utils.formatMoney(totalRev)}</div><div class="lbl">CA total</div></div>` : ''}
   </div>
 
   <div class="footer-sign">${respName === poleLabel ? respName : respName+' — '+poleLabel} — ${monthName}</div>
