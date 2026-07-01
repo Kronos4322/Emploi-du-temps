@@ -1,4 +1,4 @@
-const CACHE = 'edt-v202606261219';
+﻿const CACHE = 'edt-v202607011434';
 const STATIC = [
   '/Emploi-du-temps/',
   '/Emploi-du-temps/index.html',
@@ -28,9 +28,9 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = e.request.url;
-  // Firebase et googleapis → toujours réseau (jamais de cache — données dynamiques)
+  // Firebase et googleapis â†’ toujours rÃ©seau (jamais de cache â€” donnÃ©es dynamiques)
   if (url.includes('firebase') || url.includes('googleapis')) return;
-  // Tout le reste (HTML, CSS, JS applicatif) → réseau d'abord, cache en fallback
+  // Tout le reste (HTML, CSS, JS applicatif) â†’ rÃ©seau d'abord, cache en fallback
   e.respondWith(
     fetch(e.request).then(r => {
       if (r.ok) {
@@ -41,3 +41,4 @@ self.addEventListener('fetch', e => {
     }).catch(() => caches.match(e.request))
   );
 });
+

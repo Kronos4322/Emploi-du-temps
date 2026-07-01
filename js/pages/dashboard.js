@@ -1,4 +1,4 @@
-// dashboard.js v4
+// dashboard.js v5
 'use strict';
 
 let _dashPole = ''; // '' = tous, sinon poleId
@@ -484,18 +484,19 @@ window._showPlanningExport = function() {
 
   Modals._open(`
     <div class="modal-header">
-      <h3>📄 Exporter un planning mensuel</h3>
+      <h3>📄 Exporter un planning</h3>
       <button class="modal-close" onclick="Modals.close()">✕</button>
     </div>
     <div class="modal-body modal-body-scroll" style="padding:24px;display:flex;flex-direction:column;gap:16px">
       <p style="color:var(--text-muted);font-size:0.88rem;margin:0">
-        Génère un document imprimable (style agenda) pour le mois sélectionné.
+        Génère un document imprimable (style agenda) pour le mois sélectionné ou la totalité de l'emploi du temps.
       </p>
 
       <div class="form-grid">
         <div class="form-group form-col-2">
-          <label>Mois</label>
+          <label>Période</label>
           <select id="planning-month-sel" class="form-input">
+            <option value="all">📋 Toutes les périodes</option>
             ${months.map(m => `<option value="${m}" ${m===currentM?'selected':''}>${monthLabel(m)}</option>`).join('')}
           </select>
         </div>
@@ -541,38 +542,33 @@ window._generatePlanning = function() {
   const month         = document.getElementById('planning-month-sel')?.value;
   const poleId        = document.getElementById('planning-pole-sel')?.value || '';
   const inclCancelled = document.getElementById('planning-cancelled')?.checked || false;
+  const isAll         = month === 'all';
 
-  // Prestataires sélectionnés (null = tous)
   const checkedProvs = [...document.querySelectorAll('.planning-prov-chk:checked')].map(c => c.value);
   const allChecked   = document.getElementById('planning-prov-all')?.checked;
-  const provFilter   = allChecked ? null : new Set(checkedProvs); // null = pas de filtre
+  const provFilter   = allChecked ? null : new Set(checkedProvs);
 
   Modals.close();
   if (!month) return;
 
   const MONTHS_FR  = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   const DAYS_FR    = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
-  const DAYS_SHORT = ['DIM.','LUN.','MAR.','MER.','JEU.','VEN.','SAM.'];
-  const [yr, mo]   = month.split('-');
-  const monthName  = `${MONTHS_FR[+mo-1]} ${yr}`;
+  const monthLabel = m => { const [y,mo] = m.split('-'); return `${MONTHS_FR[+mo-1]} ${y}`; };
+  const monthName  = isAll ? 'Emploi du temps complet' : monthLabel(month);
 
   const coMap   = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
   const provMap = {}; Data.getProviders().forEach(p => provMap[p.id] = p);
   const ownCos  = Data.getOwnCompanies();
 
-  // Filtrer les missions du mois
-  let missions = Data.getMissions().filter(m => m.date && m.date.startsWith(month));
+  let missions = Data.getMissions().filter(m => m.date && (isAll || m.date.startsWith(month)));
   if (!inclCancelled) missions = missions.filter(m => m.status !== 'cancelled');
   if (poleId) missions = missions.filter(m => {
     const co = coMap[m.companyId]; if (!co) return false;
-    if (co.role === 'own') return co.id === poleId;
-    return co.poleId === poleId;
+    return co.role === 'own' ? co.id === poleId : co.poleId === poleId;
   });
-  // Filtre prestataires
   if (provFilter !== null) {
     missions = missions.filter(m => {
       const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
-      // Garder si au moins un prestataire sélectionné est impliqué
       return pids.some(pid => provFilter.has(pid));
     });
   }
@@ -580,101 +576,120 @@ window._generatePlanning = function() {
 
   if (!missions.length) { Utils.toast('Aucune mission trouvée pour ces critères.', 'success'); return; }
 
-  // Grouper par date
-  const byDate = {};
-  missions.forEach(m => { if (!byDate[m.date]) byDate[m.date] = []; byDate[m.date].push(m); });
-
-  // Totaux
-  const totalH     = missions.reduce((s,m) => s+(m.duration||0), 0);
-  const totalRev   = missions.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
-  const totalCost  = missions.reduce((s,m) => {
-    const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
-    return pids.length ? s+(m.duration||0)*(m.providerRate||0) : s;
-  }, 0);
-  const doneCount  = missions.filter(m => m.status==='done').length;
-  const planCount  = missions.filter(m => m.status==='planned').length;
-
   const settings  = Data.getSettings();
   const respName  = settings.responsableName || ownCos.map(c=>c.name).join(' & ');
   const poleLabel = poleId ? (coMap[poleId]?.name||'') : ownCos.map(c=>c.name).join(' & ');
 
-  // Palettes statuts
   const statusBadge = s => s==='done' ? '✓' : s==='cancelled' ? '✗' : '';
   const statusColor = s => s==='done' ? '#22c55e' : s==='cancelled' ? '#ef4444' : '#3b82f6';
 
-  // Générer les lignes par jour
-  const dayRows = Object.entries(byDate).sort(([a],[b])=>a.localeCompare(b)).map(([date, ms]) => {
-    const d = new Date(date + 'T00:00:00');
-    const dayNum  = d.getDate();
-    const dayName = DAYS_FR[d.getDay()];
-    const dayShort = DAYS_SHORT[d.getDay()];
-    const dayH    = ms.reduce((s,m)=>s+(m.duration||0),0);
-    const dayAmt  = ms.reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0);
-
-    const missionLines = ms.map(m => {
-      const co = coMap[m.companyId];
-      const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
-      const provNames = pids.map(pid => { const p=provMap[pid]; return p?p.lastName+' '+p.firstName:''; }).filter(Boolean).join(', ');
-      const time = m.startTime && m.endTime
-        ? `De ${m.startTime.replace(':','h')} à ${m.endTime.replace(':','h')}`
-        : (m.startTime ? `À ${m.startTime.replace(':','h')}` : '—');
-      const loc = m.location || '';
-      const badge = statusBadge(m.status);
-      const bColor = statusColor(m.status);
-      const isCancelled = m.status === 'cancelled';
-      const lineAmt = (m.duration||0) * (m.billingRate||0);
-      return `<tr class="${isCancelled?'cancelled':''}">
-        <td class="td-time">${time}</td>
-        <td class="td-dot"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${co?co.color:'#94a3b8'};flex-shrink:0"></span></td>
-        <td class="td-title">
-          <span class="mission-title">${badge?`<span style="color:${bColor};font-weight:700;margin-right:4px">${badge}</span>`:''}${Utils.escapeHtml(m.title)}</span>
-          ${co?`<span class="mission-school">${Utils.escapeHtml(co.name)}</span>`:''}
-          ${loc?`<span class="mission-loc">📍 ${Utils.escapeHtml(loc)}</span>`:''}
-          ${provNames?`<span class="mission-prov">👤 ${Utils.escapeHtml(provNames)}</span>`:''}
-        </td>
-        <td class="td-duration">${Utils.formatDuration(m.duration)}<br><span style="font-size:7.5pt;color:#94a3b8;font-weight:400">${m.billingRate||0}€/h</span></td>
-        <td class="td-amount">${Utils.formatMoney(lineAmt)}</td>
-      </tr>`;
+  // Générer les lignes d'une liste de missions groupées par date
+  function buildDayRows(ms) {
+    const byDate = {};
+    ms.forEach(m => { if (!byDate[m.date]) byDate[m.date] = []; byDate[m.date].push(m); });
+    return Object.entries(byDate).sort(([a],[b])=>a.localeCompare(b)).map(([date, dayMs]) => {
+      const d      = new Date(date + 'T00:00:00');
+      const dayH   = dayMs.reduce((s,m)=>s+(m.duration||0),0);
+      const dayAmt = dayMs.reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0);
+      const missionLines = dayMs.map(m => {
+        const co   = coMap[m.companyId];
+        const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+        const provNames = pids.map(pid => { const p=provMap[pid]; return p?p.lastName+' '+p.firstName:''; }).filter(Boolean).join(', ');
+        const time = m.startTime && m.endTime
+          ? `De ${m.startTime.replace(':','h')} à ${m.endTime.replace(':','h')}`
+          : (m.startTime ? `À ${m.startTime.replace(':','h')}` : '—');
+        const badge       = statusBadge(m.status);
+        const bColor      = statusColor(m.status);
+        const isCancelled = m.status === 'cancelled';
+        const lineAmt     = (m.duration||0) * (m.billingRate||0);
+        return `<tr class="${isCancelled?'cancelled':''}">
+          <td class="td-time">${time}</td>
+          <td class="td-dot"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${co?co.color:'#94a3b8'};flex-shrink:0"></span></td>
+          <td class="td-title">
+            <span class="mission-title">${badge?`<span style="color:${bColor};font-weight:700;margin-right:4px">${badge}</span>`:''}${Utils.escapeHtml(m.title)}</span>
+            ${co?`<span class="mission-school">${Utils.escapeHtml(co.name)}</span>`:''}
+            ${m.location?`<span class="mission-loc">📍 ${Utils.escapeHtml(m.location)}</span>`:''}
+            ${provNames?`<span class="mission-prov">👤 ${Utils.escapeHtml(provNames)}</span>`:''}
+          </td>
+          <td class="td-duration">${Utils.formatDuration(m.duration)}<br><span style="font-size:7.5pt;color:#94a3b8;font-weight:400">${m.billingRate||0}€/h</span></td>
+          <td class="td-amount">${Utils.formatMoney(lineAmt)}</td>
+        </tr>`;
+      }).join('');
+      return `<tbody class="day-group">
+        <tr class="day-header">
+          <td colspan="4">
+            <span class="day-num">${d.getDate()}</span>
+            <span class="day-name">${DAYS_FR[d.getDay()].toUpperCase()}</span>
+            <span class="day-total">${Utils.formatDuration(dayH)}</span>
+          </td>
+          <td style="background:#f8fafc;padding:7px 10px;border-top:2px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-align:right;font-size:9pt;font-weight:700;color:#475569;white-space:nowrap">${Utils.formatMoney(dayAmt)}</td>
+        </tr>
+        ${missionLines}
+      </tbody>`;
     }).join('');
+  }
 
-    return `<tbody class="day-group">
-      <tr class="day-header">
-        <td colspan="4">
-          <span class="day-num">${dayNum}</span>
-          <span class="day-name">${dayName.toUpperCase()}</span>
-          <span class="day-total">${Utils.formatDuration(dayH)}</span>
-        </td>
-        <td style="background:#f8fafc;padding:7px 10px;border-top:2px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-align:right;font-size:9pt;font-weight:700;color:#475569;white-space:nowrap">${Utils.formatMoney(dayAmt)}</td>
-      </tr>
-      ${missionLines}
-    </tbody>`;
-  }).join('');
+  // En mode "toutes périodes" : une section par mois avec sous-total + récap
+  function buildAllMonthsSections() {
+    const msByMonth = {};
+    missions.forEach(m => {
+      const ym = m.date.substring(0,7);
+      if (!msByMonth[ym]) msByMonth[ym] = [];
+      msByMonth[ym].push(m);
+    });
+    return Object.entries(msByMonth).sort(([a],[b])=>a.localeCompare(b)).map(([ym, ms]) => {
+      const mH   = ms.reduce((s,m)=>s+(m.duration||0),0);
+      const mRev = ms.reduce((s,m)=>s+(m.duration||0)*(m.billingRate||0),0);
+      return `
+        <tr class="month-separator">
+          <td colspan="5">
+            <span class="month-sep-name">${monthLabel(ym)}</span>
+            <span class="month-sep-stats">${Utils.formatDuration(mH)} — ${Utils.formatMoney(mRev)}</span>
+          </td>
+        </tr>
+        ${buildDayRows(ms)}
+        <tbody><tr class="month-subtotal">
+          <td colspan="3" style="text-align:right;padding:8px 10px;font-size:8.5pt;color:#64748b;font-style:italic">Sous-total ${monthLabel(ym)}</td>
+          <td style="padding:8px 6px;text-align:right;font-size:9pt;font-weight:700;color:#475569">${Utils.formatDuration(mH)}</td>
+          <td style="padding:8px 10px;text-align:right;font-size:9pt;font-weight:700;color:#1e293b">${Utils.formatMoney(mRev)}</td>
+        </tr></tbody>`;
+    }).join('');
+  }
+
+  const tableContent = isAll ? buildAllMonthsSections() : buildDayRows(missions);
+
+  const totalH    = missions.reduce((s,m) => s+(m.duration||0), 0);
+  const totalRev  = missions.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
+  const doneCount = missions.filter(m => m.status==='done').length;
+  const planCount = missions.filter(m => m.status==='planned').length;
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Planning ${monthName} — ${poleLabel}</title>
+  <title>${monthName} — ${poleLabel}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; color: #1e293b; background: #fff; padding: 18mm 16mm; }
 
-    /* En-tête */
     .doc-header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1e293b; padding-bottom: 10px; margin-bottom: 18px; }
     .doc-title   { font-size: 20pt; font-weight: 800; letter-spacing: -0.5px; }
     .doc-month   { font-size: 13pt; font-weight: 600; color: #3b82f6; }
     .doc-meta    { text-align: right; font-size: 9pt; color: #64748b; line-height: 1.6; }
 
-    /* Tableau */
     table { width: 100%; border-collapse: collapse; }
 
-    /* Entête de jour */
+    /* Séparateur de mois (mode complet) */
+    .month-separator td { background: #1e293b; color: #fff; padding: 10px 14px; }
+    .month-sep-name  { font-size: 12pt; font-weight: 800; letter-spacing: 0.02em; }
+    .month-sep-stats { float: right; font-size: 9pt; font-weight: 400; opacity: 0.75; margin-top: 3px; }
+    .month-subtotal td { background: #f1f5f9; border-top: 2px solid #cbd5e1; }
+
     .day-header td { background: #f8fafc; padding: 8px 10px; border-top: 2px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; }
     .day-num  { font-size: 16pt; font-weight: 800; color: #1e293b; margin-right: 8px; }
     .day-name { font-size: 9pt; font-weight: 700; color: #64748b; letter-spacing: 0.08em; }
     .day-total{ float: right; font-size: 9pt; font-weight: 600; color: #64748b; background: #e2e8f0; border-radius: 10px; padding: 1px 8px; margin-top: 4px; }
 
-    /* Lignes missions */
     .td-time     { width: 130px; padding: 7px 10px 7px 18px; font-size: 9.5pt; color: #475569; vertical-align: top; white-space: nowrap; }
     .td-dot      { width: 18px; padding: 10px 4px 0; vertical-align: top; }
     .td-title    { padding: 7px 10px; vertical-align: top; }
@@ -689,7 +704,6 @@ window._generatePlanning = function() {
     tr:nth-child(even) td { background: #fafbfc; }
     .cancelled td { opacity: 0.45; text-decoration: line-through; }
 
-    /* Pied de page */
     .doc-footer { margin-top: 24px; padding-top: 14px; border-top: 2px solid #e2e8f0; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
     .footer-kpi { text-align: center; background: #f8fafc; border-radius: 8px; padding: 10px; }
     .footer-kpi .val { font-size: 15pt; font-weight: 800; color: #1e293b; }
@@ -700,6 +714,7 @@ window._generatePlanning = function() {
       body { padding: 12mm 10mm; }
       .no-print { display: none !important; }
       .day-group { break-inside: avoid; }
+      .month-separator { break-before: page; }
       tr { break-inside: avoid; }
     }
   </style>
@@ -707,14 +722,14 @@ window._generatePlanning = function() {
 <body>
 
   <div class="no-print" style="background:#3b82f6;color:#fff;padding:10px 18px;border-radius:8px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between">
-    <span>📄 Planning <strong>${monthName}</strong> — Prêt à imprimer</span>
+    <span>📄 <strong>${monthName}</strong>${poleId?' — '+poleLabel:''} — Prêt à imprimer</span>
     <button onclick="window.print()" style="background:#fff;color:#3b82f6;border:none;border-radius:6px;padding:6px 16px;font-weight:700;cursor:pointer;font-size:0.9rem">🖨 Imprimer / Sauvegarder PDF</button>
   </div>
 
   <div class="doc-header">
     <div>
-      <div class="doc-title">Planning mensuel</div>
-      <div class="doc-month">${monthName}${poleId ? ' — '+poleLabel : ''}</div>
+      <div class="doc-title">${isAll ? 'Emploi du temps' : 'Planning mensuel'}</div>
+      <div class="doc-month">${isAll ? 'Toutes les périodes' : monthName}${poleId ? ' — '+poleLabel : ''}</div>
     </div>
     <div class="doc-meta">
       ${respName}<br>
@@ -724,16 +739,16 @@ window._generatePlanning = function() {
   </div>
 
   <table>
-    ${dayRows}
+    ${tableContent}
   </table>
 
   <div class="doc-footer">
     <div class="footer-kpi"><div class="val">${planCount}</div><div class="lbl">Missions prévues</div></div>
     <div class="footer-kpi"><div class="val">${Utils.formatDuration(totalH)}</div><div class="lbl">Heures totales</div></div>
-    <div class="footer-kpi"><div class="val">${Utils.formatMoney(totalRev)}</div><div class="lbl">CA facturé</div></div>
+    <div class="footer-kpi"><div class="val">${Utils.formatMoney(totalRev)}</div><div class="lbl">CA total</div></div>
   </div>
 
-  <div class="footer-sign">${respName === poleLabel ? respName : respName+' — '+poleLabel} — Planning ${monthName}</div>
+  <div class="footer-sign">${respName === poleLabel ? respName : respName+' — '+poleLabel} — ${monthName}</div>
 
 </body>
 </html>`;
