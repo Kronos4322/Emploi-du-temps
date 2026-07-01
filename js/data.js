@@ -112,7 +112,9 @@ const Data = {
       }
       _fbLastTs = fbData._updatedAt;
       const localTs = parseInt(localStorage.getItem('_edt_ts') || '0');
-      const needsMigration = (fbData.companies || []).some(c => !c.role) || !fbData._poleAssignmentsFixed3 || !fbData._siretArtemisFix1;
+      const needsMigration = (fbData.companies || []).some(c => !c.role) || !fbData._poleAssignmentsFixed3 || !fbData._siretArtemisFix1
+        || (fbData.settings||{}).siret === '92192154000016'
+        || (fbData.companies||[]).some(c => c.role === 'own' && (c.name||'').toLowerCase().includes('artem') && c.siret !== '93418651100010');
 
       // R3 — Toujours fusionner : préserve les créations offline même quand Firebase est plus récent
       // (pire cas : résurrection d'un item supprimé — acceptable vs perte de création offline)
@@ -328,7 +330,7 @@ const Data = {
 
     // Infos de facturation Artémis (issues de la facture modèle EVOL)
     const defaults = {
-      siret:              '92192154000016',
+      siret:              '93418651100010',
       iban:               'FR76 1450 6042 1000 9205 3190 347',
       bic:                'AGRIFRPP845',
       codebanque:         '14506',
@@ -340,9 +342,12 @@ const Data = {
     Object.entries(defaults).forEach(([k,v]) => {
       if (!s[k]) { s[k] = v; changed = true; }
     });
+    // Forcer la correction du SIRET Artémis dans les settings si ancienne valeur
+    if (s.siret === '92192154000016') { s.siret = '93418651100010'; changed = true; }
     if (changed) this._db.settings = s;
 
     // Adresse / contact communs aux deux pôles (même personne physique)
+    const _normN = n => (n||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
     (this._db.companies || []).forEach(c => {
       if (c.role !== 'own') return;
       let coChanged = false;
@@ -352,6 +357,10 @@ const Data = {
       }
       if (!c.email) { c.email = 'camille-chapuis@hotmail.fr'; coChanged = true; }
       if (!c.phone) { c.phone = '06.68.11.59.67';            coChanged = true; }
+      // Forcer le bon SIRET sur Artémis
+      if (_normN(c.name).includes('artem') && c.siret !== '93418651100010') {
+        c.siret = '93418651100010'; coChanged = true;
+      }
       if (coChanged) { c.updatedAt = Date.now(); changed = true; }
     });
 
