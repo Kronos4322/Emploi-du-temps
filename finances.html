@@ -1,10 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Finances â€” Emploi du temps</title>
-  <link rel="stylesheet" href="css/style.css?v=202606261219">
+  <title>Finances — Emploi du temps</title>
+  <link rel="stylesheet" href="css/style.css?v=202607011500">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#3b82f6">
   <meta name="mobile-web-app-capable" content="yes">
@@ -14,8 +14,8 @@
   <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
   <style>
     details.fin-section > summary { cursor:pointer; padding:10px 0; font-weight:700; font-size:1rem; list-style:none; display:flex; align-items:center; justify-content:space-between; color:var(--text); border-bottom:1px solid var(--border); margin-bottom:12px; }
-    details.fin-section > summary::after { content:'â–²'; font-size:0.7rem; color:var(--text-muted); transition:transform .2s; }
-    details.fin-section:not([open]) > summary::after { content:'â–¼'; }
+    details.fin-section > summary::after { content:'▲'; font-size:0.7rem; color:var(--text-muted); transition:transform .2s; }
+    details.fin-section:not([open]) > summary::after { content:'▼'; }
     details.fin-section { margin-bottom:20px; }
     .month-nav { display:flex; align-items:center; gap:4px; }
     .month-nav-btn { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:6px 10px; cursor:pointer; font-size:0.95rem; line-height:1; color:var(--text); transition:background .15s; }
@@ -31,23 +31,23 @@
       <div class="page-header">
         <h1 class="page-title">Finances</h1>
         <div class="page-actions">
-          <button class="btn btn-ghost" id="btn-export-csv">â¬‡ Export CSV</button>
-          <button class="btn btn-ghost" id="btn-print">ðŸ–¨ Imprimer</button>
+          <button class="btn btn-ghost" id="btn-export-csv">⬇ Export CSV</button>
+          <button class="btn btn-ghost" id="btn-print">🖨 Imprimer</button>
         </div>
       </div>
 
       <!-- Filtres -->
       <div class="filters-bar" style="flex-wrap:wrap;gap:8px">
         <div class="month-nav">
-          <button class="month-nav-btn" id="btn-prev-month" title="Mois prÃ©cÃ©dent">â€¹</button>
+          <button class="month-nav-btn" id="btn-prev-month" title="Mois précédent">‹</button>
           <select id="filter-month" class="form-input filter-select"></select>
-          <button class="month-nav-btn" id="btn-next-month" title="Mois suivant">â€º</button>
+          <button class="month-nav-btn" id="btn-next-month" title="Mois suivant">›</button>
         </div>
         <select id="filter-pole"    class="form-input filter-select"></select>
         <select id="filter-company" class="form-input filter-select"></select>
         <details id="filter-provider-details" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);min-width:180px">
           <summary style="padding:5px 10px;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:var(--text-muted);list-style:none;user-select:none;outline:none">
-            ðŸ‘¤ Prestataires &nbsp;<span id="filter-provider-summary" style="font-weight:600;color:var(--text);font-size:0.82rem"></span>
+            👤 Prestataires &nbsp;<span id="filter-provider-summary" style="font-weight:600;color:var(--text);font-size:0.82rem"></span>
           </summary>
           <div id="filter-provider-checks" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 10px 8px;border-top:1px solid var(--border)"></div>
         </details>
@@ -57,55 +57,55 @@
       <details class="fin-section" open>
         <summary><span id="report-title-summary">Rapport mensuel</span></summary>
 
-        <!-- Ligne CA par pÃ´le (visible en mode "Tous les pÃ´les") -->
+        <!-- Ligne CA par pôle (visible en mode "Tous les pôles") -->
         <div id="fin-pole-kpi-row" class="kpi-grid" style="display:none;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)"></div>
 
         <div class="kpi-grid kpi-finance">
           <div class="kpi-card kpi-large">
-            <div class="kpi-icon kpi-green">ðŸ’¶</div>
+            <div class="kpi-icon kpi-green">💶</div>
             <div class="kpi-content">
-              <div class="kpi-value" id="fin-revenue">â€”</div>
-              <div class="kpi-label">CA total (rÃ©alisÃ© + prÃ©vu)</div>
+              <div class="kpi-value" id="fin-revenue">—</div>
+              <div class="kpi-label">CA total (réalisé + prévu)</div>
             </div>
           </div>
           <div class="kpi-card kpi-large">
-            <div class="kpi-icon kpi-red">ðŸ“¤</div>
+            <div class="kpi-icon kpi-red">📤</div>
             <div class="kpi-content">
-              <div class="kpi-value" id="fin-costs">â€”</div>
-              <div class="kpi-label">Charges prestataires (rÃ©alisÃ© + prÃ©vu)</div>
+              <div class="kpi-value" id="fin-costs">—</div>
+              <div class="kpi-label">Charges prestataires (réalisé + prévu)</div>
             </div>
           </div>
           <div class="kpi-card kpi-large" id="fin-margin-card">
-            <div class="kpi-icon kpi-teal">ðŸ“Š</div>
+            <div class="kpi-icon kpi-teal">📊</div>
             <div class="kpi-content">
-              <div class="kpi-value" id="fin-margin">â€”</div>
+              <div class="kpi-value" id="fin-margin">—</div>
               <div class="kpi-label">Marge nette</div>
             </div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-icon kpi-blue">âœ“</div>
+            <div class="kpi-icon kpi-blue">✓</div>
             <div class="kpi-content">
-              <div class="kpi-value" id="fin-hours-done">â€”</div>
-              <div class="kpi-label">Heures rÃ©alisÃ©es</div>
+              <div class="kpi-value" id="fin-hours-done">—</div>
+              <div class="kpi-label">Heures réalisées</div>
             </div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-icon kpi-gray">ðŸ“…</div>
+            <div class="kpi-icon kpi-gray">📅</div>
             <div class="kpi-content">
-              <div class="kpi-value" id="fin-hours-planned">â€”</div>
-              <div class="kpi-label">Heures prÃ©vues</div>
+              <div class="kpi-value" id="fin-hours-planned">—</div>
+              <div class="kpi-label">Heures prévues</div>
             </div>
           </div>
         </div>
 
         <div id="section-by-company">
-          <h3 class="section-title" id="section-by-company-title">RÃ©partition par Ã©cole / client</h3>
+          <h3 class="section-title" id="section-by-company-title">Répartition par école / client</h3>
           <!-- Table missions (mode normal) -->
           <div class="report-table-wrapper" id="missions-by-company-table">
             <table class="data-table">
               <thead><tr>
-                <th>Ã‰cole / Client</th>
-                <th class="cell-center">Missions (rÃ©alisÃ© + prÃ©vu)</th>
+                <th>École / Client</th>
+                <th class="cell-center">Missions (réalisé + prévu)</th>
                 <th class="cell-center">Heures</th>
                 <th class="cell-money">Revenu</th>
                 <th>Part</th>
@@ -113,9 +113,9 @@
               <tbody id="tbody-by-company"></tbody>
               <tfoot><tr class="table-total">
                 <td><strong>Total</strong></td>
-                <td class="cell-center" id="total-count"><strong>â€”</strong></td>
-                <td class="cell-center" id="total-hours"><strong>â€”</strong></td>
-                <td class="cell-money" id="total-revenue"><strong>â€”</strong></td>
+                <td class="cell-center" id="total-count"><strong>—</strong></td>
+                <td class="cell-center" id="total-hours"><strong>—</strong></td>
+                <td class="cell-money" id="total-revenue"><strong>—</strong></td>
                 <td></td>
               </tr></tfoot>
             </table>
@@ -134,8 +134,8 @@
                 <tbody id="tbody-by-prop"></tbody>
                 <tfoot><tr class="table-total">
                   <td colspan="2"><strong>Total</strong></td>
-                  <td class="cell-center" id="total-prop-nights"><strong>â€”</strong></td>
-                  <td class="cell-money" id="total-prop-revenue"><strong>â€”</strong></td>
+                  <td class="cell-center" id="total-prop-nights"><strong>—</strong></td>
+                  <td class="cell-money" id="total-prop-revenue"><strong>—</strong></td>
                   <td></td>
                 </tr></tfoot>
               </table>
@@ -148,9 +148,9 @@
           <div class="report-table-wrapper">
             <table class="data-table">
               <thead><tr>
-                <th>Prestataire</th><th>SpÃ©cialitÃ©</th>
+                <th>Prestataire</th><th>Spécialité</th>
                 <th class="cell-center">Missions</th><th class="cell-center">Heures</th>
-                <th class="cell-money">Tarif</th><th class="cell-money">Total dÃ»</th>
+                <th class="cell-money">Tarif</th><th class="cell-money">Total dû</th>
               </tr></thead>
               <tbody id="tbody-by-provider"></tbody>
             </table>
@@ -158,13 +158,13 @@
         </div>
 
         <div style="margin-top:16px" id="section-done-missions">
-          <h3 class="section-title" id="done-section-title">Missions rÃ©alisÃ©es</h3>
+          <h3 class="section-title" id="done-section-title">Missions réalisées</h3>
           <!-- Table missions (mode normal) -->
           <div class="report-table-wrapper" id="missions-done-table">
             <table class="data-table">
               <thead><tr>
-                <th>Date</th><th>Titre</th><th>SociÃ©tÃ©</th>
-                <th>DurÃ©e</th><th class="cell-money">Tarif</th>
+                <th>Date</th><th>Titre</th><th>Société</th>
+                <th>Durée</th><th class="cell-money">Tarif</th>
                 <th class="cell-money">Revenu</th><th>Paiement</th>
               </tr></thead>
               <tbody id="tbody-done"></tbody>
@@ -184,27 +184,27 @@
               </table>
             </div>
             <div style="margin-top:10px">
-              <a href="location.html" class="btn btn-ghost btn-sm">â†’ GÃ©rer les biens et revenus</a>
+              <a href="location.html" class="btn btn-ghost btn-sm">→ Gérer les biens et revenus</a>
             </div>
           </div>
         </div>
 
         <div id="section-cancelled" style="display:none;margin-top:16px">
-          <h3 class="section-title" id="cancelled-title">Missions annulÃ©es</h3>
+          <h3 class="section-title" id="cancelled-title">Missions annulées</h3>
           <div class="cancelled-list" id="cancelled-list"></div>
         </div>
       </details>
 
-      <!-- 2. Charges prestataires sÃ©lectionnÃ©s -->
+      <!-- 2. Charges prestataires sélectionnés -->
       <details class="fin-section" id="section-provider-costs" style="display:none">
-        <summary>Charges prestataires sÃ©lectionnÃ©s</summary>
+        <summary>Charges prestataires sélectionnés</summary>
         <div class="report-table-wrapper">
           <table class="data-table">
             <thead><tr>
               <th>Prestataire</th>
-              <th class="cell-center">Interv. (mois)</th><th class="cell-money">CoÃ»t (mois)</th>
+              <th class="cell-center">Interv. (mois)</th><th class="cell-money">Coût (mois)</th>
               <th class="cell-money">CA (mois)</th><th class="cell-money">Marge (mois)</th>
-              <th class="cell-center">Interv. (annÃ©e scol.)</th><th class="cell-money">CoÃ»t (AS)</th>
+              <th class="cell-center">Interv. (année scol.)</th><th class="cell-money">Coût (AS)</th>
               <th class="cell-money">CA (AS)</th><th class="cell-money">Marge (AS)</th>
             </tr></thead>
             <tbody id="tbody-provider-costs"></tbody>
@@ -215,15 +215,15 @@
 
       <!-- 3. Graphique temporel -->
       <details class="fin-section" open>
-        <summary>Ã‰volution temporelle</summary>
+        <summary>Évolution temporelle</summary>
         <div class="chart-controls" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
           <select id="chart-group" class="form-input filter-select" style="width:auto">
             <option value="month">Par mois</option>
-            <option value="year">Par annÃ©e scolaire</option>
+            <option value="year">Par année scolaire</option>
           </select>
           <select id="chart-split" class="form-input filter-select" style="width:auto">
-            <option value="poles">ArtÃ©mis + AstÃ©ria</option>
-            <option value="schools">Par Ã©cole</option>
+            <option value="poles">Artémis + Astéria</option>
+            <option value="schools">Par école</option>
           </select>
           <select id="chart-type" class="form-input filter-select" style="width:auto">
             <option value="bar">Barres</option>
@@ -232,15 +232,15 @@
           </select>
           <span style="color:var(--text-muted);font-size:0.85rem;margin-left:6px">| Moy. de</span>
           <select id="avg-period-start" class="form-input filter-select" style="width:auto"></select>
-          <span style="color:var(--text-muted);font-size:0.85rem">Ã </span>
+          <span style="color:var(--text-muted);font-size:0.85rem">à</span>
           <select id="avg-period-end" class="form-input filter-select" style="width:auto"></select>
         </div>
         <canvas id="fin-chart" height="100"></canvas>
       </details>
 
-      <!-- 4. Bilan annuel (en dernier) -->
+      <!-- 4. Bilan annuel -->
       <details class="fin-section">
-        <summary>Bilan annuel â€” <span id="annual-year-label">2025-2026</span>
+        <summary>Bilan annuel — <span id="annual-year-label">2025-2026</span>
           <span style="display:flex;align-items:center;gap:8px;font-weight:normal;font-size:0.85rem;flex-wrap:wrap">
             <select id="filter-year" class="form-input filter-select" style="width:auto" onclick="event.stopPropagation()"></select>
             <span style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;flex-shrink:0" onclick="event.stopPropagation()">
@@ -255,20 +255,20 @@
           </span>
         </summary>
 
-        <!-- Vue bilan (dÃ©faut) -->
+        <!-- Vue bilan (défaut) -->
         <div id="annual-bilan-view" class="report-table-wrapper">
           <table class="data-table">
             <thead><tr>
-              <th>Ã‰cole / Client</th><th class="cell-money">Tarif/h</th>
+              <th>École / Client</th><th class="cell-money">Tarif/h</th>
               <th class="cell-center">Missions</th><th class="cell-center">Heures</th>
               <th class="cell-money">CA total</th><th>Via</th>
             </tr></thead>
             <tbody id="tbody-annual"></tbody>
             <tfoot><tr class="table-total">
               <td colspan="2"><strong>Total</strong></td>
-              <td class="cell-center" id="annual-total-count"><strong>â€”</strong></td>
-              <td class="cell-center" id="annual-total-hours"><strong>â€”</strong></td>
-              <td class="cell-money" id="annual-total-revenue"><strong>â€”</strong></td>
+              <td class="cell-center" id="annual-total-count"><strong>—</strong></td>
+              <td class="cell-center" id="annual-total-hours"><strong>—</strong></td>
+              <td class="cell-money" id="annual-total-revenue"><strong>—</strong></td>
               <td></td>
             </tr></tfoot>
           </table>
@@ -279,10 +279,10 @@
           <table class="data-table">
             <thead>
               <tr>
-                <th rowspan="2">Ã‰cole / Client</th>
-                <th colspan="3" class="cell-center" id="compare-header-a" style="border-bottom:1px solid var(--border)">â€”</th>
-                <th colspan="3" class="cell-center" id="compare-header-b" style="border-bottom:1px solid var(--border)">â€”</th>
-                <th rowspan="2" class="cell-center">Î” Heures</th>
+                <th rowspan="2">École / Client</th>
+                <th colspan="3" class="cell-center" id="compare-header-a" style="border-bottom:1px solid var(--border)">—</th>
+                <th colspan="3" class="cell-center" id="compare-header-b" style="border-bottom:1px solid var(--border)">—</th>
+                <th rowspan="2" class="cell-center">Δ Heures</th>
                 <th rowspan="2" class="cell-center">Statut</th>
               </tr>
               <tr>
@@ -302,7 +302,7 @@
 
       <!-- 4b. Bilan par prestataire / partenaire de facturation -->
       <details class="fin-section" id="section-provider-partnership">
-        <summary>ðŸ¤ Bilan par prestataire â€” <span id="pp-year-label">2025-2026</span>
+        <summary>🤝 Bilan par prestataire — <span id="pp-year-label">2025-2026</span>
           <span style="font-weight:normal;font-size:0.85rem;color:var(--text-muted)" id="pp-summary"></span>
         </summary>
         <div class="report-table-wrapper">
@@ -311,7 +311,7 @@
               <th>Prestataire / Partenaire</th>
               <th class="cell-center">Missions</th>
               <th class="cell-center">Heures</th>
-              <th class="cell-money">CA facturÃ©</th>
+              <th class="cell-money">CA facturé</th>
               <th class="cell-center">% du CA</th>
             </tr></thead>
             <tbody id="tbody-provider-partnership"></tbody>
@@ -319,32 +319,32 @@
           </table>
         </div>
         <p style="font-size:0.78rem;color:var(--text-muted);margin-top:8px">
-          Inclut les missions rÃ©alisÃ©es <strong>et prÃ©vues</strong> de l'annÃ©e scolaire sÃ©lectionnÃ©e. Chaque mission est comptÃ©e une seule fois ; le Â« % du CA Â» indique la part du chiffre d'affaires total apportÃ©e par chaque prestataire / rÃ©seau. Le rÃ©seau EVOL regroupe EVOL Agency et tous les freelances.
+          Inclut les missions réalisées <strong>et prévues</strong> de l'année scolaire sélectionnée. Chaque mission est comptée une seule fois ; le « % du CA » indique la part du chiffre d'affaires total apportée par chaque prestataire / réseau. Le réseau EVOL regroupe EVOL Agency et tous les freelances.
         </p>
       </details>
 
       <!-- 5. Revenus locatifs -->
       <details class="fin-section" id="section-rental" style="display:none">
-        <summary>ðŸ  Revenus locatifs â€” <span id="rental-month-label">â€”</span></summary>
+        <summary>🏠 Revenus locatifs — <span id="rental-month-label">—</span></summary>
         <div class="kpi-grid" style="margin-bottom:16px">
           <div class="kpi-card">
-            <div class="kpi-icon kpi-green">ðŸ </div>
+            <div class="kpi-icon kpi-green">🏠</div>
             <div class="kpi-content">
-              <div class="kpi-value" id="rental-total">â€”</div>
+              <div class="kpi-value" id="rental-total">—</div>
               <div class="kpi-label">Revenus locatifs</div>
             </div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-icon kpi-blue">ðŸ˜</div>
+            <div class="kpi-icon kpi-blue">🏘</div>
             <div class="kpi-content">
-              <div class="kpi-value" id="rental-count">â€”</div>
-              <div class="kpi-label">PropriÃ©tÃ©s actives</div>
+              <div class="kpi-value" id="rental-count">—</div>
+              <div class="kpi-label">Propriétés actives</div>
             </div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-icon kpi-orange">âš </div>
+            <div class="kpi-icon kpi-orange">⚠</div>
             <div class="kpi-content">
-              <div class="kpi-value" id="rental-pending">â€”</div>
+              <div class="kpi-value" id="rental-pending">—</div>
               <div class="kpi-label">En attente</div>
             </div>
           </div>
@@ -352,7 +352,7 @@
         <div class="report-table-wrapper">
           <table class="data-table">
             <thead><tr>
-              <th>PropriÃ©tÃ©</th>
+              <th>Propriété</th>
               <th>Plateforme</th>
               <th class="cell-center">Nuits</th>
               <th class="cell-money">Revenu</th>
@@ -362,29 +362,27 @@
             <tbody id="rental-tbody"></tbody>
             <tfoot><tr class="table-total">
               <td colspan="3"><strong>Total</strong></td>
-              <td class="cell-money" id="rental-tfoot-total"><strong>â€”</strong></td>
+              <td class="cell-money" id="rental-tfoot-total"><strong>—</strong></td>
               <td colspan="2"></td>
             </tr></tfoot>
           </table>
         </div>
         <div style="margin-top:10px">
-          <a href="location.html" class="btn btn-ghost btn-sm">â†’ GÃ©rer les propriÃ©tÃ©s et revenus</a>
+          <a href="location.html" class="btn btn-ghost btn-sm">→ Gérer les propriétés et revenus</a>
         </div>
       </details>
 
       <!-- Hidden report title for JS compat -->
-      <h2 id="report-title" style="display:none">â€”</h2>
+      <h2 id="report-title" style="display:none">—</h2>
 
     </main>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="js/utils.js?v=202606261219"></script>
-  <script src="js/data.js?v=202606261219"></script>
-  <script src="js/modals.js?v=202606261219"></script>
-  <script src="js/nav.js?v=202606261219"></script>
-  <script src="js/pages/finances.js?v=202606261219"></script>
+  <script src="js/utils.js?v=202607011500"></script>
+  <script src="js/data.js?v=202607011500"></script>
+  <script src="js/modals.js?v=202607011500"></script>
+  <script src="js/nav.js?v=202607011500"></script>
+  <script src="js/pages/finances.js?v=202607011500"></script>
 </body>
 </html>
-
-
