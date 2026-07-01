@@ -489,24 +489,46 @@ window._showPlanningExport = function() {
     </div>
     <div class="modal-body modal-body-scroll" style="padding:24px;display:flex;flex-direction:column;gap:16px">
       <p style="color:var(--text-muted);font-size:0.88rem;margin:0">
-        Génère un document imprimable (style agenda) pour le mois sélectionné ou la totalité de l'emploi du temps.
+        Génère un document imprimable pour un mois, une plage de dates, ou la totalité de l'emploi du temps.
       </p>
 
-      <div class="form-grid">
+      <div class="form-group">
+        <label style="margin-bottom:8px;display:block">Période</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-primary" id="plan-mode-all"   onclick="window._setPlanMode('all')">📋 Tout</button>
+          <button class="btn btn-sm btn-ghost"   id="plan-mode-range" onclick="window._setPlanMode('range')">📅 Plage</button>
+          <button class="btn btn-sm btn-ghost"   id="plan-mode-month" onclick="window._setPlanMode('month')">🗓 Mois unique</button>
+        </div>
+      </div>
+
+      <div id="plan-range-row" style="display:none;gap:12px" class="form-grid">
         <div class="form-group form-col-2">
-          <label>Période</label>
-          <select id="planning-month-sel" class="form-input">
-            <option value="all">📋 Toutes les périodes</option>
+          <label>De</label>
+          <select id="planning-from-sel" class="form-input">
+            ${months.slice().reverse().map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group form-col-2">
+          <label>À</label>
+          <select id="planning-to-sel" class="form-input">
             ${months.map(m => `<option value="${m}" ${m===currentM?'selected':''}>${monthLabel(m)}</option>`).join('')}
           </select>
         </div>
-        <div class="form-group form-col-2">
-          <label>Pôle (optionnel)</label>
-          <select id="planning-pole-sel" class="form-input">
-            <option value="">Tous les pôles</option>
-            ${Data.getOwnCompanies().map(c => `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`).join('')}
-          </select>
-        </div>
+      </div>
+
+      <div id="plan-month-row" style="display:none" class="form-group">
+        <label>Mois</label>
+        <select id="planning-month-sel" class="form-input">
+          ${months.map(m => `<option value="${m}" ${m===currentM?'selected':''}>${monthLabel(m)}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Pôle (optionnel)</label>
+        <select id="planning-pole-sel" class="form-input">
+          <option value="">Tous les pôles</option>
+          ${Data.getOwnCompanies().map(c => `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`).join('')}
+        </select>
       </div>
 
       <div class="form-group">
@@ -536,31 +558,64 @@ window._showPlanningExport = function() {
       <button class="btn btn-primary" onclick="window._generatePlanning()">🖨 Générer & Imprimer</button>
     </div>
   `);
+  // Initialiser le mode par défaut après ouverture
+  setTimeout(() => window._setPlanMode('all'), 0);
+};
+
+window._setPlanMode = function(mode) {
+  ['all','range','month'].forEach(m => {
+    const btn = document.getElementById('plan-mode-'+m);
+    if (btn) { btn.className = 'btn btn-sm ' + (m === mode ? 'btn-primary' : 'btn-ghost'); }
+  });
+  const rangeRow = document.getElementById('plan-range-row');
+  const monthRow = document.getElementById('plan-month-row');
+  if (rangeRow) rangeRow.style.display = mode === 'range' ? 'flex' : 'none';
+  if (monthRow) monthRow.style.display = mode === 'month' ? 'block' : 'none';
+  if (document.getElementById('planning-mode')) document.getElementById('planning-mode').value = mode;
+  else {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.id = 'planning-mode'; inp.value = mode;
+    document.querySelector('.modal-body')?.appendChild(inp);
+  }
 };
 
 window._generatePlanning = function() {
-  const month         = document.getElementById('planning-month-sel')?.value;
+  const mode          = document.getElementById('planning-mode')?.value || 'all';
+  const isAll         = mode === 'all';
+  const isRange       = mode === 'range';
+  const monthFrom     = isRange ? (document.getElementById('planning-from-sel')?.value || '') : (document.getElementById('planning-month-sel')?.value || '');
+  const monthTo       = isRange ? (document.getElementById('planning-to-sel')?.value   || '') : monthFrom;
   const poleId        = document.getElementById('planning-pole-sel')?.value || '';
   const inclCancelled = document.getElementById('planning-cancelled')?.checked || false;
-  const isAll         = month === 'all';
 
   const checkedProvs = [...document.querySelectorAll('.planning-prov-chk:checked')].map(c => c.value);
   const allChecked   = document.getElementById('planning-prov-all')?.checked;
   const provFilter   = allChecked ? null : new Set(checkedProvs);
 
   Modals.close();
-  if (!month) return;
+  if (!isAll && !monthFrom) return;
 
   const MONTHS_FR  = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   const DAYS_FR    = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
   const monthLabel = m => { const [y,mo] = m.split('-'); return `${MONTHS_FR[+mo-1]} ${y}`; };
-  const monthName  = isAll ? 'Emploi du temps complet' : monthLabel(month);
+
+  // Libellé de la période pour le titre
+  const mTo     = (isRange && monthTo && monthTo >= monthFrom) ? monthTo : monthFrom;
+  const monthName = isAll    ? 'Emploi du temps complet'
+                  : isRange  ? `${monthLabel(monthFrom)} → ${monthLabel(mTo)}`
+                  :             monthLabel(monthFrom);
 
   const coMap   = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
   const provMap = {}; Data.getProviders().forEach(p => provMap[p.id] = p);
   const ownCos  = Data.getOwnCompanies();
 
-  let missions = Data.getMissions().filter(m => m.date && (isAll || m.date.startsWith(month)));
+  let missions = Data.getMissions().filter(m => {
+    if (!m.date) return false;
+    if (isAll)   return true;
+    const ym = m.date.substring(0,7);
+    if (isRange) return ym >= monthFrom && ym <= mTo;
+    return m.date.startsWith(monthFrom);
+  });
   if (!inclCancelled) missions = missions.filter(m => m.status !== 'cancelled');
   if (poleId) missions = missions.filter(m => {
     const co = coMap[m.companyId]; if (!co) return false;
@@ -656,7 +711,7 @@ window._generatePlanning = function() {
     }).join('');
   }
 
-  const tableContent = isAll ? buildAllMonthsSections() : buildDayRows(missions);
+  const tableContent = (isAll || isRange) ? buildAllMonthsSections() : buildDayRows(missions);
 
   const totalH    = missions.reduce((s,m) => s+(m.duration||0), 0);
   const totalRev  = missions.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
@@ -728,8 +783,8 @@ window._generatePlanning = function() {
 
   <div class="doc-header">
     <div>
-      <div class="doc-title">${isAll ? 'Emploi du temps' : 'Planning mensuel'}</div>
-      <div class="doc-month">${isAll ? 'Toutes les périodes' : monthName}${poleId ? ' — '+poleLabel : ''}</div>
+      <div class="doc-title">${isAll ? 'Emploi du temps' : isRange ? 'Planning' : 'Planning mensuel'}</div>
+      <div class="doc-month">${monthName}${poleId ? ' — '+poleLabel : ''}</div>
     </div>
     <div class="doc-meta">
       ${respName}<br>

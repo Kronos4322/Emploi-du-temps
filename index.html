@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tableau de bord â€” Emploi du temps</title>
+  <title>Tableau de bord — Emploi du temps</title>
   <link rel="stylesheet" href="css/style.css?v=202607011434">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#3b82f6">
@@ -22,13 +22,13 @@
       <div class="page-header">
         <h1 class="page-title">Tableau de bord</h1>
         <div class="page-actions">
-          <button class="btn btn-ghost" onclick="window._showInvoiceExport()">ðŸ“‹ PrÃ©parer une facture</button>
-          <button class="btn btn-ghost" onclick="window._showPlanningExport()">ðŸ“„ Planning mensuel</button>
-          <a class="btn btn-primary" href="calendrier.html">ðŸ“… Aller au calendrier</a>
+          <button class="btn btn-ghost" onclick="window._showInvoiceExport()">📋 Préparer une facture</button>
+          <button class="btn btn-ghost" onclick="window._showPlanningExport()">📄 Export planning</button>
+          <a class="btn btn-primary" href="calendrier.html">📅 Aller au calendrier</a>
         </div>
       </div>
 
-      <!-- Switch pÃ´le + KPIs -->
+      <!-- Switch pôle + KPIs -->
       <div style="margin-bottom:20px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
           <span style="font-size:0.82rem;color:var(--text-muted)">Afficher :</span>
@@ -37,15 +37,15 @@
         <div class="kpi-grid" id="kpi-grid"></div>
       </div>
 
-      <!-- AperÃ§u par Ã©coles et Ã©tudiants (collapsible) -->
+      <!-- Aperçu par écoles et étudiants (collapsible) -->
       <details class="fin-section" style="margin-bottom:20px" open>
         <summary style="display:flex;justify-content:space-between;align-items:center">
-          <span>AperÃ§u par Ã©coles et Ã©tudiants</span>
-          <a class="btn-link" href="ecoles.html" onclick="event.stopPropagation()">GÃ©rer â†’</a>
+          <span>Aperçu par écoles et étudiants</span>
+          <a class="btn-link" href="ecoles.html" onclick="event.stopPropagation()">Gérer →</a>
         </summary>
         <div style="padding:0 18px 18px">
           <div class="dashboard-companies-grid" id="companies-overview">
-            <p class="empty-state">Chargementâ€¦</p>
+            <p class="empty-state">Chargement…</p>
           </div>
         </div>
       </details>
@@ -55,10 +55,10 @@
         <div class="card">
           <div class="card-header">
             <h2 class="card-title">Prochaines missions</h2>
-            <a class="btn-link" href="calendrier.html">Voir le calendrier â†’</a>
+            <a class="btn-link" href="calendrier.html">Voir le calendrier →</a>
           </div>
           <div class="card-body" id="upcoming-courses">
-            <p class="empty-state">Chargementâ€¦</p>
+            <p class="empty-state">Chargement…</p>
           </div>
         </div>
         <div class="alerts-column">
@@ -72,10 +72,10 @@
       <div class="card" style="margin-top:20px">
         <div class="card-header">
           <h2 class="card-title">Formations en cours</h2>
-          <a class="btn-link" href="formations.html">Voir toutes â†’</a>
+          <a class="btn-link" href="formations.html">Voir toutes →</a>
         </div>
         <div class="card-body" id="active-formations">
-          <p class="empty-state">Chargementâ€¦</p>
+          <p class="empty-state">Chargement…</p>
         </div>
       </div>
 
@@ -89,5 +89,3 @@
   <script src="js/pages/dashboard.js?v=202607011434"></script>
 </body>
 </html>
-
-
