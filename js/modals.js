@@ -617,6 +617,14 @@ const Modals = {
             <label>Adresse</label>
             <input type="text" id="cf-address" class="form-input" value="${Utils.escapeHtml(c.address || '')}" placeholder="12 rue de la Paix, Paris">
           </div>
+          <div class="form-group">
+            <label>SIRET</label>
+            <input type="text" id="cf-siret" class="form-input" value="${Utils.escapeHtml(c.siret || '')}" placeholder="12345678900000" maxlength="14">
+          </div>
+          <div class="form-group">
+            <label>IBAN</label>
+            <input type="text" id="cf-iban" class="form-input" value="${Utils.escapeHtml(c.iban || '')}" placeholder="FR76 ...">
+          </div>
           <div class="form-group form-col-2">
             <label>Matières / Cours enseignés</label>
             <div style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg)">
@@ -674,7 +682,9 @@ const Modals = {
         poleId:   document.getElementById('cf-pole')?.value || '',
         category: document.getElementById('cf-category')?.value || 'school',
         subjectIds: [...document.querySelectorAll('input[name="cf-subject-chk"]:checked')].map(i => i.value),
-        hasTraining: document.getElementById('cf-has-training')?.checked || false
+        hasTraining: document.getElementById('cf-has-training')?.checked || false,
+        siret: document.getElementById('cf-siret').value.trim(),
+        iban:  document.getElementById('cf-iban').value.trim()
       });
       Utils.toast(isNew ? 'Société créée.' : 'Société mise à jour.', 'success');
       this.close();

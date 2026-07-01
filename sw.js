@@ -1,4 +1,4 @@
-﻿const CACHE = 'edt-v202607011434';
+﻿const CACHE = 'edt-v202607011500';
 const STATIC = [
   '/Emploi-du-temps/',
   '/Emploi-du-temps/index.html',
@@ -41,4 +41,5 @@ self.addEventListener('fetch', e => {
     }).catch(() => caches.match(e.request))
   );
 });
+
 

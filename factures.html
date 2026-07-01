@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Suivi factures — Emploi du temps</title>
+  <title>Suivi factures â€” Emploi du temps</title>
   <link rel="stylesheet" href="css/style.css?v=202606261219">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#3b82f6">
@@ -48,11 +48,11 @@
     <main id="main-content">
 
       <div class="page-header">
-        <h1 class="page-title">🧾 Suivi factures</h1>
+        <h1 class="page-title">ðŸ§¾ Suivi factures</h1>
         <div class="page-actions" style="display:flex;gap:8px;align-items:center">
           <div style="display:flex;border:1px solid var(--border);border-radius:20px;overflow:hidden;background:var(--bg-card)">
             <button class="view-tab active" id="view-tab-factures" data-view="factures" style="padding:5px 16px;border:none;background:var(--primary);color:#fff;cursor:pointer;font-size:0.85rem;font-weight:600">Factures</button>
-            <button class="view-tab" id="view-tab-oraux" data-view="oraux" style="padding:5px 16px;border:none;background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.85rem;font-weight:600">🎓 Oraux HEIP</button>
+            <button class="view-tab" id="view-tab-oraux" data-view="oraux" style="padding:5px 16px;border:none;background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.85rem;font-weight:600">ðŸŽ“ Oraux HEIP</button>
           </div>
           <button class="btn btn-primary" id="btn-new-invoice">+ Nouvelle facture</button>
           <button class="btn btn-primary" id="btn-new-oral" style="display:none">+ Nouvelle session</button>
@@ -62,9 +62,9 @@
       <!-- Filtres -->
       <div class="filters-bar" style="flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:20px">
         <div class="month-nav">
-          <button class="month-nav-btn" id="btn-prev-month">‹</button>
+          <button class="month-nav-btn" id="btn-prev-month">â€¹</button>
           <select id="filter-month" class="form-input filter-select" style="min-width:160px"></select>
-          <button class="month-nav-btn" id="btn-next-month">›</button>
+          <button class="month-nav-btn" id="btn-next-month">â€º</button>
         </div>
         <div class="pole-tabs" id="pole-tabs"></div>
       </div>
@@ -75,7 +75,7 @@
       <!-- Bouton combinaisons -->
       <div id="combo-bar" style="display:none;margin-bottom:10px;display:flex;align-items:center;gap:10px">
         <button class="btn btn-ghost" id="btn-combos" style="border-color:var(--warning,#f59e0b);color:var(--warning,#f59e0b)">
-          🔀 Simuler un virement
+          ðŸ”€ Simuler un virement
         </button>
         <span id="combo-hint" style="font-size:0.82rem;color:var(--text-muted)"></span>
       </div>
@@ -85,8 +85,8 @@
         <table class="data-table" id="invoices-table">
           <thead>
             <tr>
-              <th>N° Facture</th>
-              <th>Référence</th>
+              <th>NÂ° Facture</th>
+              <th>RÃ©fÃ©rence</th>
               <th>Client</th>
               <th class="cell-money">Montant</th>
               <th>Date d'envoi</th>
@@ -99,23 +99,23 @@
         </table>
       </div>
 
-      <!-- Section impayés globaux -->
+      <!-- Section impayÃ©s globaux -->
       <div id="section-unpaid" style="margin-top:32px;display:none;border:2px solid #dc2626;border-radius:14px;padding:18px 20px;background:#fff5f5">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
           <h2 style="margin:0;font-size:1rem;font-weight:700;color:#dc2626">
-            ⚠ Impayés — tous mois confondus
+            âš  ImpayÃ©s â€” tous mois confondus
           </h2>
           <div style="display:flex;align-items:center;gap:16px">
             <span id="unpaid-global-total" style="font-size:1.1rem;font-weight:800;color:#dc2626"></span>
-            <button id="btn-close-unpaid" title="Masquer" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#dc2626;line-height:1;padding:0">✕</button>
+            <button id="btn-close-unpaid" title="Masquer" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#dc2626;line-height:1;padding:0">âœ•</button>
           </div>
         </div>
         <div class="report-table-wrapper">
           <table class="data-table">
             <thead>
               <tr>
-                <th>N° Facture</th>
-                <th>Référence</th>
+                <th>NÂ° Facture</th>
+                <th>RÃ©fÃ©rence</th>
                 <th>Client</th>
                 <th class="cell-money">Montant</th>
                 <th>Date d'envoi</th>
@@ -144,7 +144,7 @@
                 <th class="cell-money">Nb d'oraux</th>
                 <th class="cell-money">Prix unitaire</th>
                 <th class="cell-money">Total</th>
-                <th>Facture envoyée</th>
+                <th>Facture envoyÃ©e</th>
                 <th></th>
               </tr>
             </thead>
@@ -162,17 +162,17 @@
     <div class="inv-modal" style="max-width:680px;max-height:85vh;display:flex;flex-direction:column">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <div>
-          <h2 style="margin:0 0 2px">🔀 Combinaisons de virement</h2>
+          <h2 style="margin:0 0 2px">ðŸ”€ Combinaisons de virement</h2>
           <p id="combo-modal-subtitle" style="margin:0;font-size:0.82rem;color:var(--text-muted)"></p>
         </div>
-        <button onclick="document.getElementById('combo-modal-overlay').classList.remove('open')" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-muted)">✕</button>
+        <button onclick="document.getElementById('combo-modal-overlay').classList.remove('open')" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-muted)">âœ•</button>
       </div>
       <!-- Recherche par montant -->
       <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="font-size:0.85rem;font-weight:600;color:var(--text-muted);white-space:nowrap">Montant reçu :</span>
+        <span style="font-size:0.85rem;font-weight:600;color:var(--text-muted);white-space:nowrap">Montant reÃ§u :</span>
         <input type="number" id="combo-search" class="form-input" placeholder="ex. 1775,00" step="0.01" min="0"
                style="max-width:160px" oninput="window._filterCombos()">
-        <span style="font-size:0.82rem;color:var(--text-muted)">→ la combinaison correspondante se surligne</span>
+        <span style="font-size:0.82rem;color:var(--text-muted)">â†’ la combinaison correspondante se surligne</span>
       </div>
       <!-- Liste scrollable -->
       <div style="overflow-y:auto;flex:1;border:1px solid var(--border);border-radius:10px;min-height:100px">
@@ -189,33 +189,33 @@
       </div>
       <!-- Panneau validation paiement -->
       <div id="combo-pay-panel" style="display:none;margin-top:14px;padding:14px 16px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px">
-        <div style="font-size:0.85rem;font-weight:700;color:#16a34a;margin-bottom:10px">✓ Combinaison trouvée — Enregistrer le paiement</div>
+        <div style="font-size:0.85rem;font-weight:700;color:#16a34a;margin-bottom:10px">âœ“ Combinaison trouvÃ©e â€” Enregistrer le paiement</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
           <div>
             <label style="font-size:0.78rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Date de paiement</label>
             <input type="date" id="combo-pay-date" class="form-input" style="width:100%">
           </div>
           <div>
-            <label style="font-size:0.78rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Référence virement bancaire</label>
+            <label style="font-size:0.78rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">RÃ©fÃ©rence virement bancaire</label>
             <input type="text" id="combo-pay-ref" class="form-input" placeholder="ex. VIR-20260601-OMNES" style="width:100%">
           </div>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between">
           <span id="combo-pay-summary" style="font-size:0.82rem;color:var(--text-muted)"></span>
           <button class="btn btn-primary" id="combo-pay-confirm" style="background:#16a34a;border-color:#16a34a">
-            ✓ Marquer ces factures payées
+            âœ“ Marquer ces factures payÃ©es
           </button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Mini-modale : marquer une facture payée -->
+  <!-- Mini-modale : marquer une facture payÃ©e -->
   <div class="inv-modal-overlay" id="pay-modal-overlay">
     <div class="inv-modal" style="max-width:420px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-        <h2 style="margin:0;color:#16a34a">✓ Enregistrer le paiement</h2>
-        <button id="pay-modal-close" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-muted)">✕</button>
+        <h2 style="margin:0;color:#16a34a">âœ“ Enregistrer le paiement</h2>
+        <button id="pay-modal-close" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-muted)">âœ•</button>
       </div>
       <p id="pay-modal-desc" style="margin:0 0 16px;font-size:0.85rem;color:var(--text-muted)"></p>
       <input type="hidden" id="pay-modal-id">
@@ -224,34 +224,34 @@
         <input type="date" id="pay-modal-date" class="form-input">
       </div>
       <div class="form-group">
-        <label>Référence virement bancaire</label>
+        <label>RÃ©fÃ©rence virement bancaire</label>
         <input type="text" id="pay-modal-ref" class="form-input" placeholder="ex. VIR-20260601-OMNES">
       </div>
       <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
         <button class="btn btn-ghost" id="pay-modal-cancel">Annuler</button>
-        <button class="btn btn-primary" id="pay-modal-confirm" style="background:#16a34a;border-color:#16a34a">✓ Confirmer le paiement</button>
+        <button class="btn btn-primary" id="pay-modal-confirm" style="background:#16a34a;border-color:#16a34a">âœ“ Confirmer le paiement</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal ajout / édition -->
+  <!-- Modal ajout / Ã©dition -->
   <div class="inv-modal-overlay" id="inv-modal-overlay">
     <div class="inv-modal">
       <h2 id="inv-modal-title">Nouvelle facture</h2>
       <input type="hidden" id="inv-id">
       <div class="form-row">
         <div class="form-group">
-          <label>Pôle</label>
+          <label>PÃ´le</label>
           <select id="inv-pole" class="form-input"></select>
         </div>
         <div class="form-group">
-          <label>N° Facture</label>
+          <label>NÂ° Facture</label>
           <input type="text" id="inv-number" class="form-input" placeholder="ex. 2026-001">
         </div>
       </div>
       <div class="form-group">
-        <label>Référence</label>
-        <input type="text" id="inv-reference" class="form-input" placeholder="ex. Cours juin — USAC">
+        <label>RÃ©fÃ©rence</label>
+        <input type="text" id="inv-reference" class="form-input" placeholder="ex. Cours juin â€” USAC">
       </div>
       <div class="form-group">
         <label>Client</label>
@@ -259,7 +259,7 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Montant (€)</label>
+          <label>Montant (â‚¬)</label>
           <input type="number" id="inv-amount" class="form-input" min="0" step="0.01" placeholder="0.00">
         </div>
         <div class="form-group">
@@ -270,8 +270,8 @@
       <div class="form-group">
         <label>Statut paiement</label>
         <select id="inv-status" class="form-input">
-          <option value="unpaid">Non payé</option>
-          <option value="paid">Payé</option>
+          <option value="unpaid">Non payÃ©</option>
+          <option value="paid">PayÃ©</option>
         </select>
       </div>
       <div class="modal-actions">
@@ -281,7 +281,7 @@
     </div>
   </div>
 
-  <!-- Modal ajout / édition Oral HEIP -->
+  <!-- Modal ajout / Ã©dition Oral HEIP -->
   <div class="inv-modal-overlay" id="oral-modal-overlay">
     <div class="inv-modal" style="max-width:420px">
       <h2 id="oral-modal-title">Nouvelle session d'oraux</h2>
@@ -297,11 +297,11 @@
         </div>
       </div>
       <div class="form-group">
-        <label>Prix unitaire (€)</label>
+        <label>Prix unitaire (â‚¬)</label>
         <input type="number" id="oral-price" class="form-input" min="0" step="0.01" placeholder="ex. 45.00">
       </div>
       <div style="padding:10px 12px;background:var(--primary-light,#eff6ff);border-radius:8px;margin-bottom:12px;font-size:0.9rem">
-        Total : <strong id="oral-total-preview">0,00 €</strong>
+        Total : <strong id="oral-total-preview">0,00 â‚¬</strong>
       </div>
       <div class="modal-actions">
         <button class="btn btn-ghost" id="oral-cancel">Annuler</button>
@@ -317,3 +317,4 @@
   <script src="js/pages/factures.js?v=202606261219"></script>
 </body>
 </html>
+
