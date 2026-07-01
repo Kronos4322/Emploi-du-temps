@@ -112,7 +112,7 @@ const Data = {
       }
       _fbLastTs = fbData._updatedAt;
       const localTs = parseInt(localStorage.getItem('_edt_ts') || '0');
-      const needsMigration = (fbData.companies || []).some(c => !c.role) || !fbData._poleAssignmentsFixed3;
+      const needsMigration = (fbData.companies || []).some(c => !c.role) || !fbData._poleAssignmentsFixed3 || !fbData._siretArtemisFix1;
 
       // R3 — Toujours fusionner : préserve les créations offline même quand Firebase est plus récent
       // (pire cas : résurrection d'un item supprimé — acceptable vs perte de création offline)
