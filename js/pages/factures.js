@@ -585,6 +585,7 @@ function renderOraux() {
       <td>${sentBadge}</td>
       <td>
         <div class="inv-actions">
+          <button onclick="_generateOralInvoice('${o.id}')" title="Générer la facture HEIP">📄 Facture</button>
           <button onclick="_openOralModal('${o.id}')">Modifier</button>
           <button class="danger" onclick="_deleteOral('${o.id}')">🗑</button>
         </div>
@@ -661,6 +662,55 @@ window._toggleOralInvoiceSent = function(id) {
   o.invoiceSent = !o.invoiceSent;
   Data.saveOral(o);
   renderOraux();
+};
+
+// Génère la facture HEIP d'une session d'oraux (émetteur Astéria → HEIP)
+window._generateOralInvoice = function(id) {
+  const o = Data.getOraux().find(x => x.id === id);
+  if (!o) { Utils.toast('Session introuvable.', 'error'); return; }
+  if (typeof window._buildInvoiceDocument !== 'function') { Utils.toast('Générateur de facture indisponible.', 'error'); return; }
+
+  const norm  = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const owns  = Data.getOwnCompanies();
+  const asteria = owns.find(c => norm(c.name).includes('aster')) || owns[0];
+  const heip    = Data.getCompanies().find(c => norm(c.name).includes('heip'));
+  const em      = window._resolveInvoiceEmitter(asteria?.id);
+
+  const destName    = heip?.name || 'HEIP Lyon';
+  const destAddr    = heip?.address || '';
+  const destContact = heip ? [heip.email, heip.phone].filter(Boolean).join(' — ') : '';
+  const destSiret   = heip?.siret || '';
+
+  const MONTHS_SH = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  const dt = new Date((o.date||'')+'T00:00:00');
+  const dateLabel = isNaN(dt.getTime()) ? (o.date||'—') : String(dt.getDate()).padStart(2,'0')+' '+MONTHS_SH[dt.getMonth()];
+  const [yy, mm] = (o.date||'').split('-');
+  const monthName = (mm ? Utils.MONTHS_LONG[+mm-1]+' '+yy : (o.yearMonth||''));
+  const puStr = (o.unitPrice||0).toFixed(2).replace('.',',');
+
+  const rowsHTML = `<tr>
+    <td class="col-date">${dateLabel}</td>
+    <td class="col-qty">${o.count||0}</td>
+    <td class="col-desc">Oraux HEIP <span class="school-name">— session du ${Utils.formatDate(o.date)||''}</span></td>
+    <td class="col-pu">${puStr} €</td>
+    <td class="col-tot">${Utils.formatMoney(o.total||0)}</td>
+  </tr>`;
+
+  const t = Utils.today().split('-');
+  window._buildInvoiceDocument({
+    ...em,
+    destName, destAddr, destContact, destSiret,
+    invNum: '', invDateFr: t[2]+'/'+t[1]+'/'+t[0], ref: '',
+    delay: (Data.getSettings().invoicePaymentDelay || '45 jours'),
+    monthName,
+    qtyHeader: "Nb d'oraux",
+    rowsHTML,
+    extraFootRow: '',
+    totalHT: o.total || 0,
+  });
+
+  // Marquer la session comme facturée
+  if (!o.invoiceSent) { o.invoiceSent = true; Data.saveOral(o); renderOraux(); }
 };
 
 window._deleteOral = function(id) {
