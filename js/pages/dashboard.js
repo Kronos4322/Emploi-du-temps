@@ -1162,7 +1162,8 @@ window._generateInvoice = function() {
   </tr></thead>
   <tbody>${rows}</tbody>
   <tfoot>
-    <tr class="tf-sep"><td colspan="3"></td><td class="tf-label">Sous-total HT</td><td class="col-tot">${Utils.formatMoney(totalHT)}</td></tr>
+    <tr class="tf-sep"><td colspan="3"></td><td class="tf-label">Total heures effectuées</td><td class="col-tot">${Utils.formatDuration(totalH)}</td></tr>
+    <tr><td colspan="3"></td><td class="tf-label">Sous-total HT</td><td class="col-tot">${Utils.formatMoney(totalHT)}</td></tr>
     <tr class="tf-tva"><td colspan="3"></td><td class="tf-label">Exonération TVA</td><td class="col-tot" style="color:#94a3b8">—</td></tr>
     <tr class="tf-ttc"><td colspan="3"></td><td class="tf-label-w">TOTAL TTC À PAYER</td><td class="col-tot">${Utils.formatMoney(totalHT)}</td></tr>
   </tfoot>
