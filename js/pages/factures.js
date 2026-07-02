@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       document.getElementById('btn-new-invoice').style.display = _view === 'factures' ? '' : 'none';
       document.getElementById('btn-new-oral').style.display = _view === 'oraux' ? '' : 'none';
+      document.getElementById('btn-invoice-oraux-month').style.display = _view === 'oraux' ? '' : 'none';
       document.getElementById('pole-tabs').style.display = _view === 'factures' ? '' : 'none';
       render();
     });
@@ -36,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-next-month').addEventListener('click', () => _shiftMonth(+1));
   document.getElementById('filter-month').addEventListener('change', e => { _yearMonth = e.target.value; render(); });
   document.getElementById('btn-new-invoice').addEventListener('click', () => _openModal(null));
+  document.getElementById('btn-invoice-oraux-month').addEventListener('click', () => window._generateOralInvoiceMonth());
   document.getElementById('inv-cancel').addEventListener('click', _closeModal);
   document.getElementById('inv-modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) _closeModal(); });
   document.getElementById('inv-save').addEventListener('click', _saveInvoice);
@@ -664,14 +666,15 @@ window._toggleOralInvoiceSent = function(id) {
   renderOraux();
 };
 
-// Génère la facture HEIP d'une session d'oraux (émetteur Astéria → HEIP)
-window._generateOralInvoice = function(id) {
-  const o = Data.getOraux().find(x => x.id === id);
-  if (!o) { Utils.toast('Session introuvable.', 'error'); return; }
-  if (typeof window._buildInvoiceDocument !== 'function') { Utils.toast('Générateur de facture indisponible.', 'error'); return; }
+const _ORAL_MONTHS_SH = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
 
-  const norm  = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-  const owns  = Data.getOwnCompanies();
+// Cœur commun : génère une facture HEIP (Astéria → HEIP) pour une liste de sessions
+function _buildOralInvoice(oraux, monthName) {
+  if (typeof window._buildInvoiceDocument !== 'function') { Utils.toast('Générateur de facture indisponible.', 'error'); return false; }
+  if (!oraux.length) { Utils.toast('Aucune session d\'oraux à facturer.', 'info'); return false; }
+
+  const norm    = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const owns    = Data.getOwnCompanies();
   const asteria = owns.find(c => norm(c.name).includes('aster')) || owns[0];
   const heip    = Data.getCompanies().find(c => norm(c.name).includes('heip'));
   const em      = window._resolveInvoiceEmitter(asteria?.id);
@@ -681,20 +684,24 @@ window._generateOralInvoice = function(id) {
   const destContact = heip ? [heip.email, heip.phone].filter(Boolean).join(' — ') : '';
   const destSiret   = heip?.siret || '';
 
-  const MONTHS_SH = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
-  const dt = new Date((o.date||'')+'T00:00:00');
-  const dateLabel = isNaN(dt.getTime()) ? (o.date||'—') : String(dt.getDate()).padStart(2,'0')+' '+MONTHS_SH[dt.getMonth()];
-  const [yy, mm] = (o.date||'').split('-');
-  const monthName = (mm ? Utils.MONTHS_LONG[+mm-1]+' '+yy : (o.yearMonth||''));
-  const puStr = (o.unitPrice||0).toFixed(2).replace('.',',');
+  // Une ligne par session, triées par date croissante
+  const sorted = [...oraux].sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  const rowsHTML = sorted.map(o => {
+    const dt = new Date((o.date||'')+'T00:00:00');
+    const dateLabel = isNaN(dt.getTime()) ? (o.date||'—') : String(dt.getDate()).padStart(2,'0')+' '+_ORAL_MONTHS_SH[dt.getMonth()];
+    const puStr = (o.unitPrice||0).toFixed(2).replace('.',',');
+    return `<tr>
+      <td class="col-date">${dateLabel}</td>
+      <td class="col-qty">${o.count||0}</td>
+      <td class="col-desc">Oraux HEIP <span class="school-name">— session du ${Utils.formatDate(o.date)||''}</span></td>
+      <td class="col-pu">${puStr} €</td>
+      <td class="col-tot">${Utils.formatMoney(o.total||0)}</td>
+    </tr>`;
+  }).join('');
 
-  const rowsHTML = `<tr>
-    <td class="col-date">${dateLabel}</td>
-    <td class="col-qty">${o.count||0}</td>
-    <td class="col-desc">Oraux HEIP <span class="school-name">— session du ${Utils.formatDate(o.date)||''}</span></td>
-    <td class="col-pu">${puStr} €</td>
-    <td class="col-tot">${Utils.formatMoney(o.total||0)}</td>
-  </tr>`;
+  const totalHT     = sorted.reduce((s,o) => s + (o.total||0), 0);
+  const totalOraux  = sorted.reduce((s,o) => s + (o.count||0), 0);
+  const extraFootRow = `<tr class="tf-sep"><td colspan="3"></td><td class="tf-label">Total oraux</td><td class="col-tot">${totalOraux}</td></tr>`;
 
   const t = Utils.today().split('-');
   window._buildInvoiceDocument({
@@ -705,16 +712,38 @@ window._generateOralInvoice = function(id) {
     monthName,
     qtyHeader: "Nb d'oraux",
     rowsHTML,
-    extraFootRow: '',
-    totalHT: o.total || 0,
+    extraFootRow,
+    totalHT,
   });
 
-  // Marquer la session comme facturée
-  if (!o.invoiceSent) { o.invoiceSent = true; Data.saveOral(o); renderOraux(); }
+  // Marquer les sessions comme facturées
+  let changed = false;
+  sorted.forEach(o => { if (!o.invoiceSent) { o.invoiceSent = true; Data.saveOral(o); changed = true; } });
+  if (changed) renderOraux();
+  return true;
+}
+
+// Facture d'UNE session
+window._generateOralInvoice = function(id) {
+  const o = Data.getOraux().find(x => x.id === id);
+  if (!o) { Utils.toast('Session introuvable.', 'error'); return; }
+  const [yy, mm] = (o.date||'').split('-');
+  const monthName = (mm ? Utils.MONTHS_LONG[+mm-1]+' '+yy : (o.yearMonth||''));
+  _buildOralInvoice([o], monthName);
+};
+
+// Facture GLOBALE : toutes les sessions du mois affiché
+window._generateOralInvoiceMonth = function() {
+  const oraux = Data.getOrauxByMonth(_yearMonth);
+  if (!oraux.length) { Utils.toast('Aucune session d\'oraux ce mois.', 'info'); return; }
+  const [yy, mm] = _yearMonth.split('-');
+  const monthName = `${Utils.MONTHS_LONG[+mm-1]} ${yy}`;
+  _buildOralInvoice(oraux, monthName);
 };
 
 window._deleteOral = function(id) {
-  if (!confirm('Supprimer cette session d\'oraux ?')) return;
-  Data.deleteOral(id);
-  render();
+  Modals.confirm('Supprimer cette session d\'oraux ?', () => {
+    Data.deleteOral(id);
+    render();
+  }, 'Supprimer', true);
 };
