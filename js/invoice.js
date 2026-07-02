@@ -3,6 +3,10 @@
 
 const _INV_MONTHS_SH2 = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
 
+// Contact affiché sur toutes les factures (émetteur)
+const INVOICE_CONTACT_NAME  = 'Camille CHAPUIS';
+const INVOICE_CONTACT_EMAIL = 'camille-chapuis@hotmail.fr';
+
 // Résout les infos de la société émettrice (nom, adresse, SIRET, banque…)
 window._resolveInvoiceEmitter = function(emetteurId) {
   const ownCos   = Data.getOwnCompanies();
@@ -23,7 +27,9 @@ window._resolveInvoiceEmitter = function(emetteurId) {
   const clerib     = _bk(ourCo?.clerib,     settings.clerib);
   const numcompte  = _bk(ourCo?.numcompte,  settings.numcompte);
   const bankname   = _bk(ourCo?.bankname,   settings.bankname);
-  const ourLines = [ourAddr, (ourPhone&&ourEmail)?ourEmail+' — '+ourPhone:(ourEmail||ourPhone), siret?'SIRET : '+siret:''].filter(Boolean);
+  const contactLine = `Contact : ${INVOICE_CONTACT_NAME} — ${INVOICE_CONTACT_EMAIL}`;
+  const phoneLine   = ourPhone ? ('Tél : ' + ourPhone) : '';
+  const ourLines = [ourAddr, contactLine, phoneLine, siret?'SIRET : '+siret:''].filter(Boolean);
   return { ourCo, ourName, ourAddr, ourPhone, ourEmail, siret, iban, bic, codebanque, clerib, numcompte, bankname, ourLines };
 };
 
