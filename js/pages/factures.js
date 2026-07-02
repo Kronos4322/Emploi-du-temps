@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-next-month').addEventListener('click', () => _shiftMonth(+1));
   document.getElementById('filter-month').addEventListener('change', e => { _yearMonth = e.target.value; render(); });
   document.getElementById('btn-new-invoice').addEventListener('click', () => _openModal(null));
-  document.getElementById('btn-invoice-oraux-month').addEventListener('click', () => window._generateOralInvoiceMonth());
+  document.getElementById('btn-invoice-oraux-month').addEventListener('click', () => window._openOralInvoiceRangeModal());
   document.getElementById('inv-cancel').addEventListener('click', _closeModal);
   document.getElementById('inv-modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) _closeModal(); });
   document.getElementById('inv-save').addEventListener('click', _saveInvoice);
@@ -732,13 +732,85 @@ window._generateOralInvoice = function(id) {
   _buildOralInvoice([o], monthName);
 };
 
-// Facture GLOBALE : toutes les sessions du mois affiché
-window._generateOralInvoiceMonth = function() {
-  const oraux = Data.getOrauxByMonth(_yearMonth);
-  if (!oraux.length) { Utils.toast('Aucune session d\'oraux ce mois.', 'info'); return; }
-  const [yy, mm] = _yearMonth.split('-');
-  const monthName = `${Utils.MONTHS_LONG[+mm-1]} ${yy}`;
-  _buildOralInvoice(oraux, monthName);
+// Sessions d'oraux dans une plage de dates [from, to]
+function _orauxInRange(from, to) {
+  if (!from || !to) return [];
+  const lo = from <= to ? from : to, hi = from <= to ? to : from;
+  return Data.getOraux().filter(o => o.date && o.date >= lo && o.date <= hi);
+}
+
+// Libellé de période : "Juin 2026" si même mois, sinon "01/05 – 30/06/2026"
+function _oralPeriodLabel(from, to) {
+  const df = new Date(from+'T00:00:00'), dt = new Date(to+'T00:00:00');
+  if (isNaN(df.getTime()) || isNaN(dt.getTime())) return '';
+  if (from.slice(0,7) === to.slice(0,7)) { const [y,m] = from.split('-'); return `${Utils.MONTHS_LONG[+m-1]} ${y}`; }
+  const fmt = d => String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
+  return `${fmt(df)} – ${fmt(dt)}/${dt.getFullYear()}`;
+}
+
+// Modal de choix de la plage temporelle pour facturer les oraux
+window._openOralInvoiceRangeModal = function() {
+  const [y, m] = _yearMonth.split('-');
+  const lastDay = new Date(+y, +m, 0).getDate();
+  const from = `${y}-${m}-01`;
+  const to   = `${y}-${m}-${String(lastDay).padStart(2,'0')}`;
+  Modals._open(`
+    <div class="modal-header"><h3>📄 Facturer les oraux HEIP</h3><button class="modal-close" onclick="Modals.close()">✕</button></div>
+    <div class="modal-body" style="padding:20px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="_oralRangePreset('month')">Ce mois</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="_oralRangePreset('sy')">Année scolaire</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="_oralRangePreset('all')">Toutes les sessions</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group" style="display:flex;flex-direction:column;gap:4px"><label>Du</label><input type="date" id="oral-inv-from" class="form-input" value="${from}" onchange="_updateOralRangePreview()"></div>
+        <div class="form-group" style="display:flex;flex-direction:column;gap:4px"><label>Au</label><input type="date" id="oral-inv-to" class="form-input" value="${to}" onchange="_updateOralRangePreview()"></div>
+      </div>
+      <div id="oral-inv-preview" style="border:1px solid var(--border);border-radius:8px;padding:10px 14px;background:var(--bg);font-size:0.85rem;color:var(--text-muted)"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="Modals.close()">Annuler</button><button class="btn btn-primary" onclick="_generateOralInvoiceRange()">📄 Générer la facture</button></div>
+  `);
+  _updateOralRangePreview();
+};
+
+window._oralRangePreset = function(kind) {
+  const fromEl = document.getElementById('oral-inv-from'), toEl = document.getElementById('oral-inv-to');
+  if (!fromEl || !toEl) return;
+  if (kind === 'month') {
+    const [y, m] = _yearMonth.split('-');
+    fromEl.value = `${y}-${m}-01`;
+    toEl.value   = `${y}-${m}-${String(new Date(+y, +m, 0).getDate()).padStart(2,'0')}`;
+  } else if (kind === 'sy') {
+    const [y, m] = _yearMonth.split('-').map(Number);
+    const sy = m >= 9 ? y : y - 1;
+    fromEl.value = `${sy}-09-01`;
+    toEl.value   = `${sy+1}-08-31`;
+  } else if (kind === 'all') {
+    const dates = Data.getOraux().map(o => o.date).filter(Boolean).sort();
+    fromEl.value = dates[0] || `${_yearMonth}-01`;
+    toEl.value   = dates[dates.length-1] || `${_yearMonth}-28`;
+  }
+  _updateOralRangePreview();
+};
+
+function _updateOralRangePreview() {
+  const box = document.getElementById('oral-inv-preview'); if (!box) return;
+  const from = document.getElementById('oral-inv-from')?.value, to = document.getElementById('oral-inv-to')?.value;
+  const list = _orauxInRange(from, to);
+  if (!list.length) { box.innerHTML = 'Aucune session sur cette période.'; return; }
+  const totalO = list.reduce((s,o) => s + (o.count||0), 0);
+  const totalM = list.reduce((s,o) => s + (o.total||0), 0);
+  box.innerHTML = `<strong style="color:var(--primary)">${list.length} session${list.length>1?'s':''}</strong> · ${totalO} oraux · <strong>${Utils.formatMoney(totalM)}</strong>`;
+}
+window._updateOralRangePreview = _updateOralRangePreview;
+
+window._generateOralInvoiceRange = function() {
+  const from = document.getElementById('oral-inv-from')?.value, to = document.getElementById('oral-inv-to')?.value;
+  if (!from || !to) { Utils.toast('Sélectionnez une période.', 'error'); return; }
+  const lo = from <= to ? from : to, hi = from <= to ? to : from;
+  const list = _orauxInRange(lo, hi);
+  if (!list.length) { Utils.toast('Aucune session sur cette période.', 'info'); return; }
+  _buildOralInvoice(list, _oralPeriodLabel(lo, hi));
 };
 
 window._deleteOral = function(id) {
