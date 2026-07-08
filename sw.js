@@ -1,4 +1,4 @@
-const CACHE = 'edt-v202607021553';
+const CACHE = 'edt-v202607081200';
 const STATIC = [
   '/Emploi-du-temps/',
   '/Emploi-du-temps/index.html',

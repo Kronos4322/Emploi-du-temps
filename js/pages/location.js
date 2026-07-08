@@ -290,16 +290,16 @@ function _renderProperties() {
       <!-- Stats -->
       <div class="property-kpis">
         <div>
-          <div class="property-kpi-val">${Utils.formatMoney(monthTotal)}</div>
-          <div class="property-kpi-lbl">Ce mois</div>
+          <div class="property-kpi-val">${monthInc.length || '—'}</div>
+          <div class="property-kpi-lbl">Résa ce mois</div>
         </div>
         <div>
-          <div class="property-kpi-val">${Utils.formatMoney(allTotal)}</div>
-          <div class="property-kpi-lbl">Total</div>
+          <div class="property-kpi-val">${monthNights || '—'}</div>
+          <div class="property-kpi-lbl">Nuit${monthNights>1?'s':''} louée${monthNights>1?'s':''}</div>
         </div>
         <div>
-          <div class="property-kpi-val">${propRevPAN > 0 ? propRevPAN+'€' : '—'}</div>
-          <div class="property-kpi-lbl">RevPAN</div>
+          <div class="property-kpi-val">${propInc.length}</div>
+          <div class="property-kpi-lbl">Résa total</div>
         </div>
       </div>
 

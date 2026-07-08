@@ -1248,7 +1248,7 @@ function _renderRentalChart(group, ctype) {
   const LOC_COLORS = ['#10b981','#0891b2','#059669','#14b8a6','#22c55e','#06b6d4','#0284c7','#16a34a'];
   const datasets = [];
   props.forEach((prop, i) => {
-    const data = labels.map(lbl => Math.round(filtered.filter(r=>r.propertyId===prop.id&&rKey(r)===lbl).reduce((s,r)=>s+(r.amount||0),0)*100)/100);
+    const data = labels.map(lbl => Math.round(filtered.filter(r=>r.propertyId===prop.id&&rKey(r)===lbl&&r.status==='received').reduce((s,r)=>s+(r.amount||0),0)*100)/100);
     if (data.every(v=>v===0)) return;
     // Utiliser la couleur de la propriété si définie et non-orange par défaut, sinon teal
     const col = (prop.color && prop.color !== '#f97316') ? prop.color : LOC_COLORS[i % LOC_COLORS.length];
@@ -1259,8 +1259,8 @@ function _renderRentalChart(group, ctype) {
     });
   });
   if (props.length > 1) {
-    const td = labels.map(lbl => Math.round(filtered.filter(r=>rKey(r)===lbl).reduce((s,r)=>s+(r.amount||0),0)*100)/100);
-    if (td.some(v=>v>0)) datasets.unshift({ label: 'Total Location', data: td, backgroundColor: '#10b98160', borderColor: '#10b981', borderWidth: 2, fill: false, type: 'line', pointRadius: 3, tension: 0.3 });
+    const td = labels.map(lbl => Math.round(filtered.filter(r=>rKey(r)===lbl&&r.status==='received').reduce((s,r)=>s+(r.amount||0),0)*100)/100);
+    if (td.some(v=>v>0)) datasets.unshift({ label: 'Total reçu', data: td, backgroundColor: '#10b98160', borderColor: '#10b981', borderWidth: 2, fill: false, type: 'line', pointRadius: 3, tension: 0.3 });
   }
   const MONTHS_ABBR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
   const readableLabels = labels.map(lbl => { if(group==='month'){const[y,m]=lbl.split('-');return`${MONTHS_ABBR[+m-1]} ${y}`;}return`AS ${lbl}`; });
