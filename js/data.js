@@ -68,11 +68,13 @@ const Data = {
     const ARRAY_KEYS = ['companies','missions','providers','students','formations',
       'subjects','subjectCategories','providerLinks','properties','rentalIncomes','internalStaff',
       'invoices','oraux','propertyExpenses'];
+    // Firebase peut renvoyer un objet {clé:item} au lieu d'un tableau (tableaux creux)
+    const _asArr = v => Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
     // Préserver les flags racine locaux (migrations one-shot, version, etc.)
     const merged = { ...this._db, ...fbData };
     for (const key of ARRAY_KEYS) {
-      const localArr = this._db[key] || [];
-      const remoteArr = fbData[key] || [];
+      const localArr = _asArr(this._db[key]);
+      const remoteArr = _asArr(fbData[key]);
       const map = {};
       remoteArr.forEach(item => { if (item.id) map[item.id] = item; });
       localArr.forEach(item => {
