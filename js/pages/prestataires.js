@@ -49,7 +49,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function render() {
   const providers   = Data.getProviders();
-  const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled');
+  // Cohérence globale : réalisé/prévu uniquement, hors événements personnels
+  const allMissions = Data.getMissions().filter(m =>
+    (m.status === 'done' || m.status === 'planned') && m.missionType !== 'personal');
   const allMissionsWithProv = allMissions.filter(m => m.providerId || m.providerIds?.length);
   const list        = document.getElementById('providers-list');
 

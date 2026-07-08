@@ -215,7 +215,9 @@ function renderCalendar() {
   if (revEl) {
     if (_view === 'month') {
       const ym = _date.slice(0, 7);
-      const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled' && m.date && m.missionType !== 'personal');
+      // Cohérence avec Finances : seules les missions réalisées/prévues comptent
+      const allMissions = Data.getMissions().filter(m =>
+        (m.status === 'done' || m.status === 'planned') && m.date && m.missionType !== 'personal');
       const monthRev = Math.round(
         allMissions
           .filter(m => m.date.slice(0, 7) === ym)

@@ -188,7 +188,8 @@ function renderDashboard() {
   const provMap = {}; Data.getProviders().forEach(p => provMap[p.id] = p);
   const ownCos = Data.getOwnCompanies();
   const ym = Utils.currentYearMonth();
-  const allM = Data.getMissions().filter(m => m.status !== 'cancelled' && m.date && m.date.startsWith(ym) && m.missionType !== 'personal');
+  const allM = Data.getMissions().filter(m =>
+    (m.status === 'done' || m.status === 'planned') && m.date && m.date.startsWith(ym) && m.missionType !== 'personal');
 
   const poleM    = allM.filter(m => _poleFilter(m, coMap));
   const donePole = poleM.filter(m => m.status === 'done');
@@ -278,7 +279,8 @@ function renderDashboard() {
     const _yearStart = `${_yr}-09-01`;           // 1er septembre
     const _yearEnd   = `${_yr+1}-08-31`;         // 31 août suivant
 
-    const allMissions = Data.getMissions().filter(m => m.status !== 'cancelled');
+    const allMissions = Data.getMissions().filter(m =>
+      (m.status === 'done' || m.status === 'planned') && m.missionType !== 'personal');
 
     const entries = Object.values(d.byCompany).filter(({company:co}) => co.role !== 'own');
     const filtered = _dashPole ? entries.filter(({company:co}) => {
@@ -293,9 +295,9 @@ function renderDashboard() {
       const yearMs = allMissions.filter(m =>
         m.companyId === co.id && m.date >= _yearStart && m.date <= _yearEnd
       );
-      // Faites = status 'done' OU date passée (auto-done)
-      const doneMs  = yearMs.filter(m => m.status === 'done' || (m.status === 'planned' && m.date <= _today));
-      const restMs  = yearMs.filter(m => m.status === 'planned' && m.date > _today);
+      // Faites = status 'done' OU date strictement passée (même règle que les stats financières)
+      const doneMs  = yearMs.filter(m => m.status === 'done' || (m.status === 'planned' && m.date < _today));
+      const restMs  = yearMs.filter(m => m.status === 'planned' && m.date >= _today);
 
       const hTotal  = yearMs.reduce((s,m) => s+(m.duration||0), 0);
       const hDone   = doneMs.reduce((s,m) => s+(m.duration||0), 0);
@@ -416,15 +418,20 @@ function renderDashboard() {
   // ── Formations en cours ───────────────────────────────────────
   const formEl = document.getElementById('active-formations');
   if (formEl) {
+    const _allMsForm = Data.getMissions();
     formEl.innerHTML = d.activeFormations.length > 0
       ? d.activeFormations.map(f => {
           const co = Data.getCompanyById(f.companyId);
-          const pct = f.totalHours > 0 ? Math.round(f.completedHours/f.totalHours*100) : 0;
+          // Heures réalisées calculées depuis les missions (le champ stocké completedHours peut être périmé)
+          const realH = Math.round(_allMsForm
+            .filter(m => m.formationId === f.id && m.status === 'done')
+            .reduce((s,m) => s+(m.duration||0), 0) * 100) / 100;
+          const pct = f.totalHours > 0 ? Math.round(realH/f.totalHours*100) : 0;
           const color = co ? co.color : '#3b82f6';
           return `<div class="course-row-compact" onclick="location.href='formations.html'" style="cursor:pointer">
             <span class="course-dot" style="background:${color}"></span>
             <span class="course-compact-title">${Utils.escapeHtml(f.name)}</span>
-            <span class="course-compact-date">${f.completedHours}h / ${f.totalHours}h (${pct}%)</span>
+            <span class="course-compact-date">${realH}h / ${f.totalHours}h (${pct}%)</span>
           </div>`;
         }).join('')
       : '<p class="empty-state">Aucune formation active.</p>';

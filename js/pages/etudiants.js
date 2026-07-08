@@ -159,7 +159,7 @@ function hubHTML() {
 function studentsHTML() {
   const cos  = {}; Data.getCompanies().forEach(c=>cos[c.id]=c);
   const fors = {}; Data.getFormations().forEach(f=>fors[f.id]=f);
-  const allM = Data.getMissions().filter(m=>m.status!=='cancelled');
+  const allM = Data.getMissions().filter(m=>(m.status==='done'||m.status==='planned'));
   const ownCos = Data.getOwnCompanies().filter(c=>c.hasTraining);
   const allForms = Data.getFormations();
   let st = Data.getStudents();
@@ -286,7 +286,7 @@ function studentDetailHTML() {
 
   // Toutes les missions liées à cet étudiant, triées par date
   const allMissions = Data.getMissions()
-    .filter(m => (m.studentIds || []).includes(s.id) && m.status !== 'cancelled')
+    .filter(m => (m.studentIds || []).includes(s.id) && (m.status === 'done' || m.status === 'planned'))
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
   // Liste des mois disponibles (pour le sélecteur)
@@ -576,7 +576,7 @@ function qDetailHTML() {
   const co   = Data.getCompanyById(s.poleId||s.companyId);
   const fors = {}; Data.getFormations().forEach(f=>fors[f.id]=f);
   const formNames = (s.formationIds||[]).map(id=>fors[id]?.name||'').filter(Boolean).join(', ');
-  const allM = Data.getMissions().filter(m=>(m.studentIds||[]).includes(s.id)&&m.status!=='cancelled');
+  const allM = Data.getMissions().filter(m=>(m.studentIds||[]).includes(s.id)&&(m.status==='done'||m.status==='planned'));
   const totH = allM.reduce((a,m)=>a+(m.duration||0),0);
   const steps= s.qSteps||[]; const docs = s.qDocs||{};
   const score= qScore(s); const pct = Math.round(score/QSTEPS.length*100);
@@ -688,7 +688,7 @@ window._printStudentDetail = function(studentId, month) {
   const PROF_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
 
   let missions = Data.getMissions()
-    .filter(m => (m.studentIds||[]).includes(s.id) && m.status !== 'cancelled')
+    .filter(m => (m.studentIds||[]).includes(s.id) && (m.status === 'done' || m.status === 'planned'))
     .sort((a,b) => (a.date||'').localeCompare(b.date||''));
   if (month) missions = missions.filter(m => (m.date||'').startsWith(month));
   if (!missions.length) { Utils.toast('Aucune séance à exporter.', 'info'); return; }
@@ -851,7 +851,7 @@ window._exportStudent = function(studentId, month) {
   const subjects={};(Data.getSubjects()||[]).forEach(x=>subjects[x.id]=x);
   const providers={}; Data.getProviders().forEach(p=>providers[p.id]=p);
   const missions = Data.getMissions().filter(m=>
-    (m.studentIds||[]).includes(studentId)&&m.status!=='cancelled'&&
+    (m.studentIds||[]).includes(studentId)&&(m.status==='done'||m.status==='planned')&&
     (!month||(m.date&&m.date.startsWith(month)))
   ).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   const DAYS=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];

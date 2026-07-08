@@ -673,7 +673,8 @@ function renderAnnual() {
   const ownCos = Data.getOwnCompanies();
 
   let all = Data.getMissions().filter(m =>
-    m.date && m.date >= dateStart && m.date <= dateEnd && m.status !== 'cancelled' && m.missionType !== 'personal'
+    m.date && m.date >= dateStart && m.date <= dateEnd &&
+    (m.status === 'done' || m.status === 'planned') && m.missionType !== 'personal'
   );
   if (_poleId) all = all.filter(m => coMap[m.companyId]?.poleId === _poleId);
 
@@ -775,7 +776,8 @@ function renderAnnualComparison() {
 
   const aggMissions = (dateStart, dateEnd) => {
     let ms = Data.getMissions().filter(m =>
-      m.date && m.date >= dateStart && m.date <= dateEnd && m.status !== 'cancelled' && m.missionType !== 'personal'
+      m.date && m.date >= dateStart && m.date <= dateEnd &&
+      (m.status === 'done' || m.status === 'planned') && m.missionType !== 'personal'
     );
     if (_poleId) ms = ms.filter(m => coMap[m.companyId]?.poleId === _poleId);
     const by = {};
@@ -879,7 +881,8 @@ function renderProviderCosts() {
   const [sy, ey]  = _schoolYear.split('-');
   const dateStart = `${sy}-09-01`, dateEnd = `${ey}-08-31`;
   const _pcCoMap = {}; Data.getCompanies().forEach(c => _pcCoMap[c.id] = c);
-  const allM     = Data.getMissions().filter(m => m.status !== 'cancelled' && _matchesPole(m, _pcCoMap));
+  const allM     = Data.getMissions().filter(m =>
+    (m.status === 'done' || m.status === 'planned') && m.missionType !== 'personal' && _matchesPole(m, _pcCoMap));
   const monthM = allM.filter(m => m.date && m.date.startsWith(_yearMonth));
   const yearM  = allM.filter(m => m.date && m.date >= dateStart && m.date <= dateEnd);
   const provMap = {}; Data.getProviders().forEach(p => provMap[p.id] = p);

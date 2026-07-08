@@ -92,7 +92,8 @@ function companyCard(co, allMissions) {
   }
   const done      = missions.filter(m => m.status === 'done');
   const planned   = missions.filter(m => m.status === 'planned');
-  const active    = missions.filter(m => m.status !== 'cancelled');
+  // Seules les missions réalisées/prévues comptent dans les € et heures
+  const active    = missions.filter(m => m.status === 'done' || m.status === 'planned');
   const currentMonth = Utils.currentYearMonth();
   const monthMissions = active.filter(m => m.date && m.date.startsWith(currentMonth));
   // Année scolaire en cours : septembre → août

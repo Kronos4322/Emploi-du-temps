@@ -16,7 +16,7 @@ function render() {
   let subjects    = Data.getSubjects();
   const categories = Data.getSubjectCategories();
   const companies  = {}; Data.getCompanies().forEach(c => companies[c.id] = c);
-  const missions   = Data.getMissions().filter(m => m.status !== 'cancelled');
+  const missions   = Data.getMissions().filter(m => m.status === 'done' || m.status === 'planned');
   const list       = document.getElementById('subjects-list');
   const schools    = Data.getClientSchools();
 
