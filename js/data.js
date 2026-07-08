@@ -66,7 +66,8 @@ const Data = {
   // Garde les items locaux plus récents, prend les nouveaux items distants.
   _mergeWithFirebase(fbData) {
     const ARRAY_KEYS = ['companies','missions','providers','students','formations',
-      'subjects','subjectCategories','providerLinks','properties','rentalIncomes','internalStaff'];
+      'subjects','subjectCategories','providerLinks','properties','rentalIncomes','internalStaff',
+      'invoices','oraux','propertyExpenses'];
     // Préserver les flags racine locaux (migrations one-shot, version, etc.)
     const merged = { ...this._db, ...fbData };
     for (const key of ARRAY_KEYS) {
@@ -1225,6 +1226,14 @@ const Data = {
     this._save();
   },
 
+  // Met à jour la copie LOCALE des charges après une écriture directe Firebase
+  // (location.js écrit /db/propertyExpenses.json sans passer par _save) —
+  // sans ça, le prochain push global réécraserait Firebase avec la copie périmée.
+  syncPropertyExpensesLocal(all) {
+    this._db.propertyExpenses = Array.isArray(all) ? all : [];
+    localStorage.setItem(DB_KEY, JSON.stringify(this._db));
+  },
+
   // ── Oraux HEIP ──────────────────────────────────────────────
 
   getOraux() {
@@ -1237,8 +1246,8 @@ const Data = {
   saveOral(oral) {
     if (!this._db.oraux) this._db.oraux = [];
     const idx = this._db.oraux.findIndex(o => o.id === oral.id);
-    if (idx >= 0) this._db.oraux[idx] = oral;
-    else this._db.oraux.push(oral);
+    if (idx >= 0) this._db.oraux[idx] = { ...oral, updatedAt: Date.now() };
+    else this._db.oraux.push({ ...oral, createdAt: Date.now(), updatedAt: Date.now() });
     this._save();
   },
   deleteOral(id) {
@@ -1277,9 +1286,11 @@ const Data = {
     const totalHoursDone    = done.reduce((s, m) => s + (m.duration || 0), 0);
     const totalHoursPlanned = planned.reduce((s, m) => s + (m.duration || 0), 0);
     const grossRevenue      = done.reduce((s, m) => s + (m.duration || 0) * (m.billingRate || 0), 0);
+    // providerRate = tarif individuel PAR intervenant (cf. prestataires.js)
     const providerCosts     = done.reduce((s, m) => {
-      if (!m.providerId && !m.providerIds?.length) return s;
-      return s + (m.duration || 0) * (m.providerRate || 0);
+      const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
+      if (!pids.length) return s;
+      return s + (m.duration || 0) * (m.providerRate || 0) * pids.length;
     }, 0);
     const netMargin = grossRevenue - providerCosts;
 
@@ -1295,8 +1306,8 @@ const Data = {
     const byProvider = {};
     done.forEach(m => {
       const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
-      // On divise le coût entre le nombre de prestataires pour éviter le double comptage
-      const costPerProvider = pids.length > 0 ? (m.duration || 0) * (m.providerRate || 0) / pids.length : 0;
+      // providerRate est le tarif individuel de chaque intervenant
+      const costPerProvider = pids.length > 0 ? (m.duration || 0) * (m.providerRate || 0) : 0;
       pids.forEach(pid => {
         if (!byProvider[pid]) byProvider[pid] = { hours: 0, cost: 0, count: 0 };
         byProvider[pid].hours += m.duration || 0;
@@ -1456,7 +1467,7 @@ const Data = {
       const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
       const provNames = pids.map(pid => providers[pid] || '').filter(Boolean).join(', ');
       const cost = pids.length
-        ? Math.round((m.duration || 0) * (m.providerRate || 0) * 100) / 100
+        ? Math.round((m.duration || 0) * (m.providerRate || 0) * pids.length * 100) / 100
         : '';
       return [
         Utils.formatDate(m.date), m.title || '', m.missionType || '',

@@ -699,6 +699,7 @@ function _locDeleteProperty(id) {
       .then(r => r.json())
       .then(raw => {
         const filtered = (Array.isArray(raw) ? raw : []).filter(e => e?.propertyId !== id);
+        Data.syncPropertyExpensesLocal(filtered);
         return fetch(`${FB}/propertyExpenses.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(filtered) });
       })
       .catch(() => {});
@@ -778,6 +779,7 @@ async function _saveExpenseFB(expense) {
     if (idx >= 0) all[idx] = expense; else all.push(expense);
     const r = await fetch(`${FB}/propertyExpenses.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(all) });
     if (!r.ok) throw new Error('Erreur Firebase ' + r.status);
+    Data.syncPropertyExpensesLocal(all);
     await fetch(`${FB}/_updatedAt.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:Date.now().toString() });
   } catch (err) {
     Utils.toast('Erreur lors de la sauvegarde : ' + err.message, 'error');
@@ -791,6 +793,7 @@ async function _deleteExpenseFB(id) {
     const all = (Array.isArray(raw) ? raw : []).filter(e => e?.id !== id);
     const r = await fetch(`${FB}/propertyExpenses.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(all) });
     if (!r.ok) throw new Error('Erreur Firebase ' + r.status);
+    Data.syncPropertyExpensesLocal(all);
     await fetch(`${FB}/_updatedAt.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:Date.now().toString() });
   } catch (err) {
     Utils.toast('Erreur lors de la suppression : ' + err.message, 'error');

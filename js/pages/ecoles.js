@@ -92,15 +92,16 @@ function companyCard(co, allMissions) {
   }
   const done      = missions.filter(m => m.status === 'done');
   const planned   = missions.filter(m => m.status === 'planned');
+  const active    = missions.filter(m => m.status !== 'cancelled');
   const currentMonth = Utils.currentYearMonth();
-  const monthMissions = missions.filter(m => m.date && m.date.startsWith(currentMonth));
+  const monthMissions = active.filter(m => m.date && m.date.startsWith(currentMonth));
   // Année scolaire en cours : septembre → août
   const _now  = new Date();
   const _sy   = _now.getMonth() >= 8 ? _now.getFullYear() : _now.getFullYear() - 1;
   const _ymS  = `${_sy}-09-01`;
   const _ymE  = `${_sy+1}-08-31`;
   const _syLabel = `${_sy}-${_sy+1}`;
-  const yearMissions = missions.filter(m => m.date && m.date >= _ymS && m.date <= _ymE);
+  const yearMissions = active.filter(m => m.date && m.date >= _ymS && m.date <= _ymE);
   const yearDone     = yearMissions.filter(m => m.status === 'done');
   // Pour les sociétés propres, montrer réalisés + prévus sur l'année scolaire
   const totalHours   = co.role === 'own'

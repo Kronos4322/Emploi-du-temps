@@ -278,9 +278,10 @@ function render() {
   const doneRevenue    = doneMissions.reduce((s,ms) => s + (ms.duration||0)*(ms.billingRate||0), 0);
   const plannedRevenue = plannedMissions.reduce((s,ms) => s + (ms.duration||0)*(ms.billingRate||0), 0);
   const missionRevenue = Math.round((doneRevenue + plannedRevenue) * 100) / 100;
+  // providerRate = tarif individuel PAR intervenant → coût = durée × tarif × nb prestataires
   const _calcCosts     = list => list.reduce((s,ms) => {
     const pids = ms.providerIds?.length ? ms.providerIds : (ms.providerId ? [ms.providerId] : []);
-    return pids.length ? s + (ms.duration||0)*(ms.providerRate||0) : s;
+    return pids.length ? s + (ms.duration||0)*(ms.providerRate||0)*pids.length : s;
   }, 0);
   const totalCosts  = Math.round((_calcCosts(doneMissions) + _calcCosts(plannedMissions)) * 100) / 100;
   const hoursDone   = doneMissions.reduce((s,ms) => s + (ms.duration||0), 0);
@@ -440,7 +441,7 @@ function render() {
       if (!byProvMap[pid]) byProvMap[pid] = { count: 0, hours: 0, cost: 0 };
       byProvMap[pid].count++;
       byProvMap[pid].hours += ms.duration || 0;
-      byProvMap[pid].cost  += (ms.duration||0) * (ms.providerRate||0) / pids.length;
+      byProvMap[pid].cost  += (ms.duration||0) * (ms.providerRate||0);
     });
   });
   const byProvEntries = Object.entries(byProvMap).filter(([pid]) => providers[pid]);

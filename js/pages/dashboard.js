@@ -188,7 +188,7 @@ function renderDashboard() {
   const provMap = {}; Data.getProviders().forEach(p => provMap[p.id] = p);
   const ownCos = Data.getOwnCompanies();
   const ym = Utils.currentYearMonth();
-  const allM = Data.getMissions().filter(m => m.status !== 'cancelled' && m.date && m.date.startsWith(ym));
+  const allM = Data.getMissions().filter(m => m.status !== 'cancelled' && m.date && m.date.startsWith(ym) && m.missionType !== 'personal');
 
   const poleM    = allM.filter(m => _poleFilter(m, coMap));
   const donePole = poleM.filter(m => m.status === 'done');
@@ -216,8 +216,10 @@ function renderDashboard() {
     };
   });
 
-  const charges     = donePole.filter(m => m.providerId||m.providerIds?.length).reduce((s,m) => s+(m.duration||0)*(m.providerRate||0), 0);
-  const chargesPlan = planPole.filter(m => m.providerId||m.providerIds?.length).reduce((s,m) => s+(m.duration||0)*(m.providerRate||0), 0);
+  // providerRate = tarif individuel PAR intervenant
+  const _nProv      = m => (m.providerIds?.length ? m.providerIds.length : (m.providerId ? 1 : 0));
+  const charges     = donePole.reduce((s,m) => s+(m.duration||0)*(m.providerRate||0)*_nProv(m), 0);
+  const chargesPlan = planPole.reduce((s,m) => s+(m.duration||0)*(m.providerRate||0)*_nProv(m), 0);
 
   // ── KPIs ──────────────────────────────────────────────────────
   const kpiGrid = document.getElementById('kpi-grid');
