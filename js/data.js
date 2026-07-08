@@ -433,26 +433,10 @@ const Data = {
       if (coChanged) { c.updatedAt = _n; changed = true; }
     });
 
-    // Tarif AGRONOVA — 45 €/h forcé sur la fiche ET sur toutes les missions existantes
-    const _agronovaCo = (this._db.companies || []).find(c =>
-      c.role !== 'own' && (c.name || '').toLowerCase().includes('agronova')
-    );
-    if (_agronovaCo) {
-      if (_agronovaCo.defaultBillingRate !== 45) {
-        _agronovaCo.defaultBillingRate = 45;
-        _agronovaCo.updatedAt = Date.now();
-        changed = true;
-      }
-      // Corriger le tarif sur les missions existantes
-      (this._db.missions || []).forEach(m => {
-        if (m.companyId !== _agronovaCo.id) return;
-        if (m.billingRate !== 45) {
-          m.billingRate = 45;
-          m.updatedAt   = Date.now();
-          changed = true;
-        }
-      });
-    }
+    // ⚠️ Ancienne migration "tarif Agronova 45€/h forcé" SUPPRIMÉE :
+    // elle réécrasait à chaque chargement les tarifs édités manuellement
+    // (missions rattachées à Agronova impossibles à retarifer).
+    // Le tarif par défaut est déjà en base ; les tarifs par mission font foi.
 
     // Catégorie "Cours particuliers" dans le référentiel Matières
     const _CP_CAT_ID = 'cat-cours-particuliers';

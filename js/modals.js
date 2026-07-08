@@ -448,6 +448,13 @@ const Modals = {
         })(),
       };
 
+      // Un événement personnel ne porte ni société ni tarif (sinon il gonfle le CA)
+      if (saved.missionType === 'personal') {
+        saved.companyId    = '';
+        saved.billingRate  = 0;
+        saved.providerRate = 0;
+      }
+
       if (isNew && recurrence && recurrenceEnd) {
         const list = Data.createRecurringMissions(saved, recurrence, recurrenceEnd);
         Utils.toast(`${list.length} missions récurrentes créées.`, 'success');

@@ -3,6 +3,11 @@
 
 const RENTAL_POLE = '__rental__';
 
+// Encaissement réel d'une entrée locative (versé réel > montant Airbnb EUR > 0).
+// Règle métier : le CA location = encaissements uniquement, jamais les montants estimés.
+const _encAmt = r => r.actualAmount ?? r.amountEURairbnb ?? 0;
+const _hasEnc = r => r.actualAmount != null || r.amountEURairbnb != null;
+
 const RENTAL_STATUS_BADGES = {
   received: '<span class="badge badge-success">✓ Reçu</span>',
   pending:  '<span class="badge badge-warning">⏳ En attente</span>',
@@ -282,7 +287,7 @@ function render() {
   const hoursPlanned= plannedMissions.reduce((s,ms) => s + (ms.duration||0), 0);
   // Intégration revenus locatifs pour "Tous les pôles"
   const rentalIncomes = !_poleId ? Data.getRentalIncomesByMonth(_yearMonth) : [];
-  const rentalTotal   = rentalIncomes.reduce((s, r) => s + (r.amount || 0), 0);
+  const rentalTotal   = rentalIncomes.reduce((s, r) => s + _encAmt(r), 0);
   const totalRevenue  = Math.round((missionRevenue + rentalTotal) * 100) / 100;
   const netMargin     = Math.round((totalRevenue - totalCosts) * 100) / 100;
 
@@ -516,8 +521,8 @@ function renderRentalFull() {
   const allIncomes = Data.getRentalIncomesByMonth(_yearMonth);
   const filtered   = _companyId ? allIncomes.filter(r => r.propertyId === _companyId) : allIncomes;
 
-  const total   = filtered.reduce((s, r) => s + (r.amount || 0), 0);
-  const pending = filtered.filter(r => r.status !== 'received').reduce((s, r) => s + (r.amount || 0), 0);
+  const total   = filtered.reduce((s, r) => s + _encAmt(r), 0);
+  const pending = filtered.filter(r => !_hasEnc(r)).reduce((s, r) => s + (r.amount || 0), 0);
   const activeProps = Data.getActiveProperties().length;
 
   // Cumul 12 mois glissants
@@ -528,7 +533,7 @@ function renderRentalFull() {
   })();
   const rolling12 = Data.getRentalIncomes()
     .filter(r => r.yearMonth >= ym12 && r.yearMonth <= _yearMonth && (!_companyId || r.propertyId === _companyId))
-    .reduce((s, r) => s + (r.amount || 0), 0);
+    .reduce((s, r) => s + _encAmt(r), 0);
 
   // KPIs locatifs
   _setKpiLabel('fin-revenue',    'Revenus du mois');
@@ -555,7 +560,7 @@ function renderRentalFull() {
   filtered.forEach(r => {
     const key = r.propertyId || '__none__';
     if (!byProp[key]) byProp[key] = { income: 0, nights: 0, entries: [] };
-    byProp[key].income += r.amount || 0;
+    byProp[key].income += _encAmt(r);
     byProp[key].nights += r.nightsRented || 0;
     byProp[key].entries.push(r);
   });
@@ -599,7 +604,7 @@ function renderRentalFull() {
         <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(prop?.name || '—')}</td>
         <td>${Utils.escapeHtml(r.platform || '—')}</td>
         <td class="cell-center">${r.nightsRented || '—'}</td>
-        <td class="cell-money">${Utils.formatMoney(r.amount || 0)}</td>
+        <td class="cell-money">${_hasEnc(r) ? Utils.formatMoney(_encAmt(r)) : `<span style="color:var(--text-muted)" title="Estimation — aucun encaissement saisi">(${Utils.formatMoney(r.amount || 0)})</span>`}</td>
         <td>${RENTAL_STATUS_BADGES[r.status] || r.status || ''}</td>
         <td style="font-size:0.82rem;color:var(--text-muted)">${Utils.escapeHtml(r.notes || '')}</td>
       </tr>`;
@@ -632,7 +637,7 @@ function renderAnnual() {
     filtered.forEach(r => {
       const key = r.propertyId || '__none__';
       if (!byProp[key]) byProp[key] = { income: 0, months: new Set(), count: 0 };
-      byProp[key].income += r.amount || 0;
+      byProp[key].income += _encAmt(r);
       byProp[key].months.add(r.yearMonth);
       byProp[key].count++;
     });
@@ -703,7 +708,7 @@ function renderAnnual() {
   // Ligne locatif si "tous les pôles"
   if (!_poleId) {
     const rentalYear = Data.getRentalIncomes().filter(r => r.yearMonth >= ymStart && r.yearMonth <= ymEnd);
-    const rentalSum  = rentalYear.reduce((s, r) => s + (r.amount || 0), 0);
+    const rentalSum  = rentalYear.reduce((s, r) => s + _encAmt(r), 0);
     if (rentalSum > 0) {
       totalRevenue += rentalSum;
       rows.push(`<tr style="background:var(--primary-light,#eff6ff)">
@@ -727,7 +732,7 @@ function renderAnnual() {
   if (summaryEl) {
     const parts = ownCos.map(o => `${o.name} : ${Utils.formatMoney(poleRevs[o.id]||0)}`);
     if (!_poleId) {
-      const rs = Data.getRentalIncomes().filter(r => r.yearMonth >= ymStart && r.yearMonth <= ymEnd).reduce((s,r)=>s+(r.amount||0),0);
+      const rs = Data.getRentalIncomes().filter(r => r.yearMonth >= ymStart && r.yearMonth <= ymEnd).reduce((s,r)=>s+_encAmt(r),0);
       if (rs > 0) parts.push(`Location : ${Utils.formatMoney(rs)}`);
     }
     summaryEl.textContent = parts.join('  |  ');
@@ -832,8 +837,8 @@ function renderAnnualComparison() {
 
   // Revenus locatifs (si tous pôles)
   if (!_poleId) {
-    const rentA = Data.getRentalIncomes().filter(r=>r.yearMonth>=ymStartA&&r.yearMonth<=ymEndA).reduce((s,r)=>s+(r.amount||0),0);
-    const rentB = Data.getRentalIncomes().filter(r=>r.yearMonth>=ymStartB&&r.yearMonth<=ymEndB).reduce((s,r)=>s+(r.amount||0),0);
+    const rentA = Data.getRentalIncomes().filter(r=>r.yearMonth>=ymStartA&&r.yearMonth<=ymEndA).reduce((s,r)=>s+_encAmt(r),0);
+    const rentB = Data.getRentalIncomes().filter(r=>r.yearMonth>=ymStartB&&r.yearMonth<=ymEndB).reduce((s,r)=>s+_encAmt(r),0);
     if (rentA > 0 || rentB > 0) {
       totA.revenue += rentA; totB.revenue += rentB;
       const dR = rentB - rentA;
@@ -1292,7 +1297,7 @@ function renderPieChart() {
     filtered.forEach(r => {
       const key = r.propertyId || '__none__';
       if (!byProp[key]) byProp[key] = { name: propMap[r.propertyId]?.name||'Inconnu', total: 0, color: propMap[r.propertyId]?.color };
-      byProp[key].total += r.amount || 0;
+      byProp[key].total += _encAmt(r);
     });
     const sorted = Object.values(byProp).map(e=>({...e,total:Math.round(e.total*100)/100})).filter(e=>e.total>0).sort((a,b)=>b.total-a.total);
     _buildDoughnut(sorted, COLORS);
@@ -1320,7 +1325,7 @@ function renderPieChart() {
 
   // Tranche locative si "tous les pôles"
   if (!_poleId) {
-    const rentalSum = Data.getRentalIncomes().reduce((s,r)=>s+(r.amount||0),0);
+    const rentalSum = Data.getRentalIncomes().reduce((s,r)=>s+_encAmt(r),0);
     if (rentalSum > 0) sorted.push({ name: '🏠 Location', total: Math.round(rentalSum*100)/100, color: '#10b981' });
   }
   _buildDoughnut(sorted, COLORS);
@@ -1355,7 +1360,7 @@ function _exportRentalCsv() {
   incomes.sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
 
   const STATUS_FR = { received: 'Reçu', pending: 'En attente', partial: 'Partiel' };
-  const rows = [['Mois', 'Bien', 'Plateforme', 'Nuits louées', 'Montant (€)', 'Statut', 'Notes']];
+  const rows = [['Mois', 'Bien', 'Plateforme', 'Nuits louées', 'Estimé (€)', 'Encaissé (€)', 'Statut', 'Notes']];
   incomes.forEach(r => {
     const prop = propMap[r.propertyId];
     rows.push([
@@ -1364,6 +1369,7 @@ function _exportRentalCsv() {
       r.platform || '',
       r.nightsRented ?? '',
       (r.amount || 0).toFixed(2).replace('.', ','),
+      _hasEnc(r) ? _encAmt(r).toFixed(2).replace('.', ',') : '',
       STATUS_FR[r.status] || r.status || '',
       r.notes || '',
     ]);
