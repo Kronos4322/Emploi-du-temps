@@ -270,9 +270,11 @@ function _renderProperties() {
     const defaultRateLabel = p.defaultRate ? `· ${p.defaultRate}€/nuit` : '';
 
     // Couleur de la barre d'occupation : vert si >70%, orange si >40%, rouge sinon
+    // Bordure = couleur d'occupation si réservations ce mois, sinon couleur du bien
     const occColor = propOcc >= 70 ? '#22c55e' : propOcc >= 40 ? '#f97316' : '#ef4444';
+    const borderColor = monthNights > 0 ? occColor : (p.color || '#94a3b8');
 
-    return `<div class="property-card" style="border-left-color:${p.color||'#94a3b8'}${isInactive?';opacity:0.7':''};cursor:pointer" onclick="window._locOpenPropertyDetail('${p.id}')">
+    return `<div class="property-card" style="border-left-color:${borderColor}${isInactive?';opacity:0.7':''};cursor:pointer" onclick="window._locOpenPropertyDetail('${p.id}')">
       <div class="property-card-header">
         <div class="property-color-dot" style="background:${p.color||'#94a3b8'}"></div>
         <div style="flex:1;min-width:0">
