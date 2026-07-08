@@ -1248,7 +1248,7 @@ function _renderRentalChart(group, ctype) {
   const LOC_COLORS = ['#10b981','#0891b2','#059669','#14b8a6','#22c55e','#06b6d4','#0284c7','#16a34a'];
   const datasets = [];
   props.forEach((prop, i) => {
-    const data = labels.map(lbl => Math.round(filtered.filter(r=>r.propertyId===prop.id&&rKey(r)===lbl&&r.status==='received').reduce((s,r)=>s+(r.amount||0),0)*100)/100);
+    const data = labels.map(lbl => Math.round(filtered.filter(r=>r.propertyId===prop.id&&rKey(r)===lbl).reduce((s,r)=>s+(r.amount||0),0)*100)/100);
     if (data.every(v=>v===0)) return;
     // Utiliser la couleur de la propriété si définie et non-orange par défaut, sinon teal
     const col = (prop.color && prop.color !== '#f97316') ? prop.color : LOC_COLORS[i % LOC_COLORS.length];
@@ -1259,8 +1259,8 @@ function _renderRentalChart(group, ctype) {
     });
   });
   if (props.length > 1) {
-    const td = labels.map(lbl => Math.round(filtered.filter(r=>rKey(r)===lbl&&r.status==='received').reduce((s,r)=>s+(r.amount||0),0)*100)/100);
-    if (td.some(v=>v>0)) datasets.unshift({ label: 'Total reçu', data: td, backgroundColor: '#10b98160', borderColor: '#10b981', borderWidth: 2, fill: false, type: 'line', pointRadius: 3, tension: 0.3 });
+    const td = labels.map(lbl => Math.round(filtered.filter(r=>rKey(r)===lbl).reduce((s,r)=>s+(r.amount||0),0)*100)/100);
+    if (td.some(v=>v>0)) datasets.unshift({ label: 'Total Location', data: td, backgroundColor: '#10b98160', borderColor: '#10b981', borderWidth: 2, fill: false, type: 'line', pointRadius: 3, tension: 0.3 });
   }
   const MONTHS_ABBR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
   const readableLabels = labels.map(lbl => { if(group==='month'){const[y,m]=lbl.split('-');return`${MONTHS_ABBR[+m-1]} ${y}`;}return`AS ${lbl}`; });
@@ -1380,8 +1380,10 @@ function renderRentalSection() {
   // Masquer si un pôle spécifique est sélectionné (missions ou location)
   if (_poleId) { section.style.display = 'none'; return; }
 
-  const incomes = Data.getRentalIncomesByMonth(_yearMonth);
-  if (incomes.length === 0) { section.style.display = 'none'; return; }
+  const allMonthIncomes = Data.getRentalIncomesByMonth(_yearMonth);
+  if (allMonthIncomes.length === 0) { section.style.display = 'none'; return; }
+  // N'afficher que les encaissements réellement reçus (non 0€)
+  const incomes = allMonthIncomes.filter(r => r.status === 'received' && (r.amount || 0) > 0);
   section.style.display = '';
 
   const propMap = {}; Data.getProperties().forEach(p => propMap[p.id] = p);
@@ -1389,23 +1391,32 @@ function renderRentalSection() {
   document.getElementById('rental-month-label').textContent = `${Utils.MONTHS_LONG[+m-1]} ${y}`;
 
   const total   = incomes.reduce((s,r) => s+(r.amount||0), 0);
-  const pending = incomes.filter(r=>r.status!=='received').reduce((s,r)=>s+(r.amount||0), 0);
-  const propIds = [...new Set(incomes.map(r=>r.propertyId).filter(Boolean))];
+  const pending = allMonthIncomes.filter(r=>r.status!=='received').reduce((s,r)=>s+(r.amount||0), 0);
+  const propIds = [...new Set(allMonthIncomes.map(r=>r.propertyId).filter(Boolean))];
+
+  // Libellés "encaissements réels"
+  const totalLbl = document.querySelector('#section-rental .kpi-label:first-of-type');
+  if (totalLbl) totalLbl.textContent = 'Encaissé';
+  const pendLbl = document.querySelector('#section-rental .kpi-card:last-child .kpi-label');
+  if (pendLbl) pendLbl.textContent = 'En attente';
+
   document.getElementById('rental-total').textContent   = Utils.formatMoney(total);
   document.getElementById('rental-count').textContent   = propIds.length;
   document.getElementById('rental-pending').textContent = Utils.formatMoney(pending);
 
-  document.getElementById('rental-tbody').innerHTML = incomes.map(r => {
-    const prop = propMap[r.propertyId];
-    const col  = prop?.color || '#94a3b8';
-    return `<tr>
-      <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(prop?.name||'—')}</td>
-      <td>${Utils.escapeHtml(r.platform||'—')}</td>
-      <td class="cell-center">${r.nightsRented||'—'}</td>
-      <td class="cell-money">${Utils.formatMoney(r.amount||0)}</td>
-      <td>${RENTAL_STATUS_BADGES[r.status]||r.status||''}</td>
-      <td class="cell-center"><a href="location.html" style="font-size:0.8rem;color:var(--primary)">Voir</a></td>
-    </tr>`;
-  }).join('');
+  document.getElementById('rental-tbody').innerHTML = incomes.length === 0
+    ? `<tr><td colspan="6" class="empty-state-cell" style="color:var(--text-muted);font-style:italic">Aucun encaissement reçu ce mois.</td></tr>`
+    : incomes.map(r => {
+      const prop = propMap[r.propertyId];
+      const col  = prop?.color || '#94a3b8';
+      return `<tr>
+        <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(prop?.name||'—')}</td>
+        <td>${Utils.escapeHtml(r.platform||'—')}</td>
+        <td class="cell-center">${r.nightsRented||'—'}</td>
+        <td class="cell-money">${Utils.formatMoney(r.amount||0)}</td>
+        <td>${RENTAL_STATUS_BADGES[r.status]||r.status||''}</td>
+        <td class="cell-center"><a href="location.html" style="font-size:0.8rem;color:var(--primary)">Voir</a></td>
+      </tr>`;
+    }).join('');
   document.getElementById('rental-tfoot-total').innerHTML = `<strong>${Utils.formatMoney(total)}</strong>`;
 }

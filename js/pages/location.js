@@ -170,15 +170,20 @@ function _renderKpis() {
   const displayYm  = _locMonth || currentYm;
   const filtered   = _locPropertyId ? allIncomes.filter(r => r.propertyId === _locPropertyId) : allIncomes;
 
-  // Revenus + nuits du mois affiché
+  // Réservations du mois affiché
   const dispMonthInc   = filtered.filter(r => r.yearMonth === displayYm);
-  const dispMonthTotal = dispMonthInc.reduce((s,r) => s+(r.amount||0), 0);
-  const pending        = dispMonthInc.filter(r => r.status!=='received').reduce((s,r) => s+(r.amount||0), 0);
+  const monthResaCount = dispMonthInc.length;
 
-  // Cumul 12 mois glissants
+  // Nuits sur 12 mois glissants
   const cutoff  = new Date(now.getFullYear(), now.getMonth()-11, 1);
   const cutYm   = `${cutoff.getFullYear()}-${String(cutoff.getMonth()+1).padStart(2,'0')}`;
-  const yearTotal = filtered.filter(r => r.yearMonth>=cutYm && r.yearMonth<=currentYm).reduce((s,r) => s+(r.amount||0), 0);
+  const nights12 = filtered
+    .filter(r => r.yearMonth >= cutYm && r.yearMonth <= currentYm)
+    .reduce((s,r) => s + (r.nightsRented || 0), 0);
+
+  // Réservations à venir (startDate >= aujourd'hui)
+  const today   = Utils.today();
+  const upcomingCount = filtered.filter(r => r.startDate && r.startDate >= today).length;
 
   // Taux d'occupation du mois affiché
   const [dy,dm]    = displayYm.split('-').map(Number);
@@ -186,25 +191,27 @@ function _renderKpis() {
   const nightsBooked = filtered.filter(r => r.startDate && r.endDate).reduce((s,r) => s+_nightsInMonth(r,displayYm), 0);
   const occupancy  = daysInMonth > 0 ? Math.round(nightsBooked/daysInMonth*100) : 0;
 
-  // RevPAN global — utilise nightsRented stocké (fiable)
-  const allNightsStored = filtered.reduce((s,r) => s+(r.nightsRented||0), 0);
-  const revPAN = allNightsStored > 0 ? Math.round(filtered.reduce((s,r)=>s+(r.amount||0),0)/allNightsStored) : 0;
+  // Durée moyenne des séjours (toutes périodes)
+  const resasWithNights = filtered.filter(r => (r.nightsRented || 0) > 0);
+  const avgStay = resasWithNights.length > 0
+    ? Math.round(resasWithNights.reduce((s,r) => s+(r.nightsRented||0), 0) / resasWithNights.length * 10) / 10
+    : 0;
 
   // Label KPI mois
   const monthLabel = document.getElementById('loc-kpi-month-label');
   if (monthLabel) {
     if (_locMonth) {
       const [ly,lm] = _locMonth.split('-');
-      monthLabel.textContent = `${Utils.MONTHS_LONG[+lm-1]} ${ly}`;
+      monthLabel.textContent = `Résa — ${Utils.MONTHS_LONG[+lm-1]} ${ly}`;
     } else {
-      monthLabel.textContent = 'Revenus du mois';
+      monthLabel.textContent = 'Réservations ce mois';
     }
   }
 
-  document.getElementById('loc-kpi-total').textContent   = Utils.formatMoney(dispMonthTotal);
-  document.getElementById('loc-kpi-year').textContent    = Utils.formatMoney(yearTotal);
+  document.getElementById('loc-kpi-total').textContent   = monthResaCount || '—';
+  document.getElementById('loc-kpi-year').textContent    = nights12 > 0 ? `${nights12} nuit${nights12>1?'s':''}` : '—';
   document.getElementById('loc-kpi-props').textContent   = Data.getActiveProperties().length;
-  document.getElementById('loc-kpi-pending').textContent = Utils.formatMoney(pending);
+  document.getElementById('loc-kpi-pending').textContent = upcomingCount || '—';
 
   const occEl = document.getElementById('loc-kpi-occ');
   if (occEl) occEl.textContent = `${occupancy} %`;
@@ -212,10 +219,10 @@ function _renderKpis() {
   if (occBar) occBar.style.width = `${Math.min(occupancy,100)}%`;
 
   const revPanEl = document.getElementById('loc-kpi-revpan');
-  if (revPanEl) revPanEl.textContent = revPAN > 0 ? Utils.formatMoney(revPAN) : '—';
+  if (revPanEl) revPanEl.textContent = avgStay > 0 ? `${avgStay} nuit${avgStay>1?'s':''}` : '—';
 
   const pendingCard = document.getElementById('loc-kpi-pending-card');
-  if (pendingCard) pendingCard.className = pending > 0 ? 'kpi-card kpi-alert-card' : 'kpi-card';
+  if (pendingCard) pendingCard.className = upcomingCount > 0 ? 'kpi-card kpi-alert-card' : 'kpi-card';
 }
 
 // ── Cartes biens ─────────────────────────────────────────────
