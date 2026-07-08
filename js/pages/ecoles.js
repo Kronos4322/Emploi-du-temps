@@ -94,13 +94,21 @@ function companyCard(co, allMissions) {
   const planned   = missions.filter(m => m.status === 'planned');
   const currentMonth = Utils.currentYearMonth();
   const monthMissions = missions.filter(m => m.date && m.date.startsWith(currentMonth));
-  // Pour les sociétés propres, montrer le total de tous les contrats (réalisés + prévus)
+  // Année scolaire en cours : septembre → août
+  const _now  = new Date();
+  const _sy   = _now.getMonth() >= 8 ? _now.getFullYear() : _now.getFullYear() - 1;
+  const _ymS  = `${_sy}-09-01`;
+  const _ymE  = `${_sy+1}-08-31`;
+  const _syLabel = `${_sy}-${_sy+1}`;
+  const yearMissions = missions.filter(m => m.date && m.date >= _ymS && m.date <= _ymE);
+  const yearDone     = yearMissions.filter(m => m.status === 'done');
+  // Pour les sociétés propres, montrer réalisés + prévus sur l'année scolaire
   const totalHours   = co.role === 'own'
-    ? missions.reduce((s, m) => s + (m.duration||0), 0)
-    : done.reduce((s, m) => s + (m.duration||0), 0);
+    ? yearMissions.reduce((s, m) => s + (m.duration||0), 0)
+    : yearDone.reduce((s, m) => s + (m.duration||0), 0);
   const totalRevenue = co.role === 'own'
-    ? missions.reduce((s, m) => s + (m.duration||0)*(m.billingRate||0), 0)
-    : done.reduce((s, m) => s + (m.duration||0)*(m.billingRate||0), 0);
+    ? yearMissions.reduce((s, m) => s + (m.duration||0)*(m.billingRate||0), 0)
+    : yearDone.reduce((s, m) => s + (m.duration||0)*(m.billingRate||0), 0);
   const monthRevenue = monthMissions.reduce((s, m) => s + (m.duration||0)*(m.billingRate||0), 0);
 
   const providerLinks = Data.getProviderLinksByCompany(co.id);
@@ -144,11 +152,11 @@ function companyCard(co, allMissions) {
         </div>
         <div class="school-stat">
           <div class="school-stat-value">${Utils.formatDuration(totalHours)}</div>
-          <div class="school-stat-label">Heures total</div>
+          <div class="school-stat-label">Heures ${_syLabel}</div>
         </div>
         <div class="school-stat">
           <div class="school-stat-value">${Utils.formatMoney(totalRevenue)}</div>
-          <div class="school-stat-label">CA total</div>
+          <div class="school-stat-label">CA ${_syLabel}</div>
         </div>
       </div>
     </div>
