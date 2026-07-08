@@ -1248,7 +1248,7 @@ function _renderRentalChart(group, ctype) {
   const LOC_COLORS = ['#10b981','#0891b2','#059669','#14b8a6','#22c55e','#06b6d4','#0284c7','#16a34a'];
   const datasets = [];
   props.forEach((prop, i) => {
-    const data = labels.map(lbl => Math.round(filtered.filter(r=>r.propertyId===prop.id&&rKey(r)===lbl).reduce((s,r)=>s+(r.amount||0),0)*100)/100);
+    const data = labels.map(lbl => Math.round(filtered.filter(r=>r.propertyId===prop.id&&rKey(r)===lbl).reduce((s,r)=>s+(r.actualAmount??r.amountEURairbnb??0),0)*100)/100);
     if (data.every(v=>v===0)) return;
     // Utiliser la couleur de la propriété si définie et non-orange par défaut, sinon teal
     const col = (prop.color && prop.color !== '#f97316') ? prop.color : LOC_COLORS[i % LOC_COLORS.length];
@@ -1259,7 +1259,7 @@ function _renderRentalChart(group, ctype) {
     });
   });
   if (props.length > 1) {
-    const td = labels.map(lbl => Math.round(filtered.filter(r=>rKey(r)===lbl).reduce((s,r)=>s+(r.amount||0),0)*100)/100);
+    const td = labels.map(lbl => Math.round(filtered.filter(r=>rKey(r)===lbl).reduce((s,r)=>s+(r.actualAmount??r.amountEURairbnb??0),0)*100)/100);
     if (td.some(v=>v>0)) datasets.unshift({ label: 'Total Location', data: td, backgroundColor: '#10b98160', borderColor: '#10b981', borderWidth: 2, fill: false, type: 'line', pointRadius: 3, tension: 0.3 });
   }
   const MONTHS_ABBR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
@@ -1383,15 +1383,15 @@ function renderRentalSection() {
   const allMonthIncomes = Data.getRentalIncomesByMonth(_yearMonth);
   if (allMonthIncomes.length === 0) { section.style.display = 'none'; return; }
   // N'afficher que les encaissements réellement reçus (non 0€)
-  const incomes = allMonthIncomes.filter(r => r.status === 'received' && (r.amount || 0) > 0);
+  const incomes = allMonthIncomes.filter(r => r.actualAmount != null || r.amountEURairbnb != null);
   section.style.display = '';
 
   const propMap = {}; Data.getProperties().forEach(p => propMap[p.id] = p);
   const [y, m]  = _yearMonth.split('-');
   document.getElementById('rental-month-label').textContent = `${Utils.MONTHS_LONG[+m-1]} ${y}`;
 
-  const total   = incomes.reduce((s,r) => s+(r.amount||0), 0);
-  const pending = allMonthIncomes.filter(r=>r.status!=='received').reduce((s,r)=>s+(r.amount||0), 0);
+  const total   = incomes.reduce((s,r) => s+(r.actualAmount??r.amountEURairbnb??0), 0);
+  const pending = allMonthIncomes.filter(r=>r.actualAmount==null&&r.amountEURairbnb==null).reduce((s,r)=>s+(r.amount||0), 0);
   const propIds = [...new Set(allMonthIncomes.map(r=>r.propertyId).filter(Boolean))];
 
   // Libellés "encaissements réels"
@@ -1413,7 +1413,7 @@ function renderRentalSection() {
         <td><span class="school-dot" style="background:${col}"></span> ${Utils.escapeHtml(prop?.name||'—')}</td>
         <td>${Utils.escapeHtml(r.platform||'—')}</td>
         <td class="cell-center">${r.nightsRented||'—'}</td>
-        <td class="cell-money">${Utils.formatMoney(r.amount||0)}</td>
+        <td class="cell-money">${Utils.formatMoney(r.actualAmount??r.amountEURairbnb??r.amount??0)}</td>
         <td>${RENTAL_STATUS_BADGES[r.status]||r.status||''}</td>
         <td class="cell-center"><a href="location.html" style="font-size:0.8rem;color:var(--primary)">Voir</a></td>
       </tr>`;
