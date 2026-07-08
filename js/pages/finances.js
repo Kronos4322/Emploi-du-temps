@@ -1126,7 +1126,7 @@ function renderChart() {
         if (!_poleId) {
           const allRental = Data.getRentalIncomes();
           rentalMonthly = labels.map(lbl =>
-            Math.round(allRental.filter(r => rKey(r) === lbl).reduce((s,r) => s+(r.amount||0), 0)*100)/100
+            Math.round(allRental.filter(r => rKey(r) === lbl).reduce((s,r) => s+(r.actualAmount??r.amountEURairbnb??0), 0)*100)/100
           );
           hasRental = rentalMonthly.some(v => v > 0);
         }
