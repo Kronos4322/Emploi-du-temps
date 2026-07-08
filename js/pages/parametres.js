@@ -88,6 +88,21 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.value = '';
   });
 
+  // Enregistrer & Synchroniser (bouton global en-tête)
+  document.getElementById('btn-global-save').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-global-save');
+    btn.disabled = true;
+    btn.textContent = '⏳ Enregistrement…';
+    try {
+      await Data.forcePushToFirebase();
+      showToast('Données enregistrées et synchronisées !');
+    } catch(e) {
+      showToast('Échec de la synchronisation.', true);
+    }
+    btn.disabled = false;
+    btn.textContent = '💾 Enregistrer & Synchroniser';
+  });
+
   // Récupérer depuis le cloud (pull)
   document.getElementById('btn-force-pull').addEventListener('click', async () => {
     const btn = document.getElementById('btn-force-pull');
