@@ -16,7 +16,10 @@ function render() {
   let subjects    = Data.getSubjects();
   const categories = Data.getSubjectCategories();
   const companies  = {}; Data.getCompanies().forEach(c => companies[c.id] = c);
-  const missions   = Data.getMissions().filter(m => m.status === 'done' || m.status === 'planned');
+  // Volumes limités à l'année scolaire en cours (rupture sept → août)
+  const _syY = new Date().getMonth() >= 8 ? new Date().getFullYear() : new Date().getFullYear() - 1;
+  const missions   = Data.getMissions().filter(m => (m.status === 'done' || m.status === 'planned')
+    && m.date && m.date >= `${_syY}-09-01` && m.date <= `${_syY+1}-08-31`);
   const list       = document.getElementById('subjects-list');
   const schools    = Data.getClientSchools();
 

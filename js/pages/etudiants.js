@@ -159,7 +159,10 @@ function hubHTML() {
 function studentsHTML() {
   const cos  = {}; Data.getCompanies().forEach(c=>cos[c.id]=c);
   const fors = {}; Data.getFormations().forEach(f=>fors[f.id]=f);
-  const allM = Data.getMissions().filter(m=>(m.status==='done'||m.status==='planned'));
+  // Cumuls des cartes limités à l'année scolaire en cours (rupture sept → août)
+  const _syY = new Date().getMonth() >= 8 ? new Date().getFullYear() : new Date().getFullYear() - 1;
+  const allM = Data.getMissions().filter(m => (m.status==='done'||m.status==='planned')
+    && m.date && m.date >= `${_syY}-09-01` && m.date <= `${_syY+1}-08-31`);
   const ownCos = Data.getOwnCompanies().filter(c=>c.hasTraining);
   const allForms = Data.getFormations();
   let st = Data.getStudents();

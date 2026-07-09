@@ -8,6 +8,34 @@ const RENTAL_POLE = '__rental__';
 const _encAmt = r => r.actualAmount ?? r.amountEURairbnb ?? 0;
 const _hasEnc = r => r.actualAmount != null || r.amountEURairbnb != null;
 
+// ── Oraux / Jurys HEIP : saisis dans Suivi factures, intégrés au CA ici ───────
+// Les jurys dans l'agenda sont à 0 € ; la source de vérité est la section
+// "Oraux HEIP" de la page Factures. On les rattache au pôle d'HEIP (Astéria).
+const ORAUX_KEY = '__oraux__';
+function _orxHeipCo() {
+  return Data.getCompanies().find(c => c.role !== 'own' && (c.name||'').toLowerCase().includes('heip')) || null;
+}
+function _orxPoleId() {
+  const h = _orxHeipCo();
+  if (h?.poleId) return h.poleId;
+  const a = Data.getOwnCompanies().find(c =>
+    (c.name||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').includes('aster'));
+  return a?.id || null;
+}
+const _orxSum = list => Math.round((list||[]).reduce((s,o) => s+(o.total||0), 0)*100)/100;
+const _orxCount = list => (list||[]).reduce((s,o) => s+(o.count||0), 0);
+// Les oraux sont-ils visibles avec les filtres pôle/école actifs ?
+function _orxVisible() {
+  if (_poleId === RENTAL_POLE) return false;
+  if (_poleId && _poleId !== _orxPoleId()) return false;
+  if (_companyId === '__none__') return false;
+  if (_companyId && _companyId !== _orxHeipCo()?.id) return false;
+  return true;
+}
+function _orxBetween(d1, d2) {
+  return (Data.getOraux()||[]).filter(o => o.date && o.date >= d1 && o.date <= d2);
+}
+
 const RENTAL_STATUS_BADGES = {
   received: '<span class="badge badge-success">✓ Reçu</span>',
   pending:  '<span class="badge badge-warning">⏳ En attente</span>',
@@ -226,16 +254,22 @@ function _setKpiLabel(valueId, text) {
 // ── Helper : rendu d'une ligne école dans le tableau de répartition ──────────
 
 function _mkSchoolRow(cid, d, companies, displayedRevenue) {
-  const co  = cid === '__no_school__' ? null : companies[cid];
-  const col = co ? co.color : '#94a3b8';
+  const isOraux = cid === ORAUX_KEY;
+  const co  = (cid === '__no_school__' || isOraux) ? null : companies[cid];
+  const col = isOraux ? '#0ea5e9' : (co ? co.color : '#94a3b8');
   const pct = displayedRevenue > 0 ? Math.round(d.revenue / displayedRevenue * 100) : 0;
   const name = cid === '__no_school__'
     ? '<em style="color:var(--text-muted)">Sans école associée</em>'
-    : Utils.escapeHtml(co?.name || '—');
+    : isOraux
+      ? `🎓 Oraux / Jurys HEIP <span style="font-size:0.75rem;color:var(--text-muted)">(suivi factures)</span>`
+      : Utils.escapeHtml(co?.name || '—');
+  const countCell = isOraux
+    ? `${d.done} <span style="color:var(--text-muted);font-size:0.8rem">oraux</span>`
+    : `${d.done}${d.planned > 0 ? ` <span style="color:var(--text-muted);font-size:0.8rem">(+${d.planned} prévu)</span>` : ''}`;
   return `<tr>
     <td><span class="school-dot" style="background:${col}"></span> ${name}</td>
-    <td class="cell-center">${d.done}${d.planned > 0 ? ` <span style="color:var(--text-muted);font-size:0.8rem">(+${d.planned} prévu)</span>` : ''}</td>
-    <td class="cell-center">${Utils.formatDuration(d.hours)}</td>
+    <td class="cell-center">${countCell}</td>
+    <td class="cell-center">${isOraux ? '—' : Utils.formatDuration(d.hours)}</td>
     <td class="cell-money">${Utils.formatMoney(d.revenue)}</td>
     <td><div class="progress-bar-wrapper"><div class="progress-bar" style="width:${pct}%;background:${col}"></div><span class="progress-label">${pct}%</span></div></td>
   </tr>`;
@@ -289,7 +323,10 @@ function render() {
   // Intégration revenus locatifs pour "Tous les pôles"
   const rentalIncomes = !_poleId ? Data.getRentalIncomesByMonth(_yearMonth) : [];
   const rentalTotal   = rentalIncomes.reduce((s, r) => s + _encAmt(r), 0);
-  const totalRevenue  = Math.round((missionRevenue + rentalTotal) * 100) / 100;
+  // Oraux / Jurys HEIP du mois (source : Suivi factures)
+  const orauxList  = _orxVisible() ? Data.getOrauxByMonth(_yearMonth) : [];
+  const orauxTotal = _orxSum(orauxList);
+  const totalRevenue  = Math.round((missionRevenue + rentalTotal + orauxTotal) * 100) / 100;
   const netMargin     = Math.round((totalRevenue - totalCosts) * 100) / 100;
 
   // ── Ligne CA par pôle (mode "Tous les pôles") ──────────────────────────────
@@ -300,9 +337,11 @@ function render() {
       // Calculer le CA par pôle sur les missions du mois (réalisé + prévu)
       const allMonthMs = [...doneMissions, ...plannedMissions];
       const poleCards = ownCosForKpi.map(pole => {
-        const rev = Math.round(allMonthMs
+        let rev = Math.round(allMonthMs
           .filter(ms => companies[ms.companyId]?.poleId === pole.id)
           .reduce((s, ms) => s + (ms.duration||0)*(ms.billingRate||0), 0) * 100) / 100;
+        // Les oraux HEIP comptent dans le CA du pôle d'HEIP (Astéria)
+        if (pole.id === _orxPoleId()) rev = Math.round((rev + orauxTotal) * 100) / 100;
         return `<div class="kpi-card">
           <div class="kpi-icon" style="background:${pole.color}20;color:${pole.color}">💶</div>
           <div class="kpi-content">
@@ -367,6 +406,10 @@ function render() {
     .filter(([,d]) => d.done + d.planned > 0)
     .sort((a, b) => b[1].revenue - a[1].revenue);
 
+  // Ligne Oraux HEIP (rattachée au pôle Astéria dans le tableau groupé)
+  if (orauxTotal > 0) {
+    byCompanyEntries.push([ORAUX_KEY, { hours: 0, revenue: orauxTotal, done: _orxCount(orauxList), planned: 0 }]);
+  }
   // Ajouter ligne locative si "tous les pôles" avec des revenus → rend le footer cohérent avec le KPI
   if (!_poleId && rentalTotal > 0) {
     byCompanyEntries.push(['__rental__', { hours: 0, revenue: rentalTotal, done: 0, planned: 0 }]);
@@ -382,6 +425,7 @@ function render() {
     ownCosForKpi.forEach(pole => {
       const poleEntries = byCompanyEntries.filter(([cid]) => {
         if (cid === '__no_school__' || cid === '__rental__') return false;
+        if (cid === ORAUX_KEY) return pole.id === _orxPoleId(); // oraux HEIP → bloc Astéria
         return companies[cid]?.poleId === pole.id;
       });
       if (poleEntries.length === 0) return;
@@ -707,6 +751,26 @@ function renderAnnual() {
     </tr>`;
   }).filter(Boolean);
 
+  // Ligne Oraux / Jurys HEIP (suivi factures) — rattachés au pôle Astéria
+  if (_orxVisible()) {
+    const orxYear = _orxBetween(dateStart, dateEnd);
+    const orxSum  = _orxSum(orxYear);
+    if (orxSum > 0) {
+      totalRevenue += orxSum;
+      const orxPole = _orxPoleId();
+      if (orxPole) poleRevs[orxPole] = (poleRevs[orxPole] || 0) + orxSum;
+      const viaName = orxPole ? (coMap[orxPole]?.name || '—') : '—';
+      rows.push(`<tr style="background:#f0f9ff">
+        <td><span class="school-dot" style="background:#0ea5e9"></span> 🎓 Oraux / Jurys HEIP <span style="font-size:0.75rem;color:var(--text-muted)">(suivi factures)</span></td>
+        <td class="cell-money">—</td>
+        <td class="cell-center">${orxYear.length} session${orxYear.length>1?'s':''}</td>
+        <td class="cell-center">${_orxCount(orxYear)} oraux</td>
+        <td class="cell-money">${Utils.formatMoney(orxSum)}</td>
+        <td style="font-size:0.82rem;color:var(--text-muted)">${Utils.escapeHtml(viaName)}</td>
+      </tr>`);
+    }
+  }
+
   // Ligne locatif si "tous les pôles"
   if (!_poleId) {
     const rentalYear = Data.getRentalIncomes().filter(r => r.yearMonth >= ymStart && r.yearMonth <= ymEnd);
@@ -837,6 +901,25 @@ function renderAnnualComparison() {
       <td class="cell-center" style="color:${statColor};font-size:0.82rem;font-weight:600">${statut}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="9" class="empty-state-cell">Aucune donnée sur ces périodes.</td></tr>';
+
+  // Oraux / Jurys HEIP (suivi factures)
+  if (_orxVisible()) {
+    const orxA = _orxSum(_orxBetween(dateStartA, dateEndA));
+    const orxB = _orxSum(_orxBetween(dateStartB, dateEndB));
+    if (orxA > 0 || orxB > 0) {
+      totA.revenue += orxA; totB.revenue += orxB;
+      const dO = orxB - orxA;
+      tbody.innerHTML += `<tr style="background:#f0f9ff">
+        <td><span class="school-dot" style="background:#0ea5e9"></span> 🎓 Oraux / Jurys HEIP</td>
+        <td class="cell-center">—</td><td class="cell-center">—</td>
+        <td class="cell-money">${orxA>0?Utils.formatMoney(orxA):'—'}</td>
+        <td class="cell-center">—</td><td class="cell-center">—</td>
+        <td class="cell-money">${orxB>0?Utils.formatMoney(orxB):'—'}</td>
+        <td class="cell-center" style="color:${dO>=0?'var(--success)':'var(--danger)'};font-weight:600">${dO===0?'—':(dO>0?'+':'-')+Utils.formatMoney(Math.abs(dO))}</td>
+        <td></td>
+      </tr>`;
+    }
+  }
 
   // Revenus locatifs (si tous pôles)
   if (!_poleId) {
@@ -1091,6 +1174,15 @@ function renderChart() {
     const [ry, rm] = r.yearMonth.split('-').map(Number);
     return `${rm>=9?ry:ry-1}-${rm>=9?ry+1:ry}`;
   };
+  const oKey = o => {
+    const ym = o.yearMonth || (o.date||'').slice(0,7);
+    if (group === 'month') return ym;
+    const [oy, om] = ym.split('-').map(Number);
+    return `${om>=9?oy:oy-1}-${om>=9?oy+1:oy}`;
+  };
+  // Oraux HEIP par période (vides si les filtres actifs les excluent)
+  const allOraux      = _orxVisible() ? (Data.getOraux()||[]).filter(o => o.date) : [];
+  const orauxMonthly  = labels.map(lbl => _orxSum(allOraux.filter(o => oKey(o) === lbl)));
 
   let missions = allMissions.filter(m => _matchesPole(m, coMap));
   if (_companyId && _companyId !== '__none__') missions = missions.filter(m => m.companyId === _companyId);
@@ -1104,14 +1196,17 @@ function renderChart() {
     // pour toujours afficher le CA réel du pôle, indépendamment du filtre école actif
     const makePoleDataset = (pole, i) => {
       const baseColor = pole.color || COLORS[i];
-      const data = labels.map(lbl => {
+      const isOrxPole = pole.id === _orxPoleId();
+      const data = labels.map((lbl, li) => {
         const ms = allMissions.filter(m => {
           if (mKey(m) !== lbl) return false;
           const co = coMap[m.companyId];
           if (!co) return false;
           return co.role === 'own' ? co.id === pole.id : co.poleId === pole.id;
         });
-        return Math.round(ms.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0)*100)/100;
+        const base = ms.reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0);
+        // Le CA du pôle d'HEIP inclut les oraux (suivi factures)
+        return Math.round((base + (isOrxPole ? orauxMonthly[li] : 0))*100)/100;
       });
       return {
         label: pole.name, data,
@@ -1140,8 +1235,8 @@ function renderChart() {
           hasRental = rentalMonthly.some(v => v > 0);
         }
 
-        // Barres = missions + location (accumulé)
-        const totalMonthlyRev = labels.map((_, i) => Math.round((missionMonthlyRev[i] + rentalMonthly[i]) * 100) / 100);
+        // Barres = missions + oraux HEIP + location (accumulé)
+        const totalMonthlyRev = labels.map((_, i) => Math.round((missionMonthlyRev[i] + orauxMonthly[i] + rentalMonthly[i]) * 100) / 100);
         const totalLabel = ownCos.map(c => c.name).join(' + ');
         const barLabel   = hasRental ? `Total (${totalLabel} + Location)` : `Total (${totalLabel})`;
 
@@ -1192,6 +1287,9 @@ function renderChart() {
         if (data.every(v=>v===0)) return;
         datasets.push({ label: co.name, data, backgroundColor: (co.color||COLORS[i%COLORS.length])+'99', borderColor: co.color||COLORS[i%COLORS.length], borderWidth: 2, fill: false });
       });
+      if (orauxMonthly.some(v => v > 0)) {
+        datasets.push({ label: '🎓 Oraux HEIP', data: orauxMonthly, backgroundColor: '#0ea5e999', borderColor: '#0ea5e9', borderWidth: 2, fill: false });
+      }
     } else {
       const pole = ownCos.find(p => p.id === split);
       if (pole) datasets.push(makePoleDataset(pole, ownCos.indexOf(pole)));
@@ -1308,10 +1406,14 @@ function renderPieChart() {
     return;
   }
 
-  // Camembert missions
+  // Camembert missions — scoped sur l'année scolaire sélectionnée (rupture sept → août)
+  const [psy, pey]  = _schoolYear.split('-');
+  const pieStart    = `${psy}-09-01`, pieEnd = `${pey}-08-31`;
+  const pieYmStart  = pieStart.slice(0,7), pieYmEnd = pieEnd.slice(0,7);
   const coMap       = {}; Data.getCompanies().forEach(c => coMap[c.id] = c);
   const allMissions = Data.getMissions().filter(m =>
-    (m.status === 'done' || m.status === 'planned') && m.date && m.missionType !== 'personal'
+    (m.status === 'done' || m.status === 'planned') && m.date && m.missionType !== 'personal' &&
+    m.date >= pieStart && m.date <= pieEnd
   );
   let missions = allMissions.filter(m => _matchesPole(m, coMap));
   if (_companyId === '__none__') missions = [];
@@ -1327,9 +1429,16 @@ function renderPieChart() {
   });
   const sorted = Object.values(bySchool).map(e=>({...e,total:Math.round(e.total*100)/100})).filter(e=>e.total>0).sort((a,b)=>b.total-a.total);
 
+  // Tranche Oraux / Jurys HEIP (suivi factures)
+  if (_orxVisible()) {
+    const orxSum = _orxSum(_orxBetween(pieStart, pieEnd));
+    if (orxSum > 0) sorted.push({ name: '🎓 Oraux HEIP', total: orxSum, color: '#0ea5e9' });
+  }
   // Tranche locative si "tous les pôles"
   if (!_poleId) {
-    const rentalSum = Data.getRentalIncomes().reduce((s,r)=>s+_encAmt(r),0);
+    const rentalSum = Data.getRentalIncomes()
+      .filter(r => r.yearMonth >= pieYmStart && r.yearMonth <= pieYmEnd)
+      .reduce((s,r)=>s+_encAmt(r),0);
     if (rentalSum > 0) sorted.push({ name: '🏠 Location', total: Math.round(rentalSum*100)/100, color: '#10b981' });
   }
   _buildDoughnut(sorted, COLORS);

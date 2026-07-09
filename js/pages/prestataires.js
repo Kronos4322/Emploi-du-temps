@@ -3,6 +3,12 @@
 
 const _excluded = new Set(); // IDs prestataires exclus du récap
 let _provMonth = Utils.currentYearMonth(); // mois sélectionné pour les stats
+// Année scolaire en cours (rupture sept → août) pour les cumuls
+const _SY = (() => {
+  const n = new Date();
+  const y = n.getMonth() >= 8 ? n.getFullYear() : n.getFullYear() - 1;
+  return { start: `${y}-09-01`, end: `${y+1}-08-31`, label: `${y}-${y+1}` };
+})();
 function toggleProvider(id) { _excluded.has(id) ? _excluded.delete(id) : _excluded.add(id); render(); }
 function renderPage() { render(); }
 
@@ -119,7 +125,9 @@ function render() {
   const inclProvIds = new Set(providers.filter(p => !_excluded.has(p.id)).map(p => p.id));
   const _mProvIds = m => m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
   const inclMonth = allMissionsWithProv.filter(m => _mProvIds(m).some(pid => inclProvIds.has(pid)) && m.date && m.date.startsWith(cm));
-  const inclAll   = allMissionsWithProv.filter(m => _mProvIds(m).some(pid => inclProvIds.has(pid)));
+  // Cumul limité à l'année scolaire en cours (rupture sept → août)
+  const inclAll   = allMissionsWithProv.filter(m =>
+    _mProvIds(m).some(pid => inclProvIds.has(pid)) && m.date && m.date >= _SY.start && m.date <= _SY.end);
   // Pour les missions multi-prestataires : multiplier le coût par le nb de profs inclus
   // (providerRate = tarif individuel par intervenant)
   const _mCost = (m, filtPids) => {
@@ -148,7 +156,7 @@ function render() {
         </div>
       </div></div>
       <div class="kpi-card"><div class="kpi-content">
-        <div class="kpi-label" style="margin-bottom:4px">Total cumulé</div>
+        <div class="kpi-label" style="margin-bottom:4px">Année scolaire ${_SY.label}</div>
         <div style="display:flex;gap:16px;flex-wrap:wrap">
           <div><div class="kpi-value" style="font-size:1rem;color:var(--danger)">${Utils.formatMoney(totAllCost)}</div><div class="kpi-label">Charges (${totAllCount} interv. · ${Utils.formatDuration(totAllH)})</div></div>
           <div><div class="kpi-value" style="font-size:1rem;color:var(--success)">${Utils.formatMoney(totAllRev - totAllCost)}</div><div class="kpi-label">Marge brute</div></div>
@@ -249,7 +257,8 @@ function providerCard(provider, allMissions, allMissionsWithProv) {
     : directMissions;
   const done       = missions.filter(m => m.status === 'done');
   const planned    = missions.filter(m => m.status === 'planned');
-  const active     = missions;
+  // Cumuls de la carte limités à l'année scolaire en cours (rupture sept → août)
+  const active     = missions.filter(m => m.date && m.date >= _SY.start && m.date <= _SY.end);
   const cm         = _provMonth;
   const monthAll   = active.filter(m => m.date && m.date.startsWith(cm));
 
@@ -342,19 +351,19 @@ function providerCard(provider, allMissions, allMissionsWithProv) {
         </div>
         <div class="provider-stat">
           <div class="provider-stat-value">${Utils.formatDuration(totalH)}</div>
-          <div class="provider-stat-label">Total heures</div>
+          <div class="provider-stat-label">Heures ${_SY.label}</div>
         </div>
         <div class="provider-stat highlight">
           <div class="provider-stat-value">${Utils.formatMoney(totalCost)}</div>
-          <div class="provider-stat-label">Coût total</div>
+          <div class="provider-stat-label">Coût ${_SY.label}</div>
         </div>
         <div class="provider-stat">
           <div class="provider-stat-value">${Utils.formatMoney(totalRev)}</div>
-          <div class="provider-stat-label">CA total</div>
+          <div class="provider-stat-label">CA ${_SY.label}</div>
         </div>
         <div class="provider-stat">
           <div class="provider-stat-value" style="color:${totalMargin>=0?'var(--success)':'var(--danger)'}">${Utils.formatMoney(totalMargin)}</div>
-          <div class="provider-stat-label">Marge totale</div>
+          <div class="provider-stat-label">Marge ${_SY.label}</div>
         </div>
       </div>
       ${providerDossier(provider)}
