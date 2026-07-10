@@ -320,8 +320,8 @@ function render() {
   const totalCosts  = Math.round((_calcCosts(doneMissions) + _calcCosts(plannedMissions)) * 100) / 100;
   const hoursDone   = doneMissions.reduce((s,ms) => s + (ms.duration||0), 0);
   const hoursPlanned= plannedMissions.reduce((s,ms) => s + (ms.duration||0), 0);
-  // Intégration revenus locatifs pour "Tous les pôles"
-  const rentalIncomes = !_poleId ? Data.getRentalIncomesByMonth(_yearMonth) : [];
+  // Intégration revenus locatifs pour "Tous les pôles" (sans filtre école actif)
+  const rentalIncomes = (!_poleId && !_companyId) ? Data.getRentalIncomesByMonth(_yearMonth) : [];
   const rentalTotal   = rentalIncomes.reduce((s, r) => s + _encAmt(r), 0);
   // Oraux / Jurys HEIP du mois (source : Suivi factures)
   const orauxList  = _orxVisible() ? Data.getOrauxByMonth(_yearMonth) : [];
@@ -751,6 +751,22 @@ function renderAnnual() {
     </tr>`;
   }).filter(Boolean);
 
+  // Ligne "Sans école associée" — cohérence avec le rapport mensuel
+  const noSchoolMs = all.filter(m => !m.companyId || !coMap[m.companyId]);
+  if (noSchoolMs.length > 0) {
+    const nsH = noSchoolMs.reduce((s,m) => s + (m.duration||0), 0);
+    const nsR = noSchoolMs.reduce((s,m) => s + (m.duration||0)*(m.billingRate||0), 0);
+    totalCount += noSchoolMs.length; totalHours += nsH; totalRevenue += nsR;
+    rows.push(`<tr>
+      <td><span class="school-dot" style="background:#94a3b8"></span> <em style="color:var(--text-muted)">Sans école associée</em></td>
+      <td class="cell-money">—</td>
+      <td class="cell-center">${noSchoolMs.length}</td>
+      <td class="cell-center">${Utils.formatDuration(nsH)}</td>
+      <td class="cell-money">${Utils.formatMoney(nsR)}</td>
+      <td style="font-size:0.82rem;color:var(--text-muted)">—</td>
+    </tr>`);
+  }
+
   // Ligne Oraux / Jurys HEIP (suivi factures) — rattachés au pôle Astéria
   if (_orxVisible()) {
     const orxYear = _orxBetween(dateStart, dateEnd);
@@ -1046,10 +1062,13 @@ function renderProviderPartnership() {
   // Missions de l'année scolaire (réalisé + prévu), filtrées par pôle actif
   const yearM = Data.getMissions().filter(m =>
     m.date && m.date >= dateStart && m.date <= dateEnd &&
-    m.status !== 'cancelled' && m.missionType !== 'personal' && _matchesPole(m, coMap)
+    (m.status === 'done' || m.status === 'planned') && m.missionType !== 'personal' && _matchesPole(m, coMap)
   );
-  // CA total de l'année (base du pourcentage)
-  const totalCA = yearM.reduce((s,m) => s + (m.duration||0)*(m.billingRate||0), 0);
+  // Oraux HEIP de l'année (facturés en direct, sans prestataire)
+  const orxYearPP = _orxVisible() ? _orxSum(_orxBetween(dateStart, dateEnd)) : 0;
+  const orxCntPP  = _orxVisible() ? _orxBetween(dateStart, dateEnd).length : 0;
+  // CA total de l'année (base du pourcentage) — missions + oraux
+  const totalCA = yearM.reduce((s,m) => s + (m.duration||0)*(m.billingRate||0), 0) + orxYearPP;
 
   // Attribution UNIQUE : chaque mission est rattachée à un seul groupe.
   // EVOL si l'école travaille avec EVOL (ou mission directement taguée EVOL),
@@ -1076,6 +1095,12 @@ function renderProviderPartnership() {
     if (!groups[gkey]) groups[gkey] = { name: gname, n:0, h:0, rev:0 };
     groups[gkey].n++; groups[gkey].h+=h; groups[gkey].rev+=rev;
   });
+
+  // Ligne Oraux HEIP (CA direct, suivi factures)
+  if (orxYearPP > 0) {
+    groups['__oraux__'] = { name: '🎓 Oraux / Jurys HEIP (suivi factures)', n: orxCntPP, h: 0, rev: orxYearPP };
+    tN += orxCntPP; tR += orxYearPP;
+  }
 
   const rows = Object.values(groups).map(g => ({
     ...g, pct: totalCA > 0 ? (g.rev/totalCA*100) : 0
@@ -1224,10 +1249,10 @@ function renderChart() {
           Math.round(missions.filter(m => mKey(m) === lbl).reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0)*100)/100
         );
 
-        // Revenus locatifs par mois (si "tous les pôles")
+        // Revenus locatifs par mois (si "tous les pôles" et pas de filtre école)
         let rentalMonthly = labels.map(() => 0);
         let hasRental = false;
-        if (!_poleId) {
+        if (!_poleId && !_companyId) {
           const allRental = Data.getRentalIncomes();
           rentalMonthly = labels.map(lbl =>
             Math.round(allRental.filter(r => rKey(r) === lbl).reduce((s,r) => s+(r.actualAmount??r.amountEURairbnb??0), 0)*100)/100
