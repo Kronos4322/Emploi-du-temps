@@ -55,6 +55,7 @@
     html += section('Gestion');
     html += makeLink('factures.html', '🧾', 'Suivi factures');
     html += makeLink('finances.html', '📊', 'Finances');
+    html += makeLink('patrimoine.html', '💰', 'Patrimoine');
     html += section('Personnel interne');
     html += makeLink('personnel.html', '👥', 'Salaires & Charges');
     html += section('Revenus personnels');

@@ -67,7 +67,7 @@ const Data = {
   _mergeWithFirebase(fbData) {
     const ARRAY_KEYS = ['companies','missions','providers','students','formations',
       'subjects','subjectCategories','providerLinks','properties','rentalIncomes','internalStaff',
-      'invoices','oraux','propertyExpenses'];
+      'invoices','oraux','propertyExpenses','wealthEntities','wealthAssets'];
     // Firebase peut renvoyer un objet {clé:item} au lieu d'un tableau (tableaux creux)
     const _asArr = v => Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
     // Préserver les flags racine locaux (migrations one-shot, version, etc.)
@@ -1135,6 +1135,46 @@ const Data = {
   },
   deleteInternalStaff(id) {
     this._db.internalStaff=(this._db.internalStaff||[]).filter(s=>s.id!==id);
+    this._save();
+  },
+
+  // ── Patrimoine : entités (sociétés, SCI, perso) & actifs ─────
+  getWealthEntities() {
+    return [...(this._db.wealthEntities||[])].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  },
+  getWealthEntityById(id) {
+    return (this._db.wealthEntities||[]).find(e=>e.id===id)||null;
+  },
+  saveWealthEntity(ent) {
+    if (!this._db.wealthEntities) this._db.wealthEntities=[];
+    const idx=this._db.wealthEntities.findIndex(e=>e.id===ent.id);
+    if (idx>=0) { this._db.wealthEntities[idx]={...ent,updatedAt:Date.now()}; }
+    else { this._db.wealthEntities.push({...ent,id:ent.id||Utils.uuid(),createdAt:Date.now(),updatedAt:Date.now()}); }
+    this._save();
+  },
+  deleteWealthEntity(id) {
+    this._db.wealthEntities=(this._db.wealthEntities||[]).filter(e=>e.id!==id);
+    // Supprimer aussi les actifs rattachés
+    this._db.wealthAssets=(this._db.wealthAssets||[]).filter(a=>a.entityId!==id);
+    this._save();
+  },
+  getWealthAssets(entityId=null) {
+    const all=[...(this._db.wealthAssets||[])];
+    return (entityId ? all.filter(a=>a.entityId===entityId) : all)
+      .sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  },
+  getWealthAssetById(id) {
+    return (this._db.wealthAssets||[]).find(a=>a.id===id)||null;
+  },
+  saveWealthAsset(asset) {
+    if (!this._db.wealthAssets) this._db.wealthAssets=[];
+    const idx=this._db.wealthAssets.findIndex(a=>a.id===asset.id);
+    if (idx>=0) { this._db.wealthAssets[idx]={...asset,updatedAt:Date.now()}; }
+    else { this._db.wealthAssets.push({...asset,id:asset.id||Utils.uuid(),createdAt:Date.now(),updatedAt:Date.now()}); }
+    this._save();
+  },
+  deleteWealthAsset(id) {
+    this._db.wealthAssets=(this._db.wealthAssets||[]).filter(a=>a.id!==id);
     this._save();
   },
 

@@ -1,4 +1,4 @@
-const CACHE = 'edt-v202607091100';
+const CACHE = 'edt-v202607091200';
 const STATIC = [
   '/Emploi-du-temps/',
   '/Emploi-du-temps/index.html',
@@ -12,6 +12,7 @@ const STATIC = [
   '/Emploi-du-temps/matieres.html',
   '/Emploi-du-temps/parametres.html',
   '/Emploi-du-temps/personnel.html',
+  '/Emploi-du-temps/patrimoine.html',
   '/Emploi-du-temps/location.html',
   '/Emploi-du-temps/css/style.css'
 ];

@@ -2,7 +2,8 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Matières — Emploi du temps</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patrimoine — Emploi du temps</title>
   <link rel="stylesheet" href="css/style.css?v=202607091200">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#3b82f6">
@@ -17,19 +18,17 @@
   <div id="app-main">
     <main id="main-content">
       <div class="page-header">
-        <h1 class="page-title">Matières & Cours</h1>
-        <div class="page-actions">
-          <button class="btn btn-primary" id="btn-new-subject">+ Nouvelle matière</button>
-        </div>
+        <h1 class="page-title">💰 Gestion du patrimoine</h1>
+        <button class="btn btn-primary" id="btn-add-entity">+ Ajouter une entité</button>
       </div>
-      <div id="subjects-list"></div>
+      <div class="kpi-grid" id="wealth-kpis" style="margin-bottom:24px"></div>
+      <div id="entities-list"></div>
     </main>
   </div>
   <script src="js/utils.js?v=202607091200"></script>
   <script src="js/data.js?v=202607091200"></script>
   <script src="js/modals.js?v=202607091200"></script>
   <script src="js/nav.js?v=202607091200"></script>
-  <script src="js/pages/matieres.js?v=202607091200"></script>
+  <script src="js/pages/patrimoine.js?v=202607091200"></script>
 </body>
 </html>
-
