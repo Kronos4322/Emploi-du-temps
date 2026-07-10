@@ -1208,10 +1208,35 @@ function renderChart() {
   // Oraux HEIP par période (vides si les filtres actifs les excluent)
   const allOraux      = _orxVisible() ? (Data.getOraux()||[]).filter(o => o.date) : [];
   const orauxMonthly  = labels.map(lbl => _orxSum(allOraux.filter(o => oKey(o) === lbl)));
+  // Location par période (uniquement "tous les pôles" sans filtre école)
+  let rentalMonthly = labels.map(() => 0);
+  if (!_poleId && !_companyId) {
+    const allRental = Data.getRentalIncomes();
+    rentalMonthly = labels.map(lbl =>
+      Math.round(allRental.filter(r => rKey(r) === lbl).reduce((s,r) => s+_encAmt(r), 0)*100)/100);
+  }
 
   let missions = allMissions.filter(m => _matchesPole(m, coMap));
   if (_companyId && _companyId !== '__none__') missions = missions.filter(m => m.companyId === _companyId);
   const noSchools = _companyId === '__none__';
+
+  // ── Détail par barre pour le tooltip : école par école + oraux + location ──
+  const _barDetail = {};
+  labels.forEach((lbl, i) => {
+    const byCo = {};
+    missions.filter(m => mKey(m) === lbl).forEach(m => {
+      const co = coMap[m.companyId];
+      const name = co ? co.name : 'Sans école';
+      byCo[name] = (byCo[name] || 0) + (m.duration||0)*(m.billingRate||0);
+    });
+    const rows = Object.entries(byCo)
+      .map(([n, v]) => [n, Math.round(v*100)/100])
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1]);
+    if (orauxMonthly[i]  > 0) rows.push(['🎓 Oraux HEIP', orauxMonthly[i]]);
+    if (rentalMonthly[i] > 0) rows.push(['🏠 Location', rentalMonthly[i]]);
+    _barDetail[lbl] = rows;
+  });
 
   const COLORS = ['#3b82f6','#f97316','#10b981','#8b5cf6','#ef4444','#06b6d4','#f59e0b','#84cc16'];
   let datasets = [];
@@ -1249,16 +1274,8 @@ function renderChart() {
           Math.round(missions.filter(m => mKey(m) === lbl).reduce((s,m) => s+(m.duration||0)*(m.billingRate||0), 0)*100)/100
         );
 
-        // Revenus locatifs par mois (si "tous les pôles" et pas de filtre école)
-        let rentalMonthly = labels.map(() => 0);
-        let hasRental = false;
-        if (!_poleId && !_companyId) {
-          const allRental = Data.getRentalIncomes();
-          rentalMonthly = labels.map(lbl =>
-            Math.round(allRental.filter(r => rKey(r) === lbl).reduce((s,r) => s+(r.actualAmount??r.amountEURairbnb??0), 0)*100)/100
-          );
-          hasRental = rentalMonthly.some(v => v > 0);
-        }
+        // Revenus locatifs par mois (déjà calculés plus haut, filtres inclus)
+        const hasRental = rentalMonthly.some(v => v > 0);
 
         // Barres = missions + oraux HEIP + location (accumulé)
         const totalMonthlyRev = labels.map((_, i) => Math.round((missionMonthlyRev[i] + orauxMonthly[i] + rentalMonthly[i]) * 100) / 100);
@@ -1345,7 +1362,24 @@ function renderChart() {
     data: { labels: readableLabels, datasets },
     options: {
       responsive: true,
-      plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${Utils.formatMoney(c.parsed.y)}` } } },
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: {
+          callbacks: {
+            label: c => `${c.dataset.label}: ${Utils.formatMoney(c.parsed.y)}`,
+            // Décompte précis de la barre : chaque école, oraux HEIP, location
+            afterBody: items => {
+              const it = items && items[0];
+              if (!it || (it.dataset.label || '').startsWith('Moy.')) return '';
+              const rows = _barDetail[labels[it.dataIndex]] || [];
+              if (rows.length === 0) return '';
+              const lines = ['', '─── Détail ───'];
+              rows.forEach(([n, v]) => lines.push(`${n} : ${Utils.formatMoney(v)}`));
+              return lines;
+            }
+          }
+        }
+      },
       scales: { y: { ticks: { callback: v => Utils.formatMoney(v) }, beginAtZero: true } }
     }
   });
