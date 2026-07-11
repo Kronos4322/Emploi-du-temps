@@ -540,6 +540,31 @@ window._showPlanningExport = function() {
         </select>
       </div>
 
+      <div class="form-grid">
+        <div class="form-group form-col-2">
+          <label>École / société (optionnel)</label>
+          <select id="planning-school-sel" class="form-input">
+            <option value="">Toutes les écoles</option>
+            ${Data.getClientSchools().slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(c =>
+              `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group form-col-2">
+          <label>Matière (optionnel)</label>
+          <select id="planning-subject-sel" class="form-input">
+            <option value="">Toutes les matières</option>
+            ${(() => {
+              const subj = (Data.getSubjects()||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','fr'));
+              const eco  = subj.filter(s => s.category !== 'particuliers');
+              const part = subj.filter(s => s.category === 'particuliers');
+              const opt  = s => `<option value="${s.id}">${Utils.escapeHtml((s.name||'').toUpperCase())}</option>`;
+              return (eco.length  ? `<optgroup label="🏫 Cours écoles">${eco.map(opt).join('')}</optgroup>`  : '')
+                   + (part.length ? `<optgroup label="👤 Cours particuliers">${part.map(opt).join('')}</optgroup>` : '');
+            })()}
+          </select>
+        </div>
+      </div>
+
       <div class="form-group">
         <label style="margin-bottom:8px;display:block">Prestataire(s) — laisser vide pour tous</label>
         <div style="border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;gap:6px">
@@ -599,6 +624,8 @@ window._generatePlanning = function() {
   const monthFrom     = isRange ? (document.getElementById('planning-from-sel')?.value || '') : (document.getElementById('planning-month-sel')?.value || '');
   const monthTo       = isRange ? (document.getElementById('planning-to-sel')?.value   || '') : monthFrom;
   const poleId        = document.getElementById('planning-pole-sel')?.value || '';
+  const schoolId      = document.getElementById('planning-school-sel')?.value || '';
+  const subjectId     = document.getElementById('planning-subject-sel')?.value || '';
   const inclCancelled = document.getElementById('planning-cancelled')?.checked || false;
   const showAmounts   = document.getElementById('planning-show-amounts')?.checked !== false;
 
@@ -635,6 +662,8 @@ window._generatePlanning = function() {
     const co = coMap[m.companyId]; if (!co) return false;
     return co.role === 'own' ? co.id === poleId : co.poleId === poleId;
   });
+  if (schoolId)  missions = missions.filter(m => m.companyId === schoolId);
+  if (subjectId) missions = missions.filter(m => m.subjectId === subjectId);
   if (provFilter !== null) {
     missions = missions.filter(m => {
       const pids = m.providerIds?.length ? m.providerIds : (m.providerId ? [m.providerId] : []);
@@ -648,6 +677,9 @@ window._generatePlanning = function() {
   const settings  = Data.getSettings();
   const respName  = settings.responsableName || ownCos.map(c=>c.name).join(' & ');
   const poleLabel = poleId ? (coMap[poleId]?.name||'') : ownCos.map(c=>c.name).join(' & ');
+  const schoolName  = schoolId  ? (coMap[schoolId]?.name || '') : '';
+  const subjectName = subjectId ? ((Data.getSubjects()||[]).find(s => s.id === subjectId)?.name || '') : '';
+  const filterLabel = [schoolName, subjectName].filter(Boolean).join(' · ');
 
   const statusBadge = s => s==='done' ? '✓' : s==='cancelled' ? '✗' : '';
   const statusColor = s => s==='done' ? '#22c55e' : s==='cancelled' ? '#ef4444' : '#3b82f6';
@@ -791,14 +823,14 @@ window._generatePlanning = function() {
 <body>
 
   <div class="no-print" style="background:#3b82f6;color:#fff;padding:10px 18px;border-radius:8px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between">
-    <span>📄 <strong>${monthName}</strong>${poleId?' — '+poleLabel:''} — Prêt à imprimer</span>
+    <span>📄 <strong>${monthName}</strong>${poleId?' — '+poleLabel:''}${filterLabel?' — '+filterLabel:''} — Prêt à imprimer</span>
     <button onclick="window.print()" style="background:#fff;color:#3b82f6;border:none;border-radius:6px;padding:6px 16px;font-weight:700;cursor:pointer;font-size:0.9rem">🖨 Imprimer / Sauvegarder PDF</button>
   </div>
 
   <div class="doc-header">
     <div>
       <div class="doc-title">${isAll ? 'Emploi du temps' : isRange ? 'Planning' : 'Planning mensuel'}</div>
-      <div class="doc-month">${monthName}${poleId ? ' — '+poleLabel : ''}</div>
+      <div class="doc-month">${monthName}${poleId ? ' — '+poleLabel : ''}${filterLabel ? ' — '+filterLabel : ''}</div>
     </div>
     <div class="doc-meta">
       ${respName}<br>
