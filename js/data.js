@@ -11,6 +11,20 @@ let _fbLastTs   = 0;   // timestamp de la dernière donnée connue
 let _fbWriting  = false; // on est en train d'écrire → ignorer le poll
 let _fbPending  = false; // un push supplémentaire est en attente (évite les écritures concurrentes)
 
+// Verrou anti-écrasement : tant que le premier chargement Firebase n'a pas été
+// tenté (succès, échec ou timeout), on interdit tout push. Sans ce verrou, une
+// sauvegarde déclenchée dans les toutes premières secondes (avant que les
+// données distantes n'aient pu être fusionnées localement) écrase Firebase
+// avec un état local incomplet — et efface potentiellement des données réelles.
+let _fbReady = false;
+let _fbReadyResolve;
+let _fbReadyPromise = new Promise(res => { _fbReadyResolve = res; });
+function _markFbReady() {
+  if (_fbReady) return;
+  _fbReady = true;
+  _fbReadyResolve();
+}
+
 function _reRenderPage() {
   try {
     // I2 — Toujours rafraîchir la sidebar (pôles chargés depuis Firebase)
@@ -48,6 +62,10 @@ const Data = {
     this._applyModelDefaults();
     // 3. Synchronisation Firebase
     this._loadFromFirebase();
+    // Filet de sécurité : si Firebase ne répond pas (hors-ligne, lenteur réseau),
+    // ne pas bloquer indéfiniment les sauvegardes locales — au bout de 8s on
+    // autorise les push même sans confirmation de la première synchronisation.
+    setTimeout(_markFbReady, 8000);
     // 3. Polling avec backoff exponentiel (3s → 6s → 12s → … max 60s, reset sur succès)
     let _pollDelay = 3000;
     const _schedulePoll = () => {
@@ -67,7 +85,7 @@ const Data = {
   _mergeWithFirebase(fbData) {
     const ARRAY_KEYS = ['companies','missions','providers','students','formations',
       'subjects','subjectCategories','providerLinks','properties','rentalIncomes','internalStaff',
-      'invoices','oraux','propertyExpenses','wealthEntities','wealthAssets'];
+      'invoices','oraux','oralTypes','propertyExpenses','wealthEntities','wealthAssets'];
     // Firebase peut renvoyer un objet {clé:item} au lieu d'un tableau (tableaux creux)
     const _asArr = v => Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
     // Préserver les flags racine locaux (migrations one-shot, version, etc.)
@@ -102,6 +120,7 @@ const Data = {
       if (!res.ok) {
         console.warn('Firebase _loadFromFirebase : réponse', res.status);
         if (typeof _showSyncError === 'function') _showSyncError();
+        _markFbReady();
         return;
       }
       const fbData = await res.json();
@@ -110,6 +129,7 @@ const Data = {
         const hasLocal = (this._db.companies||[]).length + (this._db.missions||[]).length +
           (this._db.providers||[]).length + (this._db.students||[]).length +
           (this._db.formations||[]).length > 0;
+        _markFbReady();
         if (hasLocal) this._pushToFirebase();
         return;
       }
@@ -129,9 +149,11 @@ const Data = {
       localStorage.setItem(DB_KEY, JSON.stringify(this._db));
       localStorage.setItem('_edt_ts', String(ts2));
       _reRenderPage();
+      _markFbReady();
       if (needsMigration || canonChanged || localTs > _fbLastTs) this._pushToFirebase();
     } catch(e) {
       console.warn('Firebase non disponible, données locales utilisées.', e);
+      _markFbReady();
     }
   },
 
@@ -140,6 +162,9 @@ const Data = {
   // si un push est déjà en cours, on mémorise qu'un autre est en attente
   // et on le relance à la fin du premier.
   async _pushToFirebase() {
+    // Ne jamais écraser Firebase avant d'avoir au moins tenté de charger et
+    // fusionner son contenu — voir _markFbReady() plus haut.
+    if (!_fbReady) await _fbReadyPromise;
     if (_fbWriting) { _fbPending = true; return; }
     _fbWriting = true;
     _fbPending = false;
@@ -248,6 +273,18 @@ const Data = {
     if (!this._db.rentalIncomes) this._db.rentalIncomes = [];
     if (!this._db.internalStaff) this._db.internalStaff = [];
     if (!this._db.invoices)      this._db.invoices = [];
+    if (!this._db.oraux)         this._db.oraux = [];
+    if (!this._db.oralTypes)     this._db.oralTypes = [];
+
+    // Migration one-shot : types d'oraux personnalisables (remplace le "HEIP" figé)
+    if (!this._db._oralTypesSeeded1) {
+      if (!this._db.oralTypes.length) {
+        this._db.oralTypes = [{ id: 'heip', label: 'HEIP', createdAt: Date.now(), updatedAt: Date.now() }];
+      }
+      const defaultTypeId = this._db.oralTypes[0].id;
+      this._db.oraux = this._db.oraux.map(o => o.typeId ? o : { ...o, typeId: defaultTypeId });
+      this._db._oralTypesSeeded1 = true;
+    }
 
     // Garantir le champ role sur chaque société
     this._db.companies = this._db.companies.map(c => {
@@ -1295,6 +1332,33 @@ const Data = {
   deleteOral(id) {
     this._db.oraux = (this._db.oraux||[]).filter(o => o.id !== id);
     this._save();
+  },
+
+  // ── Types d'oraux (HEIP, B3, …) ──────────────────────────────
+
+  getOralTypes() {
+    // Filet de sécurité : garantit au moins un type même si _migrate() n'a pas encore
+    // tourné (ex. tout premier chargement, avant la fusion Firebase asynchrone).
+    if (!this._db.oralTypes || !this._db.oralTypes.length) {
+      const defaultType = { id: 'heip', label: 'HEIP', createdAt: Date.now(), updatedAt: Date.now() };
+      this._db.oralTypes = [defaultType];
+      this._db.oraux = (this._db.oraux||[]).map(o => o.typeId ? o : { ...o, typeId: defaultType.id });
+    }
+    return [...this._db.oralTypes];
+  },
+  saveOralType(type) {
+    if (!this._db.oralTypes) this._db.oralTypes = [];
+    const idx = this._db.oralTypes.findIndex(t => t.id === type.id);
+    if (idx >= 0) this._db.oralTypes[idx] = { ...type, updatedAt: Date.now() };
+    else this._db.oralTypes.push({ ...type, createdAt: Date.now(), updatedAt: Date.now() });
+    this._save();
+  },
+  deleteOralType(id) {
+    if ((this._db.oralTypes||[]).length <= 1) return { error: 'Impossible de supprimer le dernier type d\'oraux.' };
+    if ((this._db.oraux||[]).some(o => o.typeId === id)) return { error: 'Ce type est utilisé par des sessions existantes.' };
+    this._db.oralTypes = (this._db.oralTypes||[]).filter(t => t.id !== id);
+    this._save();
+    return { ok: true };
   },
 
   // ── Statistiques financières ─────────────────────────────────

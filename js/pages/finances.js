@@ -261,7 +261,7 @@ function _mkSchoolRow(cid, d, companies, displayedRevenue) {
   const name = cid === '__no_school__'
     ? '<em style="color:var(--text-muted)">Sans école associée</em>'
     : isOraux
-      ? `🎓 Oraux / Jurys HEIP <span style="font-size:0.75rem;color:var(--text-muted)">(suivi factures)</span>`
+      ? `🎓 Oraux / Jurys <span style="font-size:0.75rem;color:var(--text-muted)">(suivi factures)</span>`
       : Utils.escapeHtml(co?.name || '—');
   const countCell = isOraux
     ? `${d.done} <span style="color:var(--text-muted);font-size:0.8rem">oraux</span>`
@@ -777,7 +777,7 @@ function renderAnnual() {
       if (orxPole) poleRevs[orxPole] = (poleRevs[orxPole] || 0) + orxSum;
       const viaName = orxPole ? (coMap[orxPole]?.name || '—') : '—';
       rows.push(`<tr style="background:#f0f9ff">
-        <td><span class="school-dot" style="background:#0ea5e9"></span> 🎓 Oraux / Jurys HEIP <span style="font-size:0.75rem;color:var(--text-muted)">(suivi factures)</span></td>
+        <td><span class="school-dot" style="background:#0ea5e9"></span> 🎓 Oraux / Jurys <span style="font-size:0.75rem;color:var(--text-muted)">(suivi factures)</span></td>
         <td class="cell-money">—</td>
         <td class="cell-center">${orxYear.length} session${orxYear.length>1?'s':''}</td>
         <td class="cell-center">${_orxCount(orxYear)} oraux</td>
@@ -926,7 +926,7 @@ function renderAnnualComparison() {
       totA.revenue += orxA; totB.revenue += orxB;
       const dO = orxB - orxA;
       tbody.innerHTML += `<tr style="background:#f0f9ff">
-        <td><span class="school-dot" style="background:#0ea5e9"></span> 🎓 Oraux / Jurys HEIP</td>
+        <td><span class="school-dot" style="background:#0ea5e9"></span> 🎓 Oraux / Jurys</td>
         <td class="cell-center">—</td><td class="cell-center">—</td>
         <td class="cell-money">${orxA>0?Utils.formatMoney(orxA):'—'}</td>
         <td class="cell-center">—</td><td class="cell-center">—</td>
@@ -1096,9 +1096,9 @@ function renderProviderPartnership() {
     groups[gkey].n++; groups[gkey].h+=h; groups[gkey].rev+=rev;
   });
 
-  // Ligne Oraux HEIP (CA direct, suivi factures)
+  // Ligne Oraux (CA direct, suivi factures)
   if (orxYearPP > 0) {
-    groups['__oraux__'] = { name: '🎓 Oraux / Jurys HEIP (suivi factures)', n: orxCntPP, h: 0, rev: orxYearPP };
+    groups['__oraux__'] = { name: '🎓 Oraux / Jurys (suivi factures)', n: orxCntPP, h: 0, rev: orxYearPP };
     tN += orxCntPP; tR += orxYearPP;
   }
 
@@ -1233,7 +1233,7 @@ function renderChart() {
       .map(([n, v]) => [n, Math.round(v*100)/100])
       .filter(([, v]) => v > 0)
       .sort((a, b) => b[1] - a[1]);
-    if (orauxMonthly[i]  > 0) rows.push(['🎓 Oraux HEIP', orauxMonthly[i]]);
+    if (orauxMonthly[i]  > 0) rows.push(['🎓 Oraux', orauxMonthly[i]]);
     if (rentalMonthly[i] > 0) rows.push(['🏠 Location', rentalMonthly[i]]);
     _barDetail[lbl] = rows;
   });
@@ -1330,7 +1330,7 @@ function renderChart() {
         datasets.push({ label: co.name, data, backgroundColor: (co.color||COLORS[i%COLORS.length])+'99', borderColor: co.color||COLORS[i%COLORS.length], borderWidth: 2, fill: false });
       });
       if (orauxMonthly.some(v => v > 0)) {
-        datasets.push({ label: '🎓 Oraux HEIP', data: orauxMonthly, backgroundColor: '#0ea5e999', borderColor: '#0ea5e9', borderWidth: 2, fill: false });
+        datasets.push({ label: '🎓 Oraux', data: orauxMonthly, backgroundColor: '#0ea5e999', borderColor: '#0ea5e9', borderWidth: 2, fill: false });
       }
     } else {
       const pole = ownCos.find(p => p.id === split);
@@ -1488,10 +1488,10 @@ function renderPieChart() {
   });
   const sorted = Object.values(bySchool).map(e=>({...e,total:Math.round(e.total*100)/100})).filter(e=>e.total>0).sort((a,b)=>b.total-a.total);
 
-  // Tranche Oraux / Jurys HEIP (suivi factures)
+  // Tranche Oraux / Jurys (suivi factures)
   if (_orxVisible()) {
     const orxSum = _orxSum(_orxBetween(pieStart, pieEnd));
-    if (orxSum > 0) sorted.push({ name: '🎓 Oraux HEIP', total: orxSum, color: '#0ea5e9' });
+    if (orxSum > 0) sorted.push({ name: '🎓 Oraux', total: orxSum, color: '#0ea5e9' });
   }
   // Tranche locative si "tous les pôles"
   if (!_poleId) {

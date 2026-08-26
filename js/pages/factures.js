@@ -4,6 +4,7 @@
 let _yearMonth   = Utils.currentYearMonth();
 let _poleId      = '';   // '' = tous, sinon id du pôle
 let _view        = 'factures'; // 'factures' | 'oraux'
+let _oralTypeId  = '';   // '' = tous les types d'oraux, sinon id du type
 
 const PAY_BADGE = {
   paid:   '<span class="status-badge-paid">✓ Payé</span>',
@@ -16,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
   _buildPoleTabs();
   render();
 
-  // Onglets de vue (Factures / Oraux HEIP)
+  // Onglets de vue (Factures / Oraux)
   document.querySelectorAll('.view-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       _view = btn.dataset.view;
@@ -29,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('btn-new-oral').style.display = _view === 'oraux' ? '' : 'none';
       document.getElementById('btn-invoice-oraux-month').style.display = _view === 'oraux' ? '' : 'none';
       document.getElementById('pole-tabs').style.display = _view === 'factures' ? '' : 'none';
+      document.getElementById('oral-type-tabs').style.display = _view === 'oraux' ? '' : 'none';
       render();
     });
   });
@@ -48,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('section-unpaid').style.display = 'none';
   });
 
-  // Oraux HEIP
+  // Oraux
   document.getElementById('btn-new-oral').addEventListener('click', () => _openOralModal(null));
   document.getElementById('oral-cancel').addEventListener('click', _closeOralModal);
   document.getElementById('oral-modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) _closeOralModal(); });
@@ -538,12 +540,41 @@ function _saveInvoice() {
   render();
 }
 
-// ── Oraux HEIP ────────────────────────────────────────────────────────────────
+// ── Oraux ────────────────────────────────────────────────────────────────────
+
+function _buildOralTypeTabs() {
+  const tabs = document.getElementById('oral-type-tabs');
+  if (!tabs) return;
+  const types = Data.getOralTypes();
+  // Si le type sélectionné a été supprimé entre-temps, revenir sur "Tous"
+  if (_oralTypeId && !types.some(t => t.id === _oralTypeId)) _oralTypeId = '';
+
+  tabs.innerHTML =
+    `<button class="pole-tab ${_oralTypeId===''?'active':''}" data-oral-type="">Tous</button>` +
+    types.map(t => `<button class="pole-tab ${_oralTypeId===t.id?'active':''}" data-oral-type="${t.id}">🎓 ${Utils.escapeHtml(t.label)}</button>`).join('') +
+    `<button class="pole-tab" data-oral-type="__manage__" style="border-style:dashed">⚙ Gérer les types</button>`;
+
+  tabs.querySelectorAll('.pole-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.oralType === '__manage__') { _openOralTypesModal(); return; }
+      _oralTypeId = btn.dataset.oralType;
+      renderOraux();
+    });
+  });
+}
+
+function _oralTypeLabel(typeId) {
+  return Data.getOralTypes().find(t => t.id === typeId)?.label || '—';
+}
 
 function renderOraux() {
-  const oraux = Data.getOrauxByMonth(_yearMonth);
+  _buildOralTypeTabs();
+
+  const monthOraux = Data.getOrauxByMonth(_yearMonth);
+  const oraux = _oralTypeId ? monthOraux.filter(o => o.typeId === _oralTypeId) : monthOraux;
   const [y, m] = _yearMonth.split('-');
   const monthLabel = `${Utils.MONTHS_LONG[+m-1]} ${y}`;
+  const scopeLabel = _oralTypeId ? `Oraux ${_oralTypeLabel(_oralTypeId)}` : 'Oraux';
 
   const totalOraux = oraux.reduce((s, o) => s + (o.count || 0), 0);
   const totalMoney = oraux.reduce((s, o) => s + (o.total || 0), 0);
@@ -554,7 +585,7 @@ function renderOraux() {
       <div class="kpi-icon kpi-green">🎓</div>
       <div class="kpi-content">
         <div class="kpi-value">${totalOraux}</div>
-        <div class="kpi-label">Oraux — ${monthLabel}</div>
+        <div class="kpi-label">${Utils.escapeHtml(scopeLabel)} — ${monthLabel}</div>
       </div>
     </div>
     <div class="kpi-card kpi-large kpi-positive">
@@ -569,7 +600,7 @@ function renderOraux() {
   const tfoot = document.getElementById('oraux-tfoot');
 
   if (oraux.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-state-cell">Aucune session ce mois.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state-cell">Aucune session ce mois.</td></tr>';
     tfoot.innerHTML = '';
     return;
   }
@@ -581,13 +612,14 @@ function renderOraux() {
       : `<span class="status-badge-unpaid" style="cursor:pointer" onclick="_toggleOralInvoiceSent('${o.id}')" title="Cliquer pour marquer envoyée">✗ Non envoyée</span>`;
     return `<tr>
       <td>${Utils.formatDate(o.date) || '—'}</td>
+      <td><span class="school-dot" style="background:#0ea5e9"></span>${Utils.escapeHtml(_oralTypeLabel(o.typeId))}</td>
       <td class="cell-money"><strong>${o.count || 0}</strong></td>
       <td class="cell-money">${Utils.formatMoney(o.unitPrice || 0)}</td>
       <td class="cell-money"><strong>${Utils.formatMoney(o.total || 0)}</strong></td>
       <td>${sentBadge}</td>
       <td>
         <div class="inv-actions">
-          <button onclick="_generateOralInvoice('${o.id}')" title="Générer la facture HEIP">📄 Facture</button>
+          <button onclick="_generateOralInvoice('${o.id}')" title="Générer la facture">📄 Facture</button>
           <button onclick="_openOralModal('${o.id}')">Modifier</button>
           <button class="danger" onclick="_deleteOral('${o.id}')">🗑</button>
         </div>
@@ -599,6 +631,7 @@ function renderOraux() {
   const unsentCount = oraux.length - sentCount;
   tfoot.innerHTML = `<tr class="total-row" style="border-top:2px solid var(--primary)">
     <td><strong>TOTAL</strong></td>
+    <td></td>
     <td class="cell-money"><strong>${totalOraux} oraux</strong></td>
     <td></td>
     <td class="cell-money"><strong>${Utils.formatMoney(totalMoney)}</strong></td>
@@ -610,6 +643,62 @@ function renderOraux() {
   </tr>`;
 }
 
+// ── Gestion des types d'oraux (ajout / renommage / suppression) ──────────────
+
+function _openOralTypesModal() {
+  const renderModal = () => {
+    const types = Data.getOralTypes();
+    Modals._open(`
+      <div class="modal-header"><h3>🎓 Gérer les types d'oraux</h3><button class="modal-close" onclick="Modals.close()">✕</button></div>
+      <div class="modal-body" style="padding:20px;display:flex;flex-direction:column;gap:10px">
+        ${types.map(t => `
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" class="form-input" data-oral-type-input="${t.id}" value="${Utils.escapeHtml(t.label)}" style="flex:1">
+            <button class="btn btn-ghost btn-sm" onclick="_saveOralTypeLabel('${t.id}')" title="Enregistrer">💾</button>
+            <button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="_deleteOralType('${t.id}')" title="Supprimer">🗑</button>
+          </div>`).join('')}
+        <div style="display:flex;gap:8px;align-items:center;margin-top:4px;border-top:1px solid var(--border);padding-top:12px">
+          <input type="text" id="new-oral-type-label" class="form-input" placeholder="Nouveau type — ex. B3" style="flex:1">
+          <button class="btn btn-primary btn-sm" onclick="_addOralType()">+ Ajouter</button>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="btn btn-ghost" onclick="Modals.close()">Fermer</button></div>
+    `);
+  };
+
+  window._saveOralTypeLabel = function(id) {
+    const input = document.querySelector(`input[data-oral-type-input="${id}"]`);
+    const label = input?.value.trim();
+    if (!label) { Utils.toast('Le nom du type est obligatoire.', 'error'); return; }
+    const t = Data.getOralTypes().find(x => x.id === id);
+    if (!t) return;
+    Data.saveOralType({ ...t, label });
+    Utils.toast('Type renommé.', 'success');
+    renderOraux();
+    renderModal();
+  };
+
+  window._deleteOralType = function(id) {
+    const result = Data.deleteOralType(id);
+    if (result?.error) { Utils.toast(result.error, 'error'); return; }
+    Utils.toast('Type supprimé.', 'success');
+    renderOraux();
+    renderModal();
+  };
+
+  window._addOralType = function() {
+    const input = document.getElementById('new-oral-type-label');
+    const label = input?.value.trim();
+    if (!label) { Utils.toast('Le nom du type est obligatoire.', 'error'); return; }
+    Data.saveOralType({ id: Utils.uuid(), label });
+    Utils.toast('Type ajouté.', 'success');
+    renderOraux();
+    renderModal();
+  };
+
+  renderModal();
+}
+
 function _updateOralPreview() {
   const count = parseFloat(document.getElementById('oral-count').value) || 0;
   const price = parseFloat(document.getElementById('oral-price').value) || 0;
@@ -618,8 +707,13 @@ function _updateOralPreview() {
 
 window._openOralModal = function(id) {
   const o = id ? Data.getOraux().find(x => x.id === id) : null;
+  const types = Data.getOralTypes();
   document.getElementById('oral-modal-title').textContent = o ? 'Modifier la session' : 'Nouvelle session d\'oraux';
   document.getElementById('oral-id').value    = o?.id || '';
+  const typeSel = document.getElementById('oral-type');
+  typeSel.innerHTML = types.map(t => `<option value="${t.id}">${Utils.escapeHtml(t.label)}</option>`).join('');
+  const defaultTypeId = types.some(t => t.id === _oralTypeId) ? _oralTypeId : (types[0]?.id || '');
+  typeSel.value = o?.typeId || defaultTypeId;
   document.getElementById('oral-date').value  = o?.date || _yearMonth + '-01';
   document.getElementById('oral-count').value = o?.count ?? '';
   document.getElementById('oral-price').value = o?.unitPrice ?? '';
@@ -634,14 +728,17 @@ function _closeOralModal() {
 
 function _saveOral() {
   const date     = document.getElementById('oral-date').value;
+  const typeId   = document.getElementById('oral-type').value;
   const count    = parseInt(document.getElementById('oral-count').value) || 0;
   const unitPrice = parseFloat(document.getElementById('oral-price').value) || 0;
 
   if (!date)  { alert('La date est obligatoire.'); return; }
+  if (!typeId) { alert('Le type d\'oraux est obligatoire.'); return; }
   if (count <= 0) { alert('Le nombre d\'oraux doit être supérieur à 0.'); return; }
 
   const oral = {
     id:        document.getElementById('oral-id').value || Utils.uuid(),
+    typeId,
     date,
     yearMonth: date.slice(0, 7),
     count,
@@ -668,7 +765,7 @@ window._toggleOralInvoiceSent = function(id) {
 
 const _ORAL_MONTHS_SH = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
 
-// Cœur commun : génère une facture HEIP (Astéria → HEIP) pour une liste de sessions
+// Cœur commun : génère une facture (Astéria → HEIP) pour une liste de sessions d'oraux, tous types confondus
 function _buildOralInvoice(oraux, monthName) {
   if (typeof window._buildInvoiceDocument !== 'function') { Utils.toast('Générateur de facture indisponible.', 'error'); return false; }
   if (!oraux.length) { Utils.toast('Aucune session d\'oraux à facturer.', 'info'); return false; }
@@ -693,7 +790,7 @@ function _buildOralInvoice(oraux, monthName) {
     return `<tr>
       <td class="col-date">${dateLabel}</td>
       <td class="col-qty">${o.count||0}</td>
-      <td class="col-desc">Oraux HEIP <span class="school-name">— session du ${Utils.formatDate(o.date)||''}</span></td>
+      <td class="col-desc">Oraux ${Utils.escapeHtml(_oralTypeLabel(o.typeId))} <span class="school-name">— session du ${Utils.formatDate(o.date)||''}</span></td>
       <td class="col-pu">${puStr} €</td>
       <td class="col-tot">${Utils.formatMoney(o.total||0)}</td>
     </tr>`;
@@ -732,11 +829,12 @@ window._generateOralInvoice = function(id) {
   _buildOralInvoice([o], monthName);
 };
 
-// Sessions d'oraux dans une plage de dates [from, to]
+// Sessions d'oraux dans une plage de dates [from, to] — respecte le type d'oraux
+// actuellement sélectionné dans les onglets (aucun filtre si "Tous")
 function _orauxInRange(from, to) {
   if (!from || !to) return [];
   const lo = from <= to ? from : to, hi = from <= to ? to : from;
-  return Data.getOraux().filter(o => o.date && o.date >= lo && o.date <= hi);
+  return Data.getOraux().filter(o => o.date && o.date >= lo && o.date <= hi && (!_oralTypeId || o.typeId === _oralTypeId));
 }
 
 // Libellé de période : "Juin 2026" si même mois, sinon "01/05 – 30/06/2026"
@@ -754,8 +852,9 @@ window._openOralInvoiceRangeModal = function() {
   const lastDay = new Date(+y, +m, 0).getDate();
   const from = `${y}-${m}-01`;
   const to   = `${y}-${m}-${String(lastDay).padStart(2,'0')}`;
+  const titleSuffix = _oralTypeId ? ' ' + Utils.escapeHtml(_oralTypeLabel(_oralTypeId)) : '';
   Modals._open(`
-    <div class="modal-header"><h3>📄 Facturer les oraux HEIP</h3><button class="modal-close" onclick="Modals.close()">✕</button></div>
+    <div class="modal-header"><h3>📄 Facturer les oraux${titleSuffix}</h3><button class="modal-close" onclick="Modals.close()">✕</button></div>
     <div class="modal-body" style="padding:20px;display:flex;flex-direction:column;gap:14px">
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button type="button" class="btn btn-ghost btn-sm" onclick="_oralRangePreset('month')">Ce mois</button>
@@ -786,7 +885,7 @@ window._oralRangePreset = function(kind) {
     fromEl.value = `${sy}-09-01`;
     toEl.value   = `${sy+1}-08-31`;
   } else if (kind === 'all') {
-    const dates = Data.getOraux().map(o => o.date).filter(Boolean).sort();
+    const dates = Data.getOraux().filter(o => !_oralTypeId || o.typeId === _oralTypeId).map(o => o.date).filter(Boolean).sort();
     fromEl.value = dates[0] || `${_yearMonth}-01`;
     toEl.value   = dates[dates.length-1] || `${_yearMonth}-28`;
   }
